@@ -18,6 +18,3 @@ __pycache__/
 .git/
 ai-seguimiento-acciones/
 TorreAdmin_PRD.docx
-
-# Stale directories
-/app/
