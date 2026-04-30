@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(python -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(pip list *)",
+      "Bash(pip install *)",
+      "Bash(npx tsc *)",
+      "Bash(python -c \"import fastapi, uvicorn, pydantic; print\\('Core backend imports OK'\\)\")",
+      "Bash(python *)",
+      "Bash(sed -n '50,75p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/mantenimiento/page.tsx)",
+      "Bash(sed -n '30,55p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/paquetes/page.tsx)",
+      "Bash(sed -n '35,60p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/reportes/page.tsx)"
+    ]
+  }
+}
