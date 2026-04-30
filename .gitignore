@@ -31,4 +31,4 @@ Thumbs.db
 *.log
 
 # Stale directories (not part of the build)
-/app/
+# /app/  ← removed: app/ contains the Next.js frontend and must be tracked
