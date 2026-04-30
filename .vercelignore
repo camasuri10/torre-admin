@@ -1,0 +1,23 @@
+# Build artifacts — Vercel rebuilds these
+.next/
+frontend/.next/
+out/
+
+# Dependencies — Vercel installs these
+node_modules/
+frontend/node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Development / docs
+.git/
+ai-seguimiento-acciones/
+TorreAdmin_PRD.docx
+
+# Stale directories
+/app/

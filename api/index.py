@@ -5,6 +5,7 @@ Deployed as Vercel Serverless Function via api/index.py.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from mangum import Mangum
 
 from db import init_db, seed_db
 from routers import (
@@ -57,3 +58,6 @@ app.include_router(chat.router,           prefix="/api/chat",           tags=["C
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "TorreAdmin API"}
+
+
+handler = Mangum(app)

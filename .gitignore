@@ -1,0 +1,34 @@
+# Build outputs
+.next/
+frontend/.next/
+out/
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Vercel
+.vercel/
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Stale directories (not part of the build)
+/app/
