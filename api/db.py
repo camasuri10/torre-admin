@@ -6,12 +6,23 @@ import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
+from urllib.parse import urlparse, unquote
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def get_connection():
-    return psycopg2.connect(DATABASE_URL, connect_timeout=5, cursor_factory=psycopg2.extras.RealDictCursor)
+    r = urlparse(DATABASE_URL)
+    return psycopg2.connect(
+        host=r.hostname,
+        port=r.port or 5432,
+        dbname=(r.path or "/postgres").lstrip("/"),
+        user=unquote(r.username or ""),
+        password=unquote(r.password or ""),
+        connect_timeout=5,
+        sslmode="require",
+        cursor_factory=psycopg2.extras.RealDictCursor,
+    )
 
 
 @contextmanager
