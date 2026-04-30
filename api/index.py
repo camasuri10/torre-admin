@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from db import init_db, seed_db
+from db import seed_db
 from routers import (
     edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
@@ -22,16 +22,14 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB schema on startup — skip gracefully if DATABASE_URL is missing
     db_url = os.environ.get("DATABASE_URL", "")
     if db_url:
         try:
-            init_db()
             seed_db()
         except Exception as e:
-            print(f"⚠️  DB init warning: {e}")
+            print(f"⚠️  Seed warning: {e}")
     else:
-        print("⚠️  DATABASE_URL not set — skipping DB initialization")
+        print("⚠️  DATABASE_URL not set — skipping seed")
     yield
 
 
