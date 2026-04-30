@@ -307,17 +307,45 @@ def init_db():
     print("✅ Database schema initialized")
 
 
+def _ensure_passwords(cur, pwd_context):
+    """Update password_hash for seeded users that don't have one yet."""
+    demo_passwords = {
+        "admin@torreadmin.co":     "Admin123!",
+        "guardia1@torreadmin.co":  "Guardia123!",
+        "c.martinez@gmail.com":    "Prop123!",
+        "mfgomez@hotmail.com":     "Torre123!",
+        "jsrojas@gmail.com":       "Torre123!",
+        "lv.herrera@outlook.com":  "Torre123!",
+    }
+    for email, pw in demo_passwords.items():
+        cur.execute(
+            "UPDATE usuarios SET password_hash = %s WHERE email = %s AND password_hash IS NULL",
+            (pwd_context.hash(pw), email),
+        )
+    print("✅ Demo passwords set")
+
+
 def seed_db():
     """Insert demo data if tables are empty."""
+    try:
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    except ImportError:
+        pwd_context = None
+        print("⚠️  passlib not available — passwords will not be hashed")
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM edificios")
             count = cur.fetchone()["count"]
             if count > 0:
+                # Already seeded — ensure passwords are set for existing users
+                if pwd_context:
+                    _ensure_passwords(cur, pwd_context)
                 print("ℹ️  Database already seeded, skipping.")
                 return
 
-            # Edificios
+            # ── Edificios ────────────────────────────────────────────────────
             cur.execute("""
                 INSERT INTO edificios (nombre, direccion, unidades, pisos) VALUES
                 ('Torres del Norte', 'Cra 15 #85-32, Bogotá', 20, 8),
@@ -326,7 +354,7 @@ def seed_db():
                 RETURNING id
             """)
 
-            # Unidades para Torres del Norte (id=1)
+            # ── Unidades para Torres del Norte (id=1) ────────────────────────
             for piso in range(1, 9):
                 for apt in range(1, 4):
                     cur.execute(
@@ -334,18 +362,23 @@ def seed_db():
                         (1, f"Apto {piso}0{apt}", piso, round(1/24, 4))
                     )
 
-            # Usuarios demo
-            cur.execute("""
-                INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES
-                ('Juan Rodríguez', '79.111.222', 'admin@torreadmin.co', '310 000 0001', 'administrador'),
-                ('Carlos Andrés Martínez', '79.456.123', 'c.martinez@gmail.com', '310 456 7890', 'propietario'),
-                ('María Fernanda Gómez', '52.789.456', 'mfgomez@hotmail.com', '315 234 5678', 'propietario'),
-                ('Jhon Sebastián Rojas', '1.020.345.678', 'jsrojas@gmail.com', '300 987 6543', 'inquilino'),
-                ('Luisa Valentina Herrera', '43.567.890', 'lv.herrera@outlook.com', '318 765 4321', 'propietario'),
-                ('Pedro Guardia', '80.999.111', 'guardia1@torreadmin.co', '311 000 0001', 'portero')
-            """)
+            # ── Usuarios demo con passwords ──────────────────────────────────
+            demo_users = [
+                ("Juan Rodríguez",        "79.111.222",      "admin@torreadmin.co",    "310 000 0001", "administrador", "Admin123!"),
+                ("Carlos Andrés Martínez","79.456.123",      "c.martinez@gmail.com",   "310 456 7890", "propietario",   "Prop123!"),
+                ("María Fernanda Gómez",  "52.789.456",      "mfgomez@hotmail.com",    "315 234 5678", "propietario",   "Torre123!"),
+                ("Jhon Sebastián Rojas",  "1.020.345.678",   "jsrojas@gmail.com",      "300 987 6543", "inquilino",     "Torre123!"),
+                ("Luisa Valentina Herrera","43.567.890",     "lv.herrera@outlook.com", "318 765 4321", "propietario",   "Torre123!"),
+                ("Pedro Guardia",         "80.999.111",      "guardia1@torreadmin.co", "311 000 0001", "portero",       "Guardia123!"),
+            ]
+            for nombre, cedula, email, telefono, rol, pw in demo_users:
+                ph = pwd_context.hash(pw) if pwd_context else None
+                cur.execute(
+                    "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (nombre, cedula, email, telefono, rol, ph),
+                )
 
-            # Zonas comunes
+            # ── Zonas comunes ────────────────────────────────────────────────
             cur.execute("""
                 INSERT INTO zonas_comunes (edificio_id, nombre, descripcion, capacidad, icono, duracion_min_horas, duracion_max_horas) VALUES
                 (1, 'Gimnasio', 'Equipado con máquinas cardiovasculares y pesas libres.', 15, '🏋️', 1, 2),

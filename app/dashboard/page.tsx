@@ -3,12 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import {
-  dashboardStats as mockStats,
-  solicitudesMantenimiento as mockMant,
-  comunicados as mockComun,
-  cuotas as mockCuotas,
-} from "@/lib/mock-data";
 
 const EDIFICIO_ID = 1;
 
@@ -43,51 +37,8 @@ export default function DashboardPage() {
         setComunicados(com.slice(0, 3));
         setMorosos(cuotas.slice(0, 5));
         setPaquetes(paq);
-      } catch {
-        // Fallback to mock data when API is not available
-        setStats({
-          total_unidades: mockStats.totalUnidades,
-          morosos: mockStats.morosos,
-          solicitudes_pendientes: mockStats.solicitudesPendientes,
-          recaudo_mes: mockStats.recaudoMes,
-          meta_recaudo: mockStats.metaRecaudo,
-          ingresos_hoy: 4,
-          paquetes_pendientes: 3,
-          alertas_proximas: 2,
-        });
-        setPendientes(
-          mockMant
-            .filter((s) => s.estado === "Pendiente" || s.estado === "En Proceso")
-            .slice(0, 5)
-            .map((s) => ({
-              id: s.id,
-              titulo: s.titulo,
-              unidad_numero: s.apto,
-              edificio_nombre: s.edificio,
-              prioridad: s.prioridad.toLowerCase(),
-              estado: s.estado.toLowerCase().replace(" ", "_"),
-            }))
-        );
-        setComunicados(
-          mockComun.slice(0, 3).map((c) => ({
-            id: c.id,
-            titulo: c.titulo,
-            fecha: c.fecha,
-            tipo: c.tipo.toLowerCase(),
-          }))
-        );
-        setMorosos(
-          mockCuotas
-            .filter((c) => c.estado === "Vencido")
-            .slice(0, 5)
-            .map((c) => ({
-              id: c.id,
-              residente_nombre: c.residente,
-              unidad_numero: c.apto,
-              monto: c.monto,
-            }))
-        );
-        setPaquetes({ recibidos: 2, notificados: 1, entregados: 8, hoy: 3 });
+      } catch (err) {
+        console.error("Error cargando dashboard", err);
       } finally {
         setLoading(false);
       }

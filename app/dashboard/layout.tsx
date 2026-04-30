@@ -1,56 +1,100 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getUser, clearToken, type AuthUser } from "@/lib/auth";
 
-const navGroups = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  exact: boolean;
+  roles: AuthUser["rol"][];
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true },
+      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["administrador", "propietario", "inquilino", "portero"] },
     ],
   },
   {
     label: "Gestión",
     items: [
-      { href: "/dashboard/residentes", label: "Residentes", icon: "👥", exact: false },
-      { href: "/dashboard/finanzas", label: "Finanzas", icon: "💰", exact: false },
-      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false },
-      { href: "/dashboard/comunicados", label: "Comunicados", icon: "📢", exact: false },
-      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false },
+      { href: "/dashboard/residentes",   label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
+      { href: "/dashboard/finanzas",     label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"] },
+      { href: "/dashboard/mantenimiento",label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino"] },
+      { href: "/dashboard/comunicados",  label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"] },
+      { href: "/dashboard/zonas-comunes",label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"] },
     ],
   },
   {
     label: "Seguridad",
     items: [
-      { href: "/dashboard/accesos", label: "Control de Accesos", icon: "🔐", exact: false },
-      { href: "/dashboard/paquetes", label: "Paquetería", icon: "📦", exact: false },
-      { href: "/dashboard/chat", label: "Chat Seguridad", icon: "💬", exact: false },
-      { href: "/dashboard/guardias", label: "Guardias / Turnos", icon: "👮", exact: false },
+      { href: "/dashboard/accesos",  label: "Control de Accesos", icon: "🔐", exact: false, roles: ["administrador", "portero"] },
+      { href: "/dashboard/paquetes", label: "Paquetería",         icon: "📦", exact: false, roles: ["administrador", "portero"] },
+      { href: "/dashboard/chat",     label: "Chat Seguridad",     icon: "💬", exact: false, roles: ["administrador", "portero"] },
+      { href: "/dashboard/guardias", label: "Guardias / Turnos",  icon: "👮", exact: false, roles: ["administrador", "portero"] },
     ],
   },
   {
     label: "Análisis",
     items: [
-      { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false },
+      { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false, roles: ["administrador"] },
     ],
   },
 ];
 
-// Flat list for active detection
-const navItems = navGroups.flatMap((g) => g.items);
+const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
+const ROL_LABELS: Record<AuthUser["rol"], string> = {
+  administrador: "Administrador",
+  propietario:   "Propietario",
+  inquilino:     "Inquilino",
+  portero:       "Portero / Seguridad",
+};
 
-  const isActive = (item: { href: string; exact: boolean }) => {
-    if (item.exact) return pathname === item.href;
-    return pathname.startsWith(item.href);
-  };
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    const u = getUser();
+    if (!u) {
+      router.push("/login");
+    } else {
+      setUser(u);
+    }
+  }, [router]);
+
+  const isActive = (item: NavItem) =>
+    item.exact ? pathname === item.href : pathname.startsWith(item.href);
+
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !user || item.roles.includes(user.rol)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const currentLabel = ALL_ITEMS.find((i) => isActive(i))?.label ?? "Dashboard";
+
+  const initials = user?.nombre
+    ? user.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "…";
+
+  function handleLogout() {
+    clearToken();
+    router.push("/login");
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -82,7 +126,7 @@ export default function DashboardLayout({
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-blue-400/70">
                 {group.label}
@@ -111,13 +155,21 @@ export default function DashboardLayout({
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">JR</span>
+              <span className="text-white font-bold text-sm">{initials}</span>
             </div>
             <div className="min-w-0">
-              <div className="text-white text-sm font-medium truncate">Juan Rodríguez</div>
-              <div className="text-blue-300 text-xs">Administrador</div>
+              <div className="text-white text-sm font-medium truncate">
+                {user?.nombre ?? "Cargando…"}
+              </div>
+              <div className="text-blue-300 text-xs">
+                {user ? ROL_LABELS[user.rol] : ""}
+              </div>
             </div>
-            <button className="ml-auto text-blue-300 hover:text-white transition-colors text-lg" title="Cerrar sesión">
+            <button
+              onClick={handleLogout}
+              className="ml-auto text-blue-300 hover:text-white transition-colors text-lg"
+              title="Cerrar sesión"
+            >
               ⏻
             </button>
           </div>
@@ -129,9 +181,7 @@ export default function DashboardLayout({
         {/* Top bar */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              {navItems.find((i) => isActive(i))?.label ?? "Dashboard"}
-            </h1>
+            <h1 className="text-lg font-semibold text-gray-900">{currentLabel}</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               {new Date().toLocaleDateString("es-CO", {
                 weekday: "long",
@@ -142,9 +192,12 @@ export default function DashboardLayout({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Notificaciones">
+            <button
+              className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Notificaciones"
+            >
               <span className="text-xl">🔔</span>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
             <Link
               href="/"

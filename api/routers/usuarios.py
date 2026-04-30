@@ -12,6 +12,7 @@ class UsuarioCreate(BaseModel):
     email: Optional[str] = None
     telefono: Optional[str] = None
     rol: str  # administrador | propietario | inquilino | portero
+    password: Optional[str] = None
 
 
 class OcupacionCreate(BaseModel):
@@ -66,11 +67,18 @@ def get_usuario(usuario_id: int):
 
 @router.post("", status_code=201)
 def create_usuario(data: UsuarioCreate):
+    password_hash = None
+    if data.password:
+        try:
+            from passlib.context import CryptContext
+            password_hash = CryptContext(schemes=["bcrypt"], deprecated="auto").hash(data.password)
+        except ImportError:
+            pass
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES (%s,%s,%s,%s,%s) RETURNING *",
-                (data.nombre, data.cedula, data.email, data.telefono, data.rol)
+                "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) VALUES (%s,%s,%s,%s,%s,%s) RETURNING *",
+                (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash)
             )
             return cur.fetchone()
 

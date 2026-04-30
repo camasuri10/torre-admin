@@ -5,10 +5,20 @@
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("torre_auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(init?.headers ?? {}),
+    },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -16,6 +26,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export const authApi = {
+  login: (email: string, password: string) =>
+    request<{ access_token: string; token_type: string; user: any }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  me: () => request<any>("/api/auth/me"),
+};
 
 // ── Edificios ─────────────────────────────────────────────────────────────────
 export const api = {

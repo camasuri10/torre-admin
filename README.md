@@ -206,3 +206,42 @@ El schema se crea automáticamente. Tablas principales:
 ## 📄 Licencia
 
 MIT © 2026 TorreAdmin
+
+
+Resumen de cambios
+
+  Backend (5 archivos)
+
+  - api/requirements.txt — agregado passlib[bcrypt] y python-jose[cryptography]
+  - api/routers/auth.py (nuevo) — POST /api/auth/login + GET /api/auth/me + dependency get_current_user
+  - api/db.py — seed_db ahora hashea passwords con bcrypt; función _ensure_passwords actualiza usuarios existentes en la BD
+  - api/index.py — registra el router de auth en /api/auth
+  - api/routers/usuarios.py — acepta campo password en creación y lo hashea
+
+  Frontend (10 archivos)
+
+  - lib/auth.ts (nuevo) — helpers getToken/setToken/clearToken/getUser
+  - lib/api.ts — agrega Authorization: Bearer header en todas las peticiones + authApi.login()
+  - middleware.ts (nuevo) — protege /dashboard/*, redirige a /login si no hay cookie
+  - app/login/page.tsx (nuevo) — formulario con credenciales de prueba visibles
+  - app/dashboard/layout.tsx — usuario real desde JWT, menú filtrado por rol, logout funcional
+  - comunicados, accesos, residentes, finanzas — migrados de mock data a API real con formularios de creación
+  - app/dashboard/page.tsx — eliminado fallback de mock data
+
+  Para activar en producción
+
+  1. Push a git → Vercel deploy automático
+  2. En el primer cold start, seed_db() llama a _ensure_passwords() y hashea los usuarios existentes
+  3. Alternativamente, llamar /api/setup manualmente después del deploy
+
+  Credenciales de prueba
+
+  ┌───────────────┬────────────────────────┬─────────────┐
+  │      Rol      │         Email          │  Password   │
+  ├───────────────┼────────────────────────┼─────────────┤
+  │ Administrador │ admin@torreadmin.co    │ Admin123!   │
+  ├───────────────┼────────────────────────┼─────────────┤
+  │ Portero       │ guardia1@torreadmin.co │ Guardia123! │
+  ├───────────────┼────────────────────────┼─────────────┤
+  │ Propietario   │ c.martinez@gmail.com   │ Prop123!    │
+  └───────────────┴────────────────────────┴─────────────┘
