@@ -19,7 +19,7 @@ class PagoRegistro(BaseModel):
     metodo_pago: Optional[str] = None
 
 
-@router.get("/")
+@router.get("")
 def list_cuotas(
     edificio_id: Optional[int] = None,
     estado: Optional[str] = None,
@@ -53,7 +53,7 @@ def list_cuotas(
             return cur.fetchall()
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_cuota(data: CuotaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

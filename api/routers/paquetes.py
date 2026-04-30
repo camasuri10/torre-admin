@@ -24,7 +24,7 @@ class EntregaRegistro(BaseModel):
     notas: Optional[str] = None
 
 
-@router.get("/")
+@router.get("")
 def list_paquetes(
     edificio_id: Optional[int] = None,
     unidad_id: Optional[int] = None,
@@ -81,7 +81,7 @@ def get_paquete(paquete_id: int):
             return row
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def registrar_paquete(
     edificio_id: int = Form(...),
     unidad_id: Optional[int] = Form(None),

@@ -11,7 +11,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def get_connection():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg2.connect(DATABASE_URL, connect_timeout=5, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 @contextmanager

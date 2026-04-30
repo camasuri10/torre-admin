@@ -21,7 +21,7 @@ class SalidaRegistro(BaseModel):
     fecha_salida: Optional[str] = None  # ISO datetime, defaults to NOW()
 
 
-@router.get("/")
+@router.get("")
 def list_accesos(
     edificio_id: Optional[int] = None,
     fecha: Optional[str] = None,
@@ -55,7 +55,7 @@ def list_accesos(
             return cur.fetchall()
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def registrar_ingreso(data: AccesoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

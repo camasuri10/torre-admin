@@ -13,7 +13,7 @@ class EdificioCreate(BaseModel):
     pisos: int = 1
 
 
-@router.get("/")
+@router.get("")
 def list_edificios():
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -32,7 +32,7 @@ def get_edificio(edificio_id: int):
             return row
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_edificio(data: EdificioCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

@@ -21,7 +21,7 @@ class OcupacionCreate(BaseModel):
     fecha_inicio: str
 
 
-@router.get("/")
+@router.get("")
 def list_usuarios(rol: Optional[str] = None, edificio_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -64,7 +64,7 @@ def get_usuario(usuario_id: int):
             return row
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_usuario(data: UsuarioCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

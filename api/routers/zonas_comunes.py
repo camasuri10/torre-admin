@@ -40,7 +40,7 @@ class ReservaCreate(BaseModel):
     notas: Optional[str] = None
 
 
-@router.get("/")
+@router.get("")
 def list_zonas(edificio_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -58,7 +58,7 @@ def list_zonas(edificio_id: Optional[int] = None):
             return cur.fetchall()
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_zona(data: ZonaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

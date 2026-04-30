@@ -40,6 +40,7 @@ app = FastAPI(
     version="1.0.0",
     description="API para la plataforma de administración de propiedad horizontal TorreAdmin",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 app.add_middleware(

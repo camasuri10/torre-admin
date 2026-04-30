@@ -33,7 +33,7 @@ class EventoCreate(BaseModel):
     descripcion: str
 
 
-@router.get("/")
+@router.get("")
 def list_guardias(edificio_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -59,7 +59,7 @@ def list_guardias(edificio_id: Optional[int] = None):
             return cur.fetchall()
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_guardia(data: GuardiaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

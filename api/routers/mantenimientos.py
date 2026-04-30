@@ -36,7 +36,7 @@ class AlertaCreate(BaseModel):
     fecha_programada: str
 
 
-@router.get("/")
+@router.get("")
 def list_mantenimientos(
     edificio_id: Optional[int] = None,
     estado: Optional[str] = None,
@@ -96,7 +96,7 @@ def get_mantenimiento(mantenimiento_id: int):
             return row
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_mantenimiento(data: MantenimientoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -166,7 +166,7 @@ async def upload_archivo(
 
 # ── Alertas ──────────────────────────────────────────────────────────────────
 
-@router.get("/alertas/")
+@router.get("/alertas")
 def list_alertas(edificio_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -184,7 +184,7 @@ def list_alertas(edificio_id: Optional[int] = None):
             return cur.fetchall()
 
 
-@router.post("/alertas/", status_code=201)
+@router.post("/alertas", status_code=201)
 def create_alerta(data: AlertaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

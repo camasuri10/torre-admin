@@ -15,7 +15,7 @@ class ComunicadoCreate(BaseModel):
     fecha: Optional[str] = None
 
 
-@router.get("/")
+@router.get("")
 def list_comunicados(edificio_id: Optional[int] = None, tipo: Optional[str] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -55,7 +55,7 @@ def get_comunicado(comunicado_id: int):
             return row
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_comunicado(data: ComunicadoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:

@@ -30,7 +30,7 @@ def get_mensajes(edificio_id: int, limit: int = 50, offset: int = 0):
             return list(reversed(rows))
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def send_mensaje(data: MensajeCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
