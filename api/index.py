@@ -12,32 +12,41 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from db import seed_db
+from db import init_db, seed_db
 from routers import (
     edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat
 )
 
+# ── DB bootstrap ─────────────────────────────────────────────────────────────
+# Vercel serverless functions don't keep a persistent process, so lifespan
+# events are unreliable. We initialize the DB at module load time instead —
+# this runs once per cold start, which is exactly what we need.
+_db_ready = False
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    db_url = os.environ.get("DATABASE_URL", "")
-    if db_url:
-        try:
-            seed_db()
-        except Exception as e:
-            print(f"⚠️  Seed warning: {e}")
-    else:
-        print("⚠️  DATABASE_URL not set — skipping seed")
-    yield
+def _bootstrap_db():
+    global _db_ready
+    if _db_ready:
+        return
+    if not os.environ.get("DATABASE_URL"):
+        print("⚠️  DATABASE_URL not set — skipping DB init")
+        return
+    try:
+        init_db()
+        seed_db()
+        _db_ready = True
+    except Exception as e:
+        print(f"⚠️  DB bootstrap warning: {e}")
+
+_bootstrap_db()
 
 
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="TorreAdmin API",
     version="1.0.0",
     description="API para la plataforma de administración de propiedad horizontal TorreAdmin",
-    lifespan=lifespan,
     redirect_slashes=False,
 )
 
@@ -49,7 +58,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ──────────────────────────────────────────────────────────────────
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(edificios.router,      prefix="/api/edificios",      tags=["Edificios"])
 app.include_router(usuarios.router,       prefix="/api/usuarios",       tags=["Usuarios"])
 app.include_router(cuotas.router,         prefix="/api/cuotas",         tags=["Finanzas"])
@@ -65,4 +74,17 @@ app.include_router(chat.router,           prefix="/api/chat",           tags=["C
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "TorreAdmin API"}
+    return {"status": "ok", "service": "TorreAdmin API", "db_ready": _db_ready}
+
+
+@app.post("/api/setup")
+def setup():
+    """Manually trigger DB initialization and seed. Call once after deploy."""
+    global _db_ready
+    try:
+        init_db()
+        seed_db()
+        _db_ready = True
+        return {"status": "ok", "message": "DB initialized and seeded"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
