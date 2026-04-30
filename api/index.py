@@ -2,6 +2,13 @@
 TorreAdmin API — FastAPI entry point.
 Deployed as Vercel Serverless Function via api/index.py.
 """
+import sys
+import os
+
+# Ensure the api/ directory is on the path so relative imports work
+# both locally and on Vercel (which runs from the project root).
+sys.path.insert(0, os.path.dirname(__file__))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -15,12 +22,16 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB schema on startup
-    try:
-        init_db()
-        seed_db()
-    except Exception as e:
-        print(f"⚠️  DB init warning: {e}")
+    # Initialize DB schema on startup — skip gracefully if DATABASE_URL is missing
+    db_url = os.environ.get("DATABASE_URL", "")
+    if db_url:
+        try:
+            init_db()
+            seed_db()
+        except Exception as e:
+            print(f"⚠️  DB init warning: {e}")
+    else:
+        print("⚠️  DATABASE_URL not set — skipping DB initialization")
     yield
 
 
