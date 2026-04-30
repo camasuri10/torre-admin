@@ -77,7 +77,7 @@ def health():
     return {"status": "ok", "service": "TorreAdmin API", "db_ready": _db_ready}
 
 
-@app.post("/api/setup")
+@app.get("/api/setup")
 def setup():
     """Manually trigger DB initialization and seed. Call once after deploy."""
     global _db_ready
