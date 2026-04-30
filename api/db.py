@@ -13,9 +13,14 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 def get_connection():
     r = urlparse(DATABASE_URL)
+    try:
+        port = r.port or 5432
+    except ValueError:
+        port = 5432
+        print(f"⚠️  DATABASE_URL has invalid port — check Vercel env var. hostname={r.hostname!r}")
     return psycopg2.connect(
         host=r.hostname,
-        port=r.port or 5432,
+        port=port,
         dbname=(r.path or "/postgres").lstrip("/"),
         user=unquote(r.username or ""),
         password=unquote(r.password or ""),
