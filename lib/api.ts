@@ -30,11 +30,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   login: (email: string, password: string) =>
-    request<{ access_token: string; token_type: string; user: any }>("/api/auth/login", {
+    request<any>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  seleccionarEdificio: (user_id: number, edificio_id: number) =>
+    request<any>("/api/auth/seleccionar-edificio", {
+      method: "POST",
+      body: JSON.stringify({ user_id, edificio_id }),
+    }),
+  misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
   me: () => request<any>("/api/auth/me"),
+};
+
+// ── Super Admin ───────────────────────────────────────────────────────────────
+export const superadminApi = {
+  stats: () => request<any>("/api/superadmin/stats"),
+  edificios: {
+    list: () => request<any>("/api/superadmin/edificios"),
+    create: (data: any) => request<any>("/api/superadmin/edificios", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: any) => request<any>(`/api/superadmin/edificios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
+    updateModulos: (id: number, modulos: { clave: string; activo: boolean }[]) =>
+      request<any>(`/api/superadmin/edificios/${id}/modulos`, { method: "PUT", body: JSON.stringify({ modulos }) }),
+  },
+  admins: {
+    list: () => request<any>("/api/superadmin/admins"),
+    create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
+    updateEdificios: (id: number, edificio_ids: number[]) =>
+      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify({ edificio_ids }) }),
+  },
 };
 
 // ── Edificios ─────────────────────────────────────────────────────────────────
@@ -45,6 +70,7 @@ export const api = {
     stats: (id: number) => request<any>(`/api/edificios/${id}/stats`),
     unidades: (id: number) => request<any[]>(`/api/edificios/${id}/unidades`),
     create: (data: any) => request<any>("/api/edificios/", { method: "POST", body: JSON.stringify(data) }),
+    getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
   },
 
   // ── Usuarios ───────────────────────────────────────────────────────────────

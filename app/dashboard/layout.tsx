@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { getUser, clearToken, type AuthUser } from "@/lib/auth";
+import { useEffect, useRef, useState } from "react";
+import { getUser, clearToken, setToken, getEdificiosDisponibles, type AuthUser } from "@/lib/auth";
+import { authApi, api } from "@/lib/api";
 
 type NavItem = {
   href: string;
@@ -11,6 +12,7 @@ type NavItem = {
   icon: string;
   exact: boolean;
   roles: AuthUser["rol"][];
+  modulo?: string;
 };
 
 type NavGroup = {
@@ -22,32 +24,40 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["administrador", "propietario", "inquilino", "portero"] },
+      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["superadmin", "administrador", "propietario", "inquilino", "portero"] },
+    ],
+  },
+  {
+    label: "Super Admin",
+    items: [
+      { href: "/dashboard/superadmin",           label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏢",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/admins",     label: "Administradores",  icon: "👤",  exact: false, roles: ["superadmin"] },
     ],
   },
   {
     label: "Gestión",
     items: [
-      { href: "/dashboard/residentes",   label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
-      { href: "/dashboard/finanzas",     label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"] },
-      { href: "/dashboard/mantenimiento",label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino"] },
-      { href: "/dashboard/comunicados",  label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"] },
-      { href: "/dashboard/zonas-comunes",label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"] },
+      { href: "/dashboard/residentes",    label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
+      { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "finanzas" },
+      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "mantenimiento" },
+      { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "comunicados" },
+      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "zonas_comunes" },
     ],
   },
   {
     label: "Seguridad",
     items: [
-      { href: "/dashboard/accesos",  label: "Control de Accesos", icon: "🔐", exact: false, roles: ["administrador", "portero"] },
-      { href: "/dashboard/paquetes", label: "Paquetería",         icon: "📦", exact: false, roles: ["administrador", "portero"] },
-      { href: "/dashboard/chat",     label: "Chat Seguridad",     icon: "💬", exact: false, roles: ["administrador", "portero"] },
-      { href: "/dashboard/guardias", label: "Guardias / Turnos",  icon: "👮", exact: false, roles: ["administrador", "portero"] },
+      { href: "/dashboard/accesos",  label: "Control de Accesos", icon: "🔐", exact: false, roles: ["administrador", "portero"],                        modulo: "accesos" },
+      { href: "/dashboard/paquetes", label: "Paquetería",         icon: "📦", exact: false, roles: ["administrador", "portero"],                        modulo: "paquetes" },
+      { href: "/dashboard/chat",     label: "Chat Seguridad",     icon: "💬", exact: false, roles: ["administrador", "propietario", "portero"],         modulo: "chat" },
+      { href: "/dashboard/guardias", label: "Guardias / Turnos",  icon: "👮", exact: false, roles: ["administrador", "portero"],                        modulo: "guardias" },
     ],
   },
   {
     label: "Análisis",
     items: [
-      { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false, roles: ["administrador"] },
+      { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false, roles: ["administrador"], modulo: "reportes" },
     ],
   },
 ];
@@ -55,6 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 const ROL_LABELS: Record<AuthUser["rol"], string> = {
+  superadmin:    "Super Administrador",
   administrador: "Administrador",
   propietario:   "Propietario",
   inquilino:     "Inquilino",
@@ -62,18 +73,52 @@ const ROL_LABELS: Record<AuthUser["rol"], string> = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname  = usePathname();
-  const router    = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const pathname = usePathname();
+  const router   = useRouter();
+
+  const [user, setUser]                     = useState<AuthUser | null>(null);
+  const [activeModules, setActiveModules]   = useState<string[]>([]);
+  const [edificios, setEdificios]           = useState<{ id: number; nombre: string }[]>([]);
+  const [showSwitcher, setShowSwitcher]     = useState(false);
+  const [switching, setSwitching]           = useState(false);
+  const switcherRef                         = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const u = getUser();
-    if (!u) {
-      router.push("/login");
-    } else {
-      setUser(u);
+    if (!u) { router.push("/login"); return; }
+    setUser(u);
+
+    // Load active modules for this building (skip for superadmin — they see all)
+    if (u.rol !== "superadmin" && u.edificio_id) {
+      api.edificios.getModulos(u.edificio_id)
+        .then((data) => {
+          const claves = data.modulos
+            .filter((m: any) => m.activo)
+            .map((m: any) => m.clave);
+          setActiveModules(claves);
+        })
+        .catch(() => {
+          // On error, show all modules (fail-open for better UX)
+          setActiveModules(["finanzas","mantenimiento","comunicados","zonas_comunes","accesos","paquetes","chat","guardias","reportes"]);
+        });
     }
+
+    // Load available buildings for switcher
+    authApi.misEdificios()
+      .then((data) => setEdificios(data.edificios))
+      .catch(() => {});
   }, [router]);
+
+  // Close switcher on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setShowSwitcher(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -81,7 +126,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const visibleGroups = NAV_GROUPS
     .map((g) => ({
       ...g,
-      items: g.items.filter((item) => !user || item.roles.includes(user.rol)),
+      items: g.items.filter((item) => {
+        if (!user) return false;
+        if (!item.roles.includes(user.rol)) return false;
+        // Superadmin and items without a module requirement are always visible
+        if (!item.modulo || user.rol === "superadmin") return true;
+        return activeModules.includes(item.modulo);
+      }),
     }))
     .filter((g) => g.items.length > 0);
 
@@ -90,6 +141,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initials = user?.nombre
     ? user.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
     : "…";
+
+  const edificioNombre = user?.edificio_id
+    ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
+    : user?.rol === "superadmin" ? "Todos los edificios" : "—";
+
+  const canSwitch = edificios.length > 1;
+
+  async function handleSwitchBuilding(edificioId: number) {
+    if (!user) return;
+    setSwitching(true);
+    setShowSwitcher(false);
+    try {
+      const data = await authApi.seleccionarEdificio(parseInt(user.sub), edificioId);
+      setToken(data.access_token);
+      window.location.href = "/dashboard";
+    } catch {
+      setSwitching(false);
+    }
+  }
 
   function handleLogout() {
     clearToken();
@@ -114,14 +184,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Building selector */}
-        <div className="px-4 py-3 border-b border-white/10">
-          <div className="bg-white/10 rounded-lg px-3 py-2">
+        <div className="px-4 py-3 border-b border-white/10" ref={switcherRef}>
+          <button
+            onClick={() => canSwitch && setShowSwitcher((v) => !v)}
+            disabled={switching || !canSwitch}
+            className={`w-full bg-white/10 rounded-lg px-3 py-2 text-left transition-colors ${canSwitch ? "hover:bg-white/20 cursor-pointer" : "cursor-default"}`}
+          >
             <div className="text-blue-300 text-xs mb-0.5">Edificio activo</div>
             <div className="text-white text-sm font-medium flex items-center justify-between">
-              Torres del Norte
-              <span className="text-blue-300 text-xs">▼</span>
+              <span className="truncate">
+                {switching ? "Cambiando…" : edificioNombre}
+              </span>
+              {canSwitch && (
+                <span className={`text-blue-300 text-xs ml-2 transition-transform ${showSwitcher ? "rotate-180" : ""}`}>▼</span>
+              )}
             </div>
-          </div>
+          </button>
+
+          {showSwitcher && (
+            <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+              {edificios.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => handleSwitchBuilding(e.id)}
+                  className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors ${
+                    e.id === user?.edificio_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
+                  }`}
+                >
+                  <span>🏢</span>
+                  <span className="truncate">{e.nombre}</span>
+                  {e.id === user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Nav */}

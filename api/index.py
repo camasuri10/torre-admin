@@ -16,7 +16,7 @@ from db import init_db, seed_db
 from routers import (
     auth, edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
-    guardias, reportes, chat
+    guardias, reportes, chat, superadmin
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ app.include_router(paquetes.router,       prefix="/api/paquetes",       tags=["P
 app.include_router(guardias.router,       prefix="/api/guardias",       tags=["Guardias"])
 app.include_router(reportes.router,       prefix="/api/reportes",       tags=["Reportes"])
 app.include_router(chat.router,           prefix="/api/chat",           tags=["Chat Seguridad"])
+app.include_router(superadmin.router,     prefix="/api/superadmin",     tags=["Super Admin"])
 
 
 @app.get("/api/health")

@@ -3,12 +3,13 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
-import { setToken } from "@/lib/auth";
+import { setToken, setEdificiosDisponibles, setUserTemp } from "@/lib/auth";
 
 const DEMO_CREDENTIALS = [
-  { rol: "Administrador", email: "admin@torreadmin.co",   password: "Admin123!" },
-  { rol: "Propietario",   email: "c.martinez@gmail.com",  password: "Prop123!" },
-  { rol: "Portero",       email: "guardia1@torreadmin.co", password: "Guardia123!" },
+  { rol: "Super Admin",   email: "superadmin@torreadmin.co", password: "Super123!" },
+  { rol: "Administrador", email: "admin@torreadmin.co",      password: "Admin123!" },
+  { rol: "Propietario",   email: "c.martinez@gmail.com",     password: "Prop123!" },
+  { rol: "Portero",       email: "guardia1@torreadmin.co",   password: "Guardia123!" },
 ];
 
 export default function LoginPage() {
@@ -24,6 +25,14 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await authApi.login(email, password);
+
+      if (data.requires_building_selection) {
+        setEdificiosDisponibles(data.edificios);
+        setUserTemp(data.user_temp);
+        router.push("/login/seleccionar-edificio");
+        return;
+      }
+
       setToken(data.access_token);
       router.push("/dashboard");
     } catch {

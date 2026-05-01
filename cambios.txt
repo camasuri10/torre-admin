@@ -1,0 +1,6 @@
+Quiero hacer un nuevo release del proyecto, en este caso lo que quiero hacer es:
+- Cada modulo como Finanzas, Mantenimiento, Comunicados, Zonas Comunes, Control de Acceso, Paquetería, Chat seguridad, Guardias y turnos y reportes, se conviertan en modulos que se puedan activar o desactivar. 
+- Todo esto, se administrará des un modulo administrativo, el cual controlará un super admin. Este modulo es el que va a gestionar la creación de unidades residenciales, los modulos que se activaran en cada una de esta, ademas los administradores que tendrán privilegios en esta. 
+- Este es otro cambio a realizar, se debe hacer un cambio en el cual, un administrador puede tener una o mas unidades residenciales, similar para los propietarios y los porteros, por lo cual cuando se ingrese si pertenece a varias unidades residenciales, es pedir a cual quiere acceder. 
+- El administrador, propietaros y guardias podrán cambiar entre edificios o unidades residenciales, como se tiene en la parte superior izquierda, para hacer sus gestiones. 
+- Hay que agregar otro punto, y es que los propietarios, pueden tener habilita el moduo de Chat con el personal de seguridad. 

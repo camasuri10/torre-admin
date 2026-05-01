@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     cedula          TEXT UNIQUE,
     email           TEXT UNIQUE,
     telefono        TEXT,
-    rol             TEXT NOT NULL CHECK (rol IN ('administrador','propietario','inquilino','portero')),
+    rol             TEXT NOT NULL CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero')),
     password_hash   TEXT,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -281,6 +281,30 @@ CREATE TABLE IF NOT EXISTS guardia_eventos (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Módulos disponibles en el sistema
+CREATE TABLE IF NOT EXISTS modulos (
+    id          SERIAL PRIMARY KEY,
+    clave       TEXT UNIQUE NOT NULL,
+    nombre      TEXT NOT NULL,
+    icono       TEXT
+);
+
+-- Módulos activos por edificio
+CREATE TABLE IF NOT EXISTS edificio_modulos (
+    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    modulo_id   INTEGER NOT NULL REFERENCES modulos(id)   ON DELETE CASCADE,
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (edificio_id, modulo_id)
+);
+
+-- Admins/superadmins asociados a edificios
+CREATE TABLE IF NOT EXISTS usuario_edificios (
+    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
+    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (usuario_id, edificio_id)
+);
+
 -- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_unidad ON ocupaciones(unidad_id);
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_usuario ON ocupaciones(usuario_id);
@@ -296,6 +320,15 @@ CREATE INDEX IF NOT EXISTS idx_chat_edificio ON chat_mensajes(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_guardia ON turnos(guardia_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_zona ON reservas(zona_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);
+CREATE INDEX IF NOT EXISTS idx_edificio_modulos_edificio ON edificio_modulos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_edificios_usuario ON usuario_edificios(usuario_id);
+"""
+
+
+MIGRATION_SQL = """
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
+    CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero'));
 """
 
 
@@ -304,6 +337,7 @@ def init_db():
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA_SQL)
+            cur.execute(MIGRATION_SQL)
     print("✅ Database schema initialized")
 
 
@@ -389,5 +423,48 @@ def seed_db():
                 (2, 'Cancha de Tenis', 'Cancha en superficie dura con iluminación.', 4, '🎾', 1, 2),
                 (3, 'Zona de Juegos Infantiles', 'Área segura con columpios y tobogán.', 20, '🎠', 1, 4)
             """)
+
+            # ── Super Admin ──────────────────────────────────────────────────
+            sa_hash = pwd_context.hash("Super123!") if pwd_context else None
+            cur.execute(
+                "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) VALUES (%s,%s,%s,%s,%s,%s)",
+                ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin", sa_hash),
+            )
+
+            # ── Módulos ──────────────────────────────────────────────────────
+            modulos = [
+                ("finanzas",      "Finanzas",            "💰"),
+                ("mantenimiento", "Mantenimiento",        "🔧"),
+                ("comunicados",   "Comunicados",          "📢"),
+                ("zonas_comunes", "Zonas Comunes",        "🏊"),
+                ("accesos",       "Control de Acceso",    "🔐"),
+                ("paquetes",      "Paquetería",           "📦"),
+                ("chat",          "Chat Seguridad",       "💬"),
+                ("guardias",      "Guardias y Turnos",    "👮"),
+                ("reportes",      "Reportes",             "📈"),
+            ]
+            cur.executemany(
+                "INSERT INTO modulos (clave, nombre, icono) VALUES (%s, %s, %s)",
+                modulos,
+            )
+
+            # ── Activar todos los módulos en los 3 edificios demo ────────────
+            cur.execute("SELECT id FROM modulos")
+            modulo_ids = [r["id"] for r in cur.fetchall()]
+            for edificio_id in [1, 2, 3]:
+                for modulo_id in modulo_ids:
+                    cur.execute(
+                        "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s, %s, TRUE)",
+                        (edificio_id, modulo_id),
+                    )
+
+            # ── Admin demo → Torres del Norte ────────────────────────────────
+            cur.execute("SELECT id FROM usuarios WHERE email = 'admin@torreadmin.co'")
+            admin = cur.fetchone()
+            if admin:
+                cur.execute(
+                    "INSERT INTO usuario_edificios (usuario_id, edificio_id) VALUES (%s, 1)",
+                    (admin["id"],),
+                )
 
             print("✅ Database seeded with demo data")
