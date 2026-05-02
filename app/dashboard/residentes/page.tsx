@@ -31,6 +31,7 @@ export default function ResidentesPage() {
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [saving, setSaving]         = useState(false);
+  const [search, setSearch]         = useState("");
   const [form, setForm]             = useState<NuevoResidente>({ nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "" });
 
   async function load() {
@@ -63,6 +64,16 @@ export default function ResidentesPage() {
 
   const propietarios = residentes.filter((r) => r.tipo_ocupacion === "propietario" || r.rol === "propietario").length;
   const inquilinos   = residentes.filter((r) => r.tipo_ocupacion === "inquilino"   || r.rol === "inquilino").length;
+
+  const q = search.trim().toLowerCase();
+  const filteredResidentes = q
+    ? residentes.filter((r) =>
+        r.nombre.toLowerCase().includes(q) ||
+        (r.cedula ?? "").toLowerCase().includes(q) ||
+        (r.unidad_numero ?? "").toLowerCase().includes(q) ||
+        (r.email ?? "").toLowerCase().includes(q)
+      )
+    : residentes;
 
   const initials = (nombre: string) =>
     nombre.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
@@ -135,14 +146,25 @@ export default function ResidentesPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Listado de residentes</h2>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="bg-primary text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-          >
-            {showForm ? "✕ Cancelar" : "+ Nuevo residente"}
-          </button>
+        <div className="px-6 py-4 border-b border-gray-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Listado de residentes</h2>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="bg-primary text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            >
+              {showForm ? "✕ Cancelar" : "+ Nuevo residente"}
+            </button>
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre, cédula, unidad…"
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -158,7 +180,9 @@ export default function ResidentesPage() {
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
               ) : residentes.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Sin residentes registrados.</td></tr>
-              ) : residentes.map((r) => (
+              ) : filteredResidentes.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
+              ) : filteredResidentes.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -191,7 +215,9 @@ export default function ResidentesPage() {
           </table>
         </div>
         <div className="px-6 py-3 border-t border-gray-100">
-          <span className="text-sm text-gray-500">Mostrando {residentes.length} residentes</span>
+          <span className="text-sm text-gray-500">
+            {q ? `${filteredResidentes.length} de ${residentes.length}` : residentes.length} residentes
+          </span>
         </div>
       </div>
     </div>

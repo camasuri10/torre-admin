@@ -28,6 +28,10 @@ export default function AdminsPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
+  const [editEdificios, setEditEdificios] = useState<number[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
   const [form, setForm] = useState({
     nombre: "", email: "", password: "", cedula: "", telefono: "",
     edificio_ids: [] as number[],
@@ -61,6 +65,30 @@ export default function AdminsPage() {
     }));
   }
 
+  function toggleEditEdificio(id: number) {
+    setEditEdificios((prev) =>
+      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]
+    );
+  }
+
+  function openEdit(admin: Admin) {
+    setEditingAdmin(admin);
+    setEditEdificios(admin.edificios.map((e) => e.id));
+    setError("");
+  }
+
+  async function handleEditSave() {
+    if (!editingAdmin) return;
+    setEditSaving(true);
+    setError("");
+    try {
+      await superadminApi.admins.updateEdificios(editingAdmin.id, editEdificios);
+      setEditingAdmin(null);
+      loadData();
+    } catch { setError("Error al guardar los cambios."); }
+    finally { setEditSaving(false); }
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.edificio_ids.length) { setError("Selecciona al menos un edificio"); return; }
@@ -82,6 +110,13 @@ export default function AdminsPage() {
     finally { setSaving(false); }
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredAdmins = q
+    ? admins.filter((a) =>
+        a.nombre.toLowerCase().includes(q) || a.email.toLowerCase().includes(q)
+      )
+    : admins;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -92,17 +127,28 @@ export default function AdminsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Administradores</h2>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona los administradores y sus edificios asignados</p>
         </div>
         <button
           onClick={() => { setShowForm((v) => !v); setError(""); }}
-          className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+          className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
           + Nuevo administrador
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre o email…"
+          className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
 
       {/* Create form */}
@@ -171,15 +217,54 @@ export default function AdminsPage() {
         </div>
       )}
 
+      {/* Edit modal */}
+      {editingAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Editar edificios asignados</h3>
+            <p className="text-xs text-gray-500 mb-4">{editingAdmin.nombre} · {editingAdmin.email}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+              {edificios.map((e) => (
+                <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editEdificios.includes(e.id)}
+                    onChange={() => toggleEditEdificio(e.id)}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm text-gray-700">{e.nombre}</span>
+                </label>
+              ))}
+            </div>
+            {error && <p className="text-red-600 text-xs mb-3">{error}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving}
+                className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+              >
+                {editSaving ? "Guardando…" : "Guardar cambios"}
+              </button>
+              <button
+                onClick={() => { setEditingAdmin(null); setError(""); }}
+                className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admins list */}
-      {error && !showForm && (
+      {error && !showForm && !editingAdmin && (
         <p className="text-red-600 text-sm">{error}</p>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        {admins.length === 0 ? (
+        {filteredAdmins.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">
-            No hay administradores registrados.
+            {q ? "Sin resultados para la búsqueda." : "No hay administradores registrados."}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -189,10 +274,11 @@ export default function AdminsPage() {
                 <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Email</th>
                 <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Edificios</th>
                 <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Estado</th>
+                <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {admins.map((a) => (
+              {filteredAdmins.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="font-medium text-gray-900">{a.nombre}</div>
@@ -216,6 +302,14 @@ export default function AdminsPage() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${a.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                       {a.activo ? "Activo" : "Inactivo"}
                     </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <button
+                      onClick={() => openEdit(a)}
+                      className="text-xs text-primary font-medium hover:underline"
+                    >
+                      Editar
+                    </button>
                   </td>
                 </tr>
               ))}

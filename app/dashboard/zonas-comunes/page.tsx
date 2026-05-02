@@ -77,9 +77,16 @@ export default function ZonasComunesPage() {
     load();
   };
 
+  const [search, setSearch] = useState("");
+
   const disponibles = zonas.filter((z) => z.disponible).length;
   const confirmadas = reservas.filter((r) => r.estado === "confirmada").length;
   const pendientes = reservas.filter((r) => r.estado === "pendiente").length;
+
+  const q = search.trim().toLowerCase();
+  const filteredZonas = q
+    ? zonas.filter((z) => z.nombre.toLowerCase().includes(q) || (z.descripcion ?? "").toLowerCase().includes(q))
+    : zonas;
 
   return (
     <div className="space-y-6">
@@ -111,10 +118,22 @@ export default function ZonasComunesPage() {
 
       {/* Zonas grid */}
       {tab === "zonas" && (
+        <>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar zona común…"
+              className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {loading ? (
             <div className="col-span-3 text-center py-12 text-gray-400">Cargando...</div>
-          ) : zonas.map((zona) => (
+          ) : filteredZonas.length === 0 ? (
+            <div className="col-span-3 text-center py-12 text-gray-400">Sin resultados.</div>
+          ) : filteredZonas.map((zona) => (
             <div key={zona.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
               <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -156,6 +175,7 @@ export default function ZonasComunesPage() {
             </div>
           ))}
         </div>
+        </>
       )}
 
       {/* Reservas table */}

@@ -2,10 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
-const USUARIO_ID = 1; // TODO: from auth context
-const USUARIO_NOMBRE = "Juan Rodríguez";
+import { getUser } from "@/lib/auth";
 
 const TIPO_COLORS: Record<string, string> = {
   alerta: "bg-red-100 border-red-300",
@@ -14,6 +11,11 @@ const TIPO_COLORS: Record<string, string> = {
 };
 
 export default function ChatPage() {
+  const authUser = getUser();
+  const usuarioId = authUser ? parseInt(authUser.sub) : 0;
+  const usuarioNombre = authUser?.nombre ?? "Usuario";
+  const edificioId = authUser?.edificio_id ?? 1;
+
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState<"texto" | "alerta">("texto");
@@ -23,7 +25,7 @@ export default function ChatPage() {
 
   const load = async () => {
     try {
-      const msgs = await api.chat.mensajes(EDIFICIO_ID, 100);
+      const msgs = await api.chat.mensajes(edificioId, 100);
       setMensajes(msgs);
     } catch {
       // ignore
@@ -47,8 +49,8 @@ export default function ChatPage() {
     e.preventDefault();
     if (!texto.trim()) return;
     await api.chat.enviar({
-      edificio_id: EDIFICIO_ID,
-      remitente_id: USUARIO_ID,
+      edificio_id: edificioId,
+      remitente_id: usuarioId,
       contenido: texto.trim(),
       tipo: tipoMensaje,
     });
@@ -56,7 +58,7 @@ export default function ChatPage() {
     load();
   };
 
-  const isMe = (msg: any) => msg.remitente_id === USUARIO_ID;
+  const isMe = (msg: any) => msg.remitente_id === usuarioId;
 
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)]">
@@ -153,7 +155,7 @@ export default function ChatPage() {
           </button>
         </form>
         <p className="text-xs text-gray-400 mt-2">
-          Enviando como: <strong>{USUARIO_NOMBRE}</strong> · Los mensajes se actualizan automáticamente cada 5 segundos
+          Enviando como: <strong>{usuarioNombre}</strong> · Los mensajes se actualizan automáticamente cada 5 segundos
         </p>
       </div>
     </div>

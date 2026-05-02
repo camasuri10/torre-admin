@@ -23,6 +23,7 @@ export default function EdificiosPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nombre: "", direccion: "", unidades: 0, pisos: 1 });
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const user = getUser();
@@ -52,19 +53,35 @@ export default function EdificiosPage() {
     finally { setSaving(false); }
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredEdificios = q
+    ? edificios.filter((e) => e.nombre.toLowerCase().includes(q) || e.direccion.toLowerCase().includes(q))
+    : edificios;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Edificios</h2>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona los edificios de la plataforma</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+          className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
           + Nuevo edificio
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre o dirección…"
+          className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
 
       {/* Create form */}
@@ -126,7 +143,10 @@ export default function EdificiosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {edificios.map((e) => (
+          {filteredEdificios.length === 0 ? (
+            <p className="col-span-3 text-center text-gray-400 text-sm py-8">Sin resultados para la búsqueda.</p>
+          ) : null}
+          {filteredEdificios.map((e) => (
             <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">

@@ -52,6 +52,7 @@ export default function AccesosPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [saving, setSaving]       = useState(false);
+  const [search, setSearch]       = useState("");
   const [form, setForm]           = useState<NuevoAcceso>({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true });
 
   async function load() {
@@ -99,6 +100,17 @@ export default function AccesosPage() {
     const d = new Date(iso);
     return isNaN(d.getTime()) ? iso : d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
   }
+
+  const q = search.trim().toLowerCase();
+  const filteredAccesos = q
+    ? accesos.filter((a) =>
+        a.visitante_nombre.toLowerCase().includes(q) ||
+        (a.visitante_documento ?? "").toLowerCase().includes(q) ||
+        (a.unidad_numero ?? "").toLowerCase().includes(q) ||
+        (a.anfitrion_nombre ?? "").toLowerCase().includes(q) ||
+        MOTIVO_LABELS[a.motivo]?.toLowerCase().includes(q)
+      )
+    : accesos;
 
   function formatFecha(iso: string) {
     const d = new Date(iso);
@@ -172,8 +184,17 @@ export default function AccesosPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-100 space-y-3">
           <h2 className="font-semibold text-gray-900">Registro de accesos</h2>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar visitante, unidad, motivo…"
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -189,7 +210,9 @@ export default function AccesosPage() {
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
               ) : accesos.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Sin registros de acceso.</td></tr>
-              ) : accesos.map((r) => (
+              ) : filteredAccesos.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
+              ) : filteredAccesos.map((r) => (
                 <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${!r.autorizado ? "bg-red-50/50" : ""}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -242,7 +265,9 @@ export default function AccesosPage() {
           </table>
         </div>
         <div className="px-6 py-3 border-t border-gray-100">
-          <span className="text-sm text-gray-500">{accesos.length} registros</span>
+          <span className="text-sm text-gray-500">
+            {q ? `${filteredAccesos.length} de ${accesos.length}` : accesos.length} registros
+          </span>
         </div>
       </div>
     </div>

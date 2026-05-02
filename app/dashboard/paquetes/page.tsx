@@ -17,6 +17,7 @@ export default function PaquetesPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState("");
+  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [entregandoId, setEntregandoId] = useState<number | null>(null);
   const [entregadoA, setEntregadoA] = useState("");
@@ -74,6 +75,17 @@ export default function PaquetesPage() {
             <div className="text-sm opacity-80">{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por unidad, remitente, guía…"
+          className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
 
       {/* Header */}
@@ -156,9 +168,20 @@ export default function PaquetesPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
-              ) : paquetes.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No hay paquetes registrados</td></tr>
-              ) : paquetes.map((p) => (
+              ) : (() => {
+                const sq = search.trim().toLowerCase();
+                const filtered = sq
+                  ? paquetes.filter((p) =>
+                      (p.unidad_numero ?? "").toString().toLowerCase().includes(sq) ||
+                      (p.remitente ?? "").toLowerCase().includes(sq) ||
+                      (p.numero_guia ?? "").toLowerCase().includes(sq) ||
+                      (p.empresa_mensajeria ?? "").toLowerCase().includes(sq)
+                    )
+                  : paquetes;
+                if (filtered.length === 0) return (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay paquetes registrados"}</td></tr>
+                );
+                return filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">#{p.id}</td>
                   <td className="px-4 py-3 font-medium">{p.unidad_numero ?? "—"}</td>
@@ -202,7 +225,8 @@ export default function PaquetesPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+              ));
+              })()}
             </tbody>
           </table>
         </div>

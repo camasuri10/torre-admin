@@ -34,6 +34,7 @@ export default function MantenimientoPage() {
   const [tab, setTab] = useState<"solicitudes" | "alertas">("solicitudes");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroPrioridad, setFiltroPrioridad] = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showAlertaForm, setShowAlertaForm] = useState(false);
@@ -150,6 +151,17 @@ export default function MantenimientoPage() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* List */}
           <div className="xl:col-span-2 space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar solicitud…"
+                className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
             {/* Filters */}
             <div className="flex flex-wrap gap-2 items-center justify-between">
               <div className="flex gap-2 flex-wrap">
@@ -191,9 +203,18 @@ export default function MantenimientoPage() {
                   <tbody className="divide-y divide-gray-50">
                     {loading ? (
                       <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
-                    ) : solicitudes.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No hay solicitudes</td></tr>
-                    ) : solicitudes.map((s) => (
+                    ) : (() => {
+                      const sq = search.trim().toLowerCase();
+                      const filtered = sq
+                        ? solicitudes.filter((s) =>
+                            (s.titulo ?? "").toLowerCase().includes(sq) ||
+                            (s.descripcion ?? "").toLowerCase().includes(sq)
+                          )
+                        : solicitudes;
+                      if (filtered.length === 0) return (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
+                      );
+                      return filtered.map((s) => (
                       <tr key={s.id}
                         onClick={() => setSelected(s)}
                         className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === s.id ? "bg-blue-50" : ""}`}>
@@ -217,7 +238,8 @@ export default function MantenimientoPage() {
                           {new Date(s.fecha_solicitud).toLocaleDateString("es-CO")}
                         </td>
                       </tr>
-                    ))}
+                    ));
+                    })()}
                   </tbody>
                 </table>
               </div>
