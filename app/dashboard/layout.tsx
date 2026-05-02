@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/residentes",    label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
       { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "finanzas" },
       { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino", "servicios"],           modulo: "mantenimiento" },
+      { href: "/dashboard/proveedores",   label: "Proveedores",   icon: "🏭", exact: false, roles: ["administrador", "superadmin"] },
       { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "comunicados" },
       { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "zonas_comunes" },
     ],

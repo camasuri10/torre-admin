@@ -74,11 +74,11 @@ def _get_user_edificios(cur, user: dict) -> list:
         )
         return [dict(r) for r in cur.fetchall()]
 
-    if rol == "portero":
+    if rol in ("portero", "servicios"):
         cur.execute(
-            """SELECT DISTINCT e.id, e.nombre FROM edificios e
-               JOIN guardias g ON g.edificio_id = e.id
-               WHERE g.usuario_id = %s AND g.activo = TRUE
+            """SELECT e.id, e.nombre FROM edificios e
+               JOIN usuario_edificios ue ON ue.edificio_id = e.id
+               WHERE ue.usuario_id = %s AND ue.activo = TRUE
                ORDER BY e.nombre""",
             (uid,),
         )

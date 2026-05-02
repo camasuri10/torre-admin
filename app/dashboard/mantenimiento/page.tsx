@@ -55,14 +55,12 @@ export default function MantenimientoPage() {
       if (filtroEstado) params.estado = filtroEstado;
       if (filtroPrioridad) params.prioridad = filtroPrioridad;
       if (filtroProgramado !== null) params.es_programado = filtroProgramado;
-      const [s, a, p] = await Promise.all([
+      const [s, a] = await Promise.all([
         api.mantenimientos.list(params),
         api.mantenimientos.alertas.list(edificioId),
-        proveedoresApi.list(edificioId),
       ]);
       setSolicitudes(s);
       setAlertas(a);
-      setProveedores(p);
     } catch {
       // fallback
     } finally {
@@ -71,6 +69,13 @@ export default function MantenimientoPage() {
   }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Proveedores se carga por separado para no bloquear la lista principal
+  useEffect(() => {
+    proveedoresApi.list(edificioId)
+      .then((p: any) => setProveedores(Array.isArray(p) ? p : (p?.proveedores ?? [])))
+      .catch(() => {});
+  }, [edificioId]);
 
   const handleUpdateEstado = async (id: number, estado: string) => {
     await api.mantenimientos.update(id, { estado });
@@ -133,6 +138,8 @@ export default function MantenimientoPage() {
     setSelected(updated);
     load();
   };
+
+  const canEdit = user?.rol !== "servicios";
 
   const pendientes = solicitudes.filter((s) => s.estado === "pendiente").length;
   const enProceso = solicitudes.filter((s) => s.estado === "en_proceso").length;
@@ -218,10 +225,12 @@ export default function MantenimientoPage() {
                   📅 Programados
                 </button>
               </div>
-              <button onClick={() => setShowForm(true)}
-                className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary/90">
-                + Nueva
-              </button>
+              {canEdit && (
+                <button onClick={() => setShowForm(true)}
+                  className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary/90">
+                  + Nueva
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -337,19 +346,21 @@ export default function MantenimientoPage() {
                 )}
 
                 {/* Estado actions */}
-                <div>
-                  <p className="text-xs text-gray-400 mb-2">Cambiar estado</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["pendiente", "en_proceso", "resuelto", "cancelado"].map((e) => (
-                      <button key={e} onClick={() => handleUpdateEstado(selected.id, e)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          selected.estado === e ? "bg-primary text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}>
-                        {e.replace("_", " ")}
-                      </button>
-                    ))}
+                {canEdit && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-2">Cambiar estado</p>
+                    <div className="flex flex-wrap gap-2">
+                      {["pendiente", "en_proceso", "resuelto", "cancelado"].map((e) => (
+                        <button key={e} onClick={() => handleUpdateEstado(selected.id, e)}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            selected.estado === e ? "bg-primary text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}>
+                          {e.replace("_", " ")}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Archivos */}
                 <div>
