@@ -23,7 +23,7 @@ const ZONA_FORM_EMPTY = {
 export default function ZonasComunesPage() {
   const user = getUser();
   const edificioId = user?.edificio_id ?? 1;
-  const usuarioId = user?.id ?? 1;
+  const usuarioId = user ? parseInt(user.sub) : 1;
 
   const [zonas, setZonas] = useState<any[]>([]);
   const [reservas, setReservas] = useState<any[]>([]);

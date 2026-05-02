@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, vehiculosApi, mascotasApi } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
@@ -37,7 +37,7 @@ export default function ResidentesPage() {
   const [mForm, setMForm]           = useState(EMPTY_MASCOTA);
   const [savingM, setSavingM]       = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const data = await api.usuarios.list({ edificio_id: edificioId });
       setResidentes(Array.isArray(data) ? data : []);
@@ -45,9 +45,9 @@ export default function ResidentesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [edificioId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   async function openDetail(r: any) {
     setSelected(r);
