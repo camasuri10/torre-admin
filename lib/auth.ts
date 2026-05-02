@@ -6,7 +6,7 @@ export interface AuthUser {
   sub: string;
   email: string;
   nombre: string;
-  rol: "superadmin" | "administrador" | "propietario" | "inquilino" | "portero";
+  rol: "superadmin" | "administrador" | "propietario" | "inquilino" | "portero" | "servicios";
   edificio_id?: number;
   exp: number;
 }

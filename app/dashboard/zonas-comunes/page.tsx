@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
@@ -42,7 +42,7 @@ export default function ZonasComunesPage() {
   const [filtroEstado, setFiltroEstado] = useState("");
   const [incluirInactivas, setIncluirInactivas] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [z, r] = await Promise.all([
@@ -56,9 +56,9 @@ export default function ZonasComunesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [edificioId, incluirInactivas]);
 
-  useEffect(() => { load(); }, [incluirInactivas]);
+  useEffect(() => { load(); }, [load]);
 
   const handleReservar = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
