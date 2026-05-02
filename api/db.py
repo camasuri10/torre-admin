@@ -404,7 +404,6 @@ CREATE INDEX IF NOT EXISTS idx_mascotas_usuario ON mascotas(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_edificio ON proveedores(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio ON modulos_uso(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha ON modulos_uso(fecha);
-CREATE INDEX IF NOT EXISTS idx_edificios_conjunto ON edificios(conjunto_id);
 """
 
 
@@ -417,6 +416,7 @@ ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
 -- Nuevas columnas en edificios
 ALTER TABLE edificios ADD COLUMN IF NOT EXISTS conjunto_id INTEGER REFERENCES conjuntos(id);
 ALTER TABLE edificios ADD COLUMN IF NOT EXISTS numero_torre TEXT;
+CREATE INDEX IF NOT EXISTS idx_edificios_conjunto ON edificios(conjunto_id);
 
 -- Preferencias de notificación en usuarios
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_sistema BOOLEAN NOT NULL DEFAULT TRUE;
