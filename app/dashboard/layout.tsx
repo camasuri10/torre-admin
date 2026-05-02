@@ -30,7 +30,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Super Admin",
     items: [
-      { href: "/dashboard/superadmin",           label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
+      { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏢",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/admins",     label: "Administradores",  icon: "👤",  exact: false, roles: ["superadmin"] },
     ],
@@ -39,10 +40,10 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Gestión",
     items: [
       { href: "/dashboard/residentes",    label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
-      { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "finanzas" },
-      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "mantenimiento" },
-      { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "comunicados" },
-      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"],       modulo: "zonas_comunes" },
+      { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "finanzas" },
+      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino", "servicios"],           modulo: "mantenimiento" },
+      { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "comunicados" },
+      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "zonas_comunes" },
     ],
   },
   {
@@ -60,16 +61,23 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false, roles: ["administrador"], modulo: "reportes" },
     ],
   },
+  {
+    label: "Mi Cuenta",
+    items: [
+      { href: "/dashboard/perfil", label: "Mi Perfil", icon: "👤", exact: false, roles: ["superadmin","administrador","propietario","inquilino","portero","servicios"] },
+    ],
+  },
 ];
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
-const ROL_LABELS: Record<AuthUser["rol"], string> = {
+const ROL_LABELS: Record<string, string> = {
   superadmin:    "Super Administrador",
   administrador: "Administrador",
   propietario:   "Propietario",
   inquilino:     "Inquilino",
   portero:       "Portero / Seguridad",
+  servicios:     "Servicios Generales",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

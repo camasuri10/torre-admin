@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { api, proveedoresApi } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 const ESTADO_BADGE: Record<string, string> = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -24,40 +23,52 @@ const CAT_ICON: Record<string, string> = {
   estructura: "🏗️",
   ascensor: "🛗",
   zonas_comunes: "🌳",
+  piscina: "🏊",
   otro: "🔧",
 };
 
+const PERIODICIDADES = ["diario", "semanal", "mensual", "trimestral", "anual"];
+
 export default function MantenimientoPage() {
+  const user = getUser();
+  const edificioId = user?.edificio_id ?? 1;
+
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
+  const [proveedores, setProveedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"solicitudes" | "alertas">("solicitudes");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroPrioridad, setFiltroPrioridad] = useState("");
+  const [filtroProgramado, setFiltroProgramado] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showAlertaForm, setShowAlertaForm] = useState(false);
+  const [esProgramado, setEsProgramado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { edificio_id: EDIFICIO_ID };
+      const params: any = { edificio_id: edificioId };
       if (filtroEstado) params.estado = filtroEstado;
       if (filtroPrioridad) params.prioridad = filtroPrioridad;
-      const [s, a] = await Promise.all([
+      if (filtroProgramado !== null) params.es_programado = filtroProgramado;
+      const [s, a, p] = await Promise.all([
         api.mantenimientos.list(params),
-        api.mantenimientos.alertas.list(EDIFICIO_ID),
+        api.mantenimientos.alertas.list(edificioId),
+        proveedoresApi.list(edificioId),
       ]);
       setSolicitudes(s);
       setAlertas(a);
+      setProveedores(p);
     } catch {
       // fallback
     } finally {
       setLoading(false);
     }
-  }, [filtroEstado, filtroPrioridad]);
+  }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,14 +81,27 @@ export default function MantenimientoPage() {
   const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    await api.mantenimientos.create({
-      edificio_id: EDIFICIO_ID,
+    const body: any = {
+      edificio_id: edificioId,
       titulo: fd.get("titulo"),
       descripcion: fd.get("descripcion"),
       categoria: fd.get("categoria"),
       prioridad: fd.get("prioridad"),
-    });
+      es_programado: esProgramado,
+    };
+    if (esProgramado) body.periodicidad = fd.get("periodicidad");
+    const proveedor = fd.get("proveedor_id");
+    if (proveedor) body.proveedor_id = parseInt(proveedor as string);
+    const vencimiento = fd.get("fecha_vencimiento");
+    if (vencimiento) body.fecha_vencimiento = vencimiento;
+    const presupuesto = fd.get("presupuesto");
+    if (presupuesto) body.presupuesto = parseFloat(presupuesto as string);
+    const contrato = fd.get("contrato_url");
+    if (contrato) body.contrato_url = contrato;
+
+    await api.mantenimientos.create(body);
     setShowForm(false);
+    setEsProgramado(false);
     (e.target as HTMLFormElement).reset();
     load();
   };
@@ -86,7 +110,7 @@ export default function MantenimientoPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     await api.mantenimientos.alertas.create({
-      edificio_id: EDIFICIO_ID,
+      edificio_id: edificioId,
       titulo: fd.get("titulo"),
       descripcion: fd.get("descripcion"),
       tipo: fd.get("tipo"),
@@ -105,7 +129,6 @@ export default function MantenimientoPage() {
     fd.append("nombre_archivo", file.name);
     fd.append("file", file);
     await api.mantenimientos.uploadArchivo(selected.id, fd);
-    // Reload selected
     const updated = await api.mantenimientos.get(selected.id);
     setSelected(updated);
     load();
@@ -116,17 +139,21 @@ export default function MantenimientoPage() {
   const resueltos = solicitudes.filter((s) => s.estado === "resuelto").length;
   const altas = solicitudes.filter((s) => s.prioridad === "alta").length;
   const alertasProximas = alertas.filter((a) => a.estado === "pendiente").length;
+  const programados = solicitudes.filter((s) => s.es_programado).length;
+
+  const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
         {[
           { label: "Pendientes", value: pendientes, color: "bg-amber-50 text-amber-700" },
           { label: "En proceso", value: enProceso, color: "bg-blue-50 text-blue-700" },
           { label: "Resueltos", value: resueltos, color: "bg-green-50 text-green-700" },
           { label: "Prioridad alta", value: altas, color: "bg-red-50 text-red-700" },
           { label: "Alertas activas", value: alertasProximas, color: "bg-purple-50 text-purple-700" },
+          { label: "Programados", value: programados, color: "bg-teal-50 text-teal-700" },
         ].map((s) => (
           <div key={s.label} className={`rounded-xl p-4 border border-current/10 ${s.color}`}>
             <div className="text-2xl font-bold">{s.value}</div>
@@ -183,9 +210,16 @@ export default function MantenimientoPage() {
                     {p === "" ? "Todas prioridades" : p}
                   </button>
                 ))}
+                <button
+                  onClick={() => setFiltroProgramado(filtroProgramado === true ? null : true)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    filtroProgramado === true ? "bg-teal-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}>
+                  📅 Programados
+                </button>
               </div>
               <button onClick={() => setShowForm(true)}
-                className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary-dark">
+                className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary/90">
                 + Nueva
               </button>
             </div>
@@ -195,7 +229,7 @@ export default function MantenimientoPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {["#", "Solicitud", "Cat.", "Prioridad", "Estado", "Fecha"].map((h) => (
+                      {["#", "Solicitud", "Cat.", "Prioridad", "Estado", "Vencimiento"].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
                       ))}
                     </tr>
@@ -215,30 +249,39 @@ export default function MantenimientoPage() {
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
                       );
                       return filtered.map((s) => (
-                      <tr key={s.id}
-                        onClick={() => setSelected(s)}
-                        className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === s.id ? "bg-blue-50" : ""}`}>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-400">#{s.id}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900 max-w-[180px] truncate">{s.titulo}</div>
-                          <div className="text-xs text-gray-400">{s.unidad_numero ?? "General"}</div>
-                        </td>
-                        <td className="px-4 py-3 text-lg">{CAT_ICON[s.categoria] ?? "🔧"}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORIDAD_BADGE[s.prioridad]}`}>
-                            {s.prioridad}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_BADGE[s.estado]}`}>
-                            {s.estado.replace("_", " ")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-500">
-                          {new Date(s.fecha_solicitud).toLocaleDateString("es-CO")}
-                        </td>
-                      </tr>
-                    ));
+                        <tr key={s.id}
+                          onClick={() => setSelected(s)}
+                          className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === s.id ? "bg-blue-50" : ""}`}>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-400">#{s.id}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900 max-w-[180px] truncate flex items-center gap-1.5">
+                              {s.titulo}
+                              {s.es_programado && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700 flex-shrink-0">
+                                  📅 Prog.
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-400">{s.unidad_numero ?? "General"}</div>
+                          </td>
+                          <td className="px-4 py-3 text-lg">{CAT_ICON[s.categoria] ?? "🔧"}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORIDAD_BADGE[s.prioridad]}`}>
+                              {s.prioridad}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_BADGE[s.estado]}`}>
+                              {s.estado.replace("_", " ")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {s.fecha_vencimiento
+                              ? new Date(s.fecha_vencimiento).toLocaleDateString("es-CO")
+                              : <span className="text-gray-300">—</span>}
+                          </td>
+                        </tr>
+                      ));
                     })()}
                   </tbody>
                 </table>
@@ -251,7 +294,14 @@ export default function MantenimientoPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-gray-900 text-sm leading-snug">{selected.titulo}</h3>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-sm leading-snug">{selected.titulo}</h3>
+                    {selected.es_programado && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-teal-100 text-teal-700 mt-1">
+                        📅 Programado {selected.periodicidad ? `· ${selected.periodicidad}` : ""}
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">✕</button>
                 </div>
               </div>
@@ -262,8 +312,29 @@ export default function MantenimientoPage() {
                   <div><span className="text-gray-400">Prioridad</span><div className="font-medium capitalize">{selected.prioridad}</div></div>
                   <div><span className="text-gray-400">Solicitante</span><div className="font-medium">{selected.solicitante_nombre ?? "—"}</div></div>
                   <div><span className="text-gray-400">Unidad</span><div className="font-medium">{selected.unidad_numero ?? "General"}</div></div>
-                  {selected.costo && <div><span className="text-gray-400">Costo</span><div className="font-medium">${Number(selected.costo).toLocaleString("es-CO")}</div></div>}
+                  {selected.proveedor_nombre && (
+                    <div className="col-span-2"><span className="text-gray-400">Proveedor</span><div className="font-medium">{selected.proveedor_nombre}</div></div>
+                  )}
+                  {selected.presupuesto && (
+                    <div><span className="text-gray-400">Presupuesto</span><div className="font-medium">${Number(selected.presupuesto).toLocaleString("es-CO")}</div></div>
+                  )}
+                  {selected.costo && (
+                    <div><span className="text-gray-400">Costo real</span><div className="font-medium">${Number(selected.costo).toLocaleString("es-CO")}</div></div>
+                  )}
+                  {selected.fecha_vencimiento && (
+                    <div><span className="text-gray-400">Vencimiento</span><div className="font-medium">{new Date(selected.fecha_vencimiento).toLocaleDateString("es-CO")}</div></div>
+                  )}
+                  {selected.torre_nombre && (
+                    <div><span className="text-gray-400">Torre</span><div className="font-medium">{selected.torre_nombre}</div></div>
+                  )}
                 </div>
+
+                {selected.contrato_url && (
+                  <a href={selected.contrato_url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    📄 Ver contrato
+                  </a>
+                )}
 
                 {/* Estado actions */}
                 <div>
@@ -324,7 +395,7 @@ export default function MantenimientoPage() {
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setShowAlertaForm(true)}
-              className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-dark">
+              className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
               + Nueva alerta
             </button>
           </div>
@@ -366,36 +437,92 @@ export default function MantenimientoPage() {
       {/* Nueva solicitud modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="font-semibold text-gray-900 mb-4">Nueva solicitud de mantenimiento</h3>
             <form onSubmit={handleCrear} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                <input name="titulo" required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                <input name="titulo" required className={INPUT} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                <textarea name="descripcion" rows={3} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <textarea name="descripcion" rows={3} className={INPUT} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                  <select name="categoria" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <select name="categoria" className={INPUT}>
                     {Object.keys(CAT_ICON).map((c) => <option key={c} value={c}>{CAT_ICON[c]} {c}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
-                  <select name="prioridad" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <select name="prioridad" defaultValue="media" className={INPUT}>
                     <option value="alta">Alta</option>
-                    <option value="media" selected>Media</option>
+                    <option value="media">Media</option>
                     <option value="baja">Baja</option>
                   </select>
                 </div>
               </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">Crear</button>
+
+              {/* Toggle programado */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">¿Es mantenimiento programado?</div>
+                  <div className="text-xs text-gray-400">Mantenimientos recurrentes o preventivos</div>
+                </div>
+                <button type="button"
+                  onClick={() => setEsProgramado((v) => !v)}
+                  className={`relative w-10 h-6 rounded-full transition-colors ${esProgramado ? "bg-teal-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${esProgramado ? "left-5" : "left-1"}`} />
+                </button>
+              </div>
+
+              {esProgramado && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
+                  <select name="periodicidad" className={INPUT}>
+                    {PERIODICIDADES.map((p) => (
+                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                  <select name="proveedor_id" className={INPUT}>
+                    <option value="">Sin proveedor</option>
+                    {proveedores.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Presupuesto</label>
+                  <input name="presupuesto" type="number" step="0.01" min="0" placeholder="0.00" className={INPUT} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento</label>
+                <input name="fecha_vencimiento" type="date" className={INPUT} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">URL del contrato</label>
+                <input name="contrato_url" type="url" placeholder="https://…" className={INPUT} />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => { setShowForm(false); setEsProgramado(false); }}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
+                  Crear
+                </button>
               </div>
             </form>
           </div>
@@ -410,16 +537,16 @@ export default function MantenimientoPage() {
             <form onSubmit={handleCrearAlerta} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                <input name="titulo" required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <input name="titulo" required className={INPUT} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                <textarea name="descripcion" rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <textarea name="descripcion" rows={2} className={INPUT} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                  <select name="tipo" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <select name="tipo" className={INPUT}>
                     <option value="preventivo">Preventivo</option>
                     <option value="correctivo">Correctivo</option>
                     <option value="inspeccion">Inspección</option>
@@ -427,12 +554,13 @@ export default function MantenimientoPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha programada</label>
-                  <input name="fecha_programada" type="date" required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <input name="fecha_programada" type="date" required className={INPUT} />
                 </div>
               </div>
               <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowAlertaForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">Programar</button>
+                <button type="button" onClick={() => setShowAlertaForm(false)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Programar</button>
               </div>
             </form>
           </div>

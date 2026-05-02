@@ -46,8 +46,15 @@ export const authApi = {
 // ── Super Admin ───────────────────────────────────────────────────────────────
 export const superadminApi = {
   stats: () => request<any>("/api/superadmin/stats"),
+  analytics: (edificio_id?: number) => {
+    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+    return request<any>(`/api/superadmin/analytics${q}`);
+  },
   edificios: {
-    list: () => request<any>("/api/superadmin/edificios"),
+    list: (conjunto_id?: number) => {
+      const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
+      return request<any>(`/api/superadmin/edificios${q}`);
+    },
     create: (data: any) => request<any>("/api/superadmin/edificios", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/edificios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
@@ -60,6 +67,56 @@ export const superadminApi = {
     updateEdificios: (id: number, edificio_ids: number[]) =>
       request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify({ edificio_ids }) }),
   },
+  staff: {
+    list: () => request<any>("/api/superadmin/staff"),
+    create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
+    updateEdificios: (id: number, edificio_ids: number[]) =>
+      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify({ edificio_ids }) }),
+  },
+};
+
+// ── Conjuntos ─────────────────────────────────────────────────────────────────
+export const conjuntosApi = {
+  list: () => request<any>("/api/conjuntos"),
+  get: (id: number) => request<any>(`/api/conjuntos/${id}`),
+  create: (data: any) => request<any>("/api/conjuntos", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request<any>(`/api/conjuntos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  torres: (id: number) => request<any>(`/api/conjuntos/${id}/torres`),
+  assignTorre: (conjunto_id: number, edificio_id: number, numero_torre?: string) =>
+    request<any>(`/api/conjuntos/${conjunto_id}/torres/${edificio_id}${numero_torre ? `?numero_torre=${numero_torre}` : ""}`, { method: "POST", body: JSON.stringify({}) }),
+};
+
+// ── Vehículos ─────────────────────────────────────────────────────────────────
+export const vehiculosApi = {
+  list: (usuario_id?: number) => {
+    const q = usuario_id ? `?usuario_id=${usuario_id}` : "";
+    return request<any>(`/api/vehiculos${q}`);
+  },
+  create: (data: any) => request<any>("/api/vehiculos", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request<any>(`/api/vehiculos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/api/vehiculos/${id}`, { method: "DELETE" }),
+};
+
+// ── Mascotas ──────────────────────────────────────────────────────────────────
+export const mascotasApi = {
+  list: (usuario_id?: number) => {
+    const q = usuario_id ? `?usuario_id=${usuario_id}` : "";
+    return request<any>(`/api/mascotas${q}`);
+  },
+  create: (data: any) => request<any>("/api/mascotas", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request<any>(`/api/mascotas/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/api/mascotas/${id}`, { method: "DELETE" }),
+};
+
+// ── Proveedores ───────────────────────────────────────────────────────────────
+export const proveedoresApi = {
+  list: (edificio_id?: number) => {
+    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+    return request<any>(`/api/proveedores${q}`);
+  },
+  create: (data: any) => request<any>("/api/proveedores", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request<any>(`/api/proveedores/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/api/proveedores/${id}`, { method: "DELETE" }),
 };
 
 // ── Edificios ─────────────────────────────────────────────────────────────────
@@ -102,11 +159,17 @@ export const api = {
 
   // ── Mantenimiento ──────────────────────────────────────────────────────────
   mantenimientos: {
-    list: (params?: { edificio_id?: number; estado?: string; prioridad?: string }) => {
+    list: (params?: { edificio_id?: number; estado?: string; prioridad?: string; es_programado?: boolean }) => {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/mantenimientos/${q ? "?" + q : ""}`);
     },
     get: (id: number) => request<any>(`/api/mantenimientos/${id}`),
+    vencimientos: (edificio_id?: number, dias = 30) => {
+      const params: any = { dias };
+      if (edificio_id) params.edificio_id = edificio_id;
+      const q = new URLSearchParams(params).toString();
+      return request<any[]>(`/api/mantenimientos/vencimientos?${q}`);
+    },
     create: (data: any) => request<any>("/api/mantenimientos/", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/mantenimientos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     uploadArchivo: (id: number, formData: FormData) =>
@@ -135,9 +198,12 @@ export const api = {
 
   // ── Zonas Comunes ──────────────────────────────────────────────────────────
   zonas: {
-    list: (edificio_id?: number) => {
-      const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
-      return request<any[]>(`/api/zonas-comunes/${q}`);
+    list: (edificio_id?: number, incluir_inactivas = false) => {
+      const params: any = {};
+      if (edificio_id) params.edificio_id = edificio_id;
+      if (incluir_inactivas) params.incluir_inactivas = true;
+      const q = new URLSearchParams(params).toString();
+      return request<any[]>(`/api/zonas-comunes/${q ? "?" + q : ""}`);
     },
     create: (data: any) => request<any>("/api/zonas-comunes/", { method: "POST", body: JSON.stringify(data) }),
     updateConfig: (id: number, data: any) =>
@@ -152,6 +218,11 @@ export const api = {
       create: (data: any) => request<any>("/api/zonas-comunes/reservas", { method: "POST", body: JSON.stringify(data) }),
       update: (id: number, estado: string) =>
         request<any>(`/api/zonas-comunes/reservas/${id}?estado=${estado}`, { method: "PATCH" }),
+      cancelar: (id: number, data: { cancelada_por: string; motivo?: string }) =>
+        request<any>(`/api/zonas-comunes/reservas/${id}/cancelar`, { method: "PATCH", body: JSON.stringify(data) }),
+      pendientesAlerta: () => request<any[]>("/api/zonas-comunes/reservas/pendientes-alerta"),
+      marcarAlertaEnviada: (id: number) =>
+        request<any>(`/api/zonas-comunes/reservas/${id}/alerta-enviada`, { method: "PATCH", body: JSON.stringify({}) }),
     },
   },
 
