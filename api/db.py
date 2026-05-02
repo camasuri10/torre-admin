@@ -344,12 +344,13 @@ def init_db():
 def _ensure_passwords(cur, pwd_context):
     """Update password_hash for seeded users that don't have one yet."""
     demo_passwords = {
-        "admin@torreadmin.co":     "Admin123!",
-        "guardia1@torreadmin.co":  "Guardia123!",
-        "c.martinez@gmail.com":    "Prop123!",
-        "mfgomez@hotmail.com":     "Torre123!",
-        "jsrojas@gmail.com":       "Torre123!",
-        "lv.herrera@outlook.com":  "Torre123!",
+        "admin@torreadmin.co":         "Admin123!",
+        "superadmin@torreadmin.co":    "Super123!",
+        "guardia1@torreadmin.co":      "Guardia123!",
+        "c.martinez@gmail.com":        "Prop123!",
+        "mfgomez@hotmail.com":         "Torre123!",
+        "jsrojas@gmail.com":           "Torre123!",
+        "lv.herrera@outlook.com":      "Torre123!",
     }
     for email, pw in demo_passwords.items():
         cur.execute(
@@ -357,6 +358,97 @@ def _ensure_passwords(cur, pwd_context):
             (pwd_context.hash(pw), email),
         )
     print("✅ Demo passwords set")
+
+
+def _ensure_edificio_assignments(cur):
+    """Insert missing guardias, ocupaciones and usuario_edificios for demo users."""
+    # Guardia → Torres del Norte
+    cur.execute("SELECT id FROM usuarios WHERE email = 'guardia1@torreadmin.co'")
+    guardia_user = cur.fetchone()
+    if guardia_user:
+        cur.execute(
+            """INSERT INTO guardias (usuario_id, edificio_id, activo)
+               VALUES (%s, 1, TRUE)
+               ON CONFLICT DO NOTHING""",
+            (guardia_user["id"],),
+        )
+
+    # Admin → Torres del Norte (usuario_edificios)
+    cur.execute("SELECT id FROM usuarios WHERE email = 'admin@torreadmin.co'")
+    admin_user = cur.fetchone()
+    if admin_user:
+        cur.execute(
+            """INSERT INTO usuario_edificios (usuario_id, edificio_id, activo)
+               VALUES (%s, 1, TRUE)
+               ON CONFLICT DO NOTHING""",
+            (admin_user["id"],),
+        )
+
+    # Propietarios/inquilinos → ocupaciones en Torres del Norte
+    # Apto 101 → Carlos Martínez (propietario)
+    # Apto 201 → María Gómez (propietario)
+    # Apto 301 → Luisa Herrera (propietario)
+    # Apto 102 → Jhon Rojas (inquilino)
+    ocupaciones_demo = [
+        ("c.martinez@gmail.com",   "Apto 101", "propietario"),
+        ("mfgomez@hotmail.com",    "Apto 201", "propietario"),
+        ("lv.herrera@outlook.com", "Apto 301", "propietario"),
+        ("jsrojas@gmail.com",      "Apto 102", "inquilino"),
+    ]
+    for email, apto, tipo in ocupaciones_demo:
+        cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
+        u = cur.fetchone()
+        cur.execute("SELECT id FROM unidades WHERE edificio_id = 1 AND numero = %s", (apto,))
+        un = cur.fetchone()
+        if u and un:
+            cur.execute(
+                """INSERT INTO ocupaciones (unidad_id, usuario_id, tipo, fecha_inicio, activo)
+                   VALUES (%s, %s, %s, CURRENT_DATE, TRUE)
+                   ON CONFLICT DO NOTHING""",
+                (un["id"], u["id"], tipo),
+            )
+
+    # Módulos: insertar si faltan
+    modulos = [
+        ("finanzas",      "Finanzas",            "💰"),
+        ("mantenimiento", "Mantenimiento",        "🔧"),
+        ("comunicados",   "Comunicados",          "📢"),
+        ("zonas_comunes", "Zonas Comunes",        "🏊"),
+        ("accesos",       "Control de Acceso",    "🔐"),
+        ("paquetes",      "Paquetería",           "📦"),
+        ("chat",          "Chat Seguridad",       "💬"),
+        ("guardias",      "Guardias y Turnos",    "👮"),
+        ("reportes",      "Reportes",             "📈"),
+    ]
+    for clave, nombre, icono in modulos:
+        cur.execute(
+            "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s) ON CONFLICT (clave) DO NOTHING",
+            (clave, nombre, icono),
+        )
+
+    # Activar todos los módulos en los edificios existentes
+    cur.execute("SELECT id FROM edificios")
+    edificio_ids = [r["id"] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM modulos")
+    modulo_ids = [r["id"] for r in cur.fetchall()]
+    for eid in edificio_ids:
+        for mid in modulo_ids:
+            cur.execute(
+                """INSERT INTO edificio_modulos (edificio_id, modulo_id, activo)
+                   VALUES (%s, %s, TRUE)
+                   ON CONFLICT DO NOTHING""",
+                (eid, mid),
+            )
+
+    # Superadmin: insertar si no existe
+    cur.execute("SELECT id FROM usuarios WHERE email = 'superadmin@torreadmin.co'")
+    if not cur.fetchone():
+        cur.execute(
+            "INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES (%s,%s,%s,%s,%s)",
+            ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin"),
+        )
+
+    print("✅ Demo edificio assignments ensured")
 
 
 def seed_db():
@@ -373,9 +465,10 @@ def seed_db():
             cur.execute("SELECT COUNT(*) FROM edificios")
             count = cur.fetchone()["count"]
             if count > 0:
-                # Already seeded — ensure passwords are set for existing users
+                # Already seeded — patch any missing data from this release
                 if pwd_context:
                     _ensure_passwords(cur, pwd_context)
+                _ensure_edificio_assignments(cur)
                 print("ℹ️  Database already seeded, skipping.")
                 return
 
@@ -466,5 +559,32 @@ def seed_db():
                     "INSERT INTO usuario_edificios (usuario_id, edificio_id) VALUES (%s, 1)",
                     (admin["id"],),
                 )
+
+            # ── Guardia → Torres del Norte ───────────────────────────────────
+            cur.execute("SELECT id FROM usuarios WHERE email = 'guardia1@torreadmin.co'")
+            guardia_user = cur.fetchone()
+            if guardia_user:
+                cur.execute(
+                    "INSERT INTO guardias (usuario_id, edificio_id, activo) VALUES (%s, 1, TRUE)",
+                    (guardia_user["id"],),
+                )
+
+            # ── Ocupaciones demo ─────────────────────────────────────────────
+            ocupaciones_demo = [
+                ("c.martinez@gmail.com",   "Apto 101", "propietario"),
+                ("mfgomez@hotmail.com",    "Apto 201", "propietario"),
+                ("lv.herrera@outlook.com", "Apto 301", "propietario"),
+                ("jsrojas@gmail.com",      "Apto 102", "inquilino"),
+            ]
+            for email, apto, tipo in ocupaciones_demo:
+                cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
+                u = cur.fetchone()
+                cur.execute("SELECT id FROM unidades WHERE edificio_id = 1 AND numero = %s", (apto,))
+                un = cur.fetchone()
+                if u and un:
+                    cur.execute(
+                        "INSERT INTO ocupaciones (unidad_id, usuario_id, tipo, fecha_inicio, activo) VALUES (%s,%s,%s,CURRENT_DATE,TRUE)",
+                        (un["id"], u["id"], tipo),
+                    )
 
             print("✅ Database seeded with demo data")

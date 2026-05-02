@@ -81,6 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [edificios, setEdificios]           = useState<{ id: number; nombre: string }[]>([]);
   const [showSwitcher, setShowSwitcher]     = useState(false);
   const [switching, setSwitching]           = useState(false);
+  const [sidebarOpen, setSidebarOpen]       = useState(false);
   const switcherRef                         = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,6 +149,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const canSwitch = edificios.length > 1;
 
+  function handleNavClick() {
+    setSidebarOpen(false);
+  }
+
   async function handleSwitchBuilding(edificioId: number) {
     if (!user) return;
     setSwitching(true);
@@ -168,11 +173,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+
+      {/* Mobile backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-200 ${
+          sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
       {/* ── Sidebar ── */}
-      <aside className="w-64 bg-primary flex flex-col flex-shrink-0">
+      <aside className={`
+        fixed top-0 bottom-0 left-0 z-50 w-64 bg-primary flex flex-col flex-shrink-0
+        transform transition-transform duration-200 ease-in-out
+        lg:static lg:translate-x-0
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+      `}>
         {/* Logo */}
         <div className="px-6 py-5 border-b border-white/10">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3" onClick={handleNavClick}>
             <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
               <span className="text-white font-extrabold text-base">T</span>
             </div>
@@ -232,6 +251,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={handleNavClick}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                       isActive(item)
                         ? "bg-white/20 text-white shadow-sm"
@@ -273,21 +293,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">{currentLabel}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {new Date().toLocaleDateString("es-CO", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </p>
-          </div>
+        <header className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
+            {/* Hamburger button — mobile only */}
+            <button
+              className="lg:hidden p-2 -ml-1 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-base lg:text-lg font-semibold text-gray-900">{currentLabel}</h1>
+              <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">
+                {new Date().toLocaleDateString("es-CO", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors"
               title="Notificaciones"
@@ -297,7 +329,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
             <Link
               href="/"
-              className="text-sm text-gray-500 hover:text-primary transition-colors font-medium"
+              className="hidden sm:block text-sm text-gray-500 hover:text-primary transition-colors font-medium"
             >
               ← Ir al sitio
             </Link>
@@ -305,7 +337,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );
