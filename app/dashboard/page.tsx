@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { getUser } from "@/lib/auth";
 
 function formatCOP(amount: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -15,6 +14,9 @@ function formatCOP(amount: number) {
 }
 
 export default function DashboardPage() {
+  const user = getUser();
+  const edificioId = user?.edificio_id ?? 1;
+
   const [stats, setStats] = useState<any>(null);
   const [pendientes, setPendientes] = useState<any[]>([]);
   const [comunicados, setComunicados] = useState<any[]>([]);
@@ -26,11 +28,11 @@ export default function DashboardPage() {
     const load = async () => {
       try {
         const [s, mant, com, cuotas, paq] = await Promise.all([
-          api.reportes.dashboard(EDIFICIO_ID),
-          api.mantenimientos.list({ edificio_id: EDIFICIO_ID, estado: "pendiente" }),
-          api.comunicados.list({ edificio_id: EDIFICIO_ID }),
-          api.cuotas.list({ edificio_id: EDIFICIO_ID, estado: "vencido" }),
-          api.paquetes.stats(EDIFICIO_ID),
+          api.reportes.dashboard(edificioId),
+          api.mantenimientos.list({ edificio_id: edificioId, estado: "pendiente" }),
+          api.comunicados.list({ edificio_id: edificioId }),
+          api.cuotas.list({ edificio_id: edificioId, estado: "vencido" }),
+          api.paquetes.stats(edificioId),
         ]);
         setStats(s);
         setPendientes(mant.slice(0, 5));

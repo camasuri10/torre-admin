@@ -14,6 +14,7 @@ class UsuarioCreate(BaseModel):
     telefono: Optional[str] = None
     rol: str  # administrador | propietario | inquilino | portero | servicios
     password: Optional[str] = None
+    edificio_id: Optional[int] = None  # contexto del admin — auto-asocia al edificio
 
 
 class UsuarioUpdate(BaseModel):
@@ -40,17 +41,25 @@ def list_usuarios(rol: Optional[str] = None, edificio_id: Optional[int] = None):
         with conn.cursor() as cur:
             if edificio_id:
                 cur.execute("""
-                    SELECT DISTINCT u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
+                    SELECT DISTINCT ON (u.id)
+                           u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
                            u.notif_sistema, u.notif_email, u.notif_whatsapp,
                            o.tipo as tipo_ocupacion,
-                           un.numero as unidad_numero, e.nombre as edificio_nombre
+                           un.numero as unidad_numero,
+                           COALESCE(eu.nombre, ed.nombre) as edificio_nombre
                     FROM usuarios u
-                    JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
-                    JOIN unidades un ON un.id = o.unidad_id
-                    JOIN edificios e ON e.id = un.edificio_id
-                    WHERE un.edificio_id = %s
-                    ORDER BY u.nombre
-                """, (edificio_id,))
+                    LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
+                    LEFT JOIN unidades un ON un.id = o.unidad_id
+                    LEFT JOIN edificios eu ON eu.id = un.edificio_id
+                    LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
+                    LEFT JOIN edificios ed ON ed.id = ue.edificio_id
+                    WHERE u.activo = TRUE
+                      AND (
+                        un.edificio_id = %s
+                        OR ue.edificio_id = %s
+                      )
+                    ORDER BY u.id, u.nombre
+                """, (edificio_id, edificio_id))
             elif rol:
                 cur.execute(
                     "SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
@@ -120,7 +129,15 @@ def create_usuario(data: UsuarioCreate):
                 "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
                 (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash),
             )
-            return cur.fetchone()
+            new_user = cur.fetchone()
+            # Auto-asociar al edificio del admin que lo crea
+            if data.edificio_id:
+                cur.execute(
+                    "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo) "
+                    "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                    (new_user["id"], data.edificio_id),
+                )
+            return new_user
 
 
 @router.put("/{usuario_id}")

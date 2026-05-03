@@ -418,6 +418,11 @@ ALTER TABLE edificios ADD COLUMN IF NOT EXISTS conjunto_id INTEGER REFERENCES co
 ALTER TABLE edificios ADD COLUMN IF NOT EXISTS numero_torre TEXT;
 CREATE INDEX IF NOT EXISTS idx_edificios_conjunto ON edificios(conjunto_id);
 
+-- Proveedores a nivel de conjunto (edificio_id pasa a ser nullable)
+ALTER TABLE proveedores ALTER COLUMN edificio_id DROP NOT NULL;
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS conjunto_id INTEGER REFERENCES conjuntos(id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_conjunto ON proveedores(conjunto_id);
+
 -- Preferencias de notificación en usuarios
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_sistema BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_email BOOLEAN NOT NULL DEFAULT FALSE;

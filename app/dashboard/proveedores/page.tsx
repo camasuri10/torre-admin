@@ -161,8 +161,10 @@ export default function ProveedoresPage() {
                 {p.telefono && <div>📞 {p.telefono}</div>}
                 {p.email && <div>📧 {p.email}</div>}
                 {p.nit && <div>🪪 NIT: {p.nit}</div>}
-                {isSuperAdmin && p.edificio_nombre && (
-                  <div className="pt-1 border-t border-gray-100 text-gray-400">🏢 {p.edificio_nombre}</div>
+                {(p.conjunto_nombre || p.edificio_nombre) && (
+                  <div className="pt-1 border-t border-gray-100 text-gray-400">
+                    🏘️ {p.conjunto_nombre ?? p.edificio_nombre}
+                  </div>
                 )}
               </div>
             </div>

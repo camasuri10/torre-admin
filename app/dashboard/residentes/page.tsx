@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, vehiculosApi, mascotasApi } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { getUser, getEdificiosDisponibles } from "@/lib/auth";
 
-const EMPTY_RESIDENTE = { nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "" };
+const EMPTY_RESIDENTE = { nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
 const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro" };
 const EMPTY_MASCOTA = { nombre: "", especie: "perro", raza: "", color: "" };
 
@@ -13,8 +13,10 @@ type Tab = "info" | "vehiculos" | "mascotas";
 export default function ResidentesPage() {
   const user = getUser();
   const edificioId = user?.edificio_id ?? 1;
+  const edificioNombre = getEdificiosDisponibles().find((e) => e.id === edificioId)?.nombre ?? `Edificio ${edificioId}`;
 
   const [residentes, setResidentes] = useState<any[]>([]);
+  const [unidades, setUnidades]     = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -49,6 +51,12 @@ export default function ResidentesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    api.edificios.unidades(edificioId)
+      .then((u: any[]) => setUnidades(Array.isArray(u) ? u : []))
+      .catch(() => {});
+  }, [edificioId]);
+
   async function openDetail(r: any) {
     setSelected(r);
     setDetailTab("info");
@@ -67,7 +75,18 @@ export default function ResidentesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.usuarios.create(form);
+      const { unidad_id, tipo_ocupacion, ...userData } = form;
+      // edificio_id se pasa siempre → backend inserta en usuario_edificios automáticamente
+      const newUser = await api.usuarios.create({ ...userData, edificio_id: edificioId });
+      if (unidad_id) {
+        const today = new Date().toISOString().slice(0, 10);
+        await api.usuarios.asignarUnidad({
+          unidad_id: Number(unidad_id),
+          usuario_id: newUser.id,
+          tipo: tipo_ocupacion,
+          fecha_inicio: today,
+        });
+      }
       setForm(EMPTY_RESIDENTE);
       setShowForm(false);
       await load();
@@ -156,7 +175,12 @@ export default function ResidentesPage() {
       {/* Create form */}
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <h3 className="font-semibold text-gray-900">Nuevo residente</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900">Nuevo residente</h3>
+            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+              🏢 {edificioNombre}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Juan Rodríguez" className={INPUT} /></div>
@@ -167,7 +191,7 @@ export default function ResidentesPage() {
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
               <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} placeholder="310 000 0000" className={INPUT} /></div>
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Rol</label>
-              <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })} className={INPUT}>
+              <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value, unidad_id: "" })} className={INPUT}>
                 <option value="propietario">Propietario</option>
                 <option value="inquilino">Inquilino</option>
                 <option value="portero">Portero</option>
@@ -175,7 +199,26 @@ export default function ResidentesPage() {
               </select></div>
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Contraseña temporal</label>
               <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className={INPUT} /></div>
+            {(form.rol === "propietario" || form.rol === "inquilino") && (
+              <>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Unidad (apartamento)</label>
+                  <select value={form.unidad_id} onChange={(e) => setForm({ ...form, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
+                    <option value="">Asignar después</option>
+                    {unidades.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>
+                    ))}
+                  </select></div>
+                {form.unidad_id !== "" && (
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo de ocupación</label>
+                    <select value={form.tipo_ocupacion} onChange={(e) => setForm({ ...form, tipo_ocupacion: e.target.value })} className={INPUT}>
+                      <option value="propietario">Propietario</option>
+                      <option value="inquilino">Inquilino</option>
+                    </select></div>
+                )}
+              </>
+            )}
           </div>
+          <p className="text-xs text-gray-400">El residente quedará asociado automáticamente a este edificio.</p>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
             <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">

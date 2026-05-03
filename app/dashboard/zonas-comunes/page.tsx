@@ -34,6 +34,11 @@ export default function ZonasComunesPage() {
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [showZonaForm, setShowZonaForm] = useState(false);
   const [reservaZona, setReservaZona] = useState<any | null>(null);
+  const [reservaFecha, setReservaFecha] = useState("");
+  const [slots, setSlots] = useState<{ inicio: string; fin: string; libre: boolean }[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [reservaNotas, setReservaNotas] = useState("");
+  const [reservandoSlot, setReservandoSlot] = useState<string | null>(null);
   const [cancelModal, setCancelModal] = useState<{ id: number; zona: string } | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [zonaForm, setZonaForm] = useState(ZONA_FORM_EMPTY);
@@ -41,6 +46,76 @@ export default function ZonasComunesPage() {
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [incluirInactivas, setIncluirInactivas] = useState(false);
+
+  function timeToMin(t: string) {
+    const [h, m] = String(t).slice(0, 5).split(":").map(Number);
+    return h * 60 + m;
+  }
+  function minToTime(m: number) {
+    return `${Math.floor(m / 60).toString().padStart(2, "0")}:${(m % 60).toString().padStart(2, "0")}`;
+  }
+  function generarSlots(horarioInicio: string, horarioFin: string, durMinHoras: number) {
+    const start = timeToMin(horarioInicio);
+    const end = timeToMin(horarioFin);
+    const dur = Math.round(Number(durMinHoras) * 60);
+    const result: { inicio: string; fin: string }[] = [];
+    for (let t = start; t + dur <= end; t += 15) {
+      result.push({ inicio: minToTime(t), fin: minToTime(t + dur) });
+    }
+    return result;
+  }
+  function slotLibre(inicio: string, fin: string, ocupados: any[]) {
+    const s = timeToMin(inicio), e = timeToMin(fin);
+    return !ocupados.some((o) => {
+      const os = timeToMin(o.hora_inicio), oe = timeToMin(o.hora_fin);
+      return s < oe && e > os;
+    });
+  }
+
+  async function cargarSlots(zona: any, fecha: string) {
+    if (!fecha) { setSlots([]); return; }
+    setSlotsLoading(true);
+    setSlots([]);
+    try {
+      const { ocupados, config } = await api.zonas.disponibilidad(zona.id, fecha);
+      const raw = generarSlots(
+        config?.horario_inicio ?? zona.horario_inicio,
+        config?.horario_fin ?? zona.horario_fin,
+        config?.duracion_min_horas ?? zona.duracion_min_horas,
+      );
+      setSlots(raw.map((s) => ({ ...s, libre: slotLibre(s.inicio, s.fin, ocupados) })));
+    } catch {
+      setSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  }
+
+  async function handleReservarSlot(slot: { inicio: string; fin: string }) {
+    if (!reservaZona || !reservaFecha) return;
+    setReservandoSlot(slot.inicio);
+    try {
+      const reserva = await api.zonas.reservas.create({
+        zona_id: reservaZona.id,
+        usuario_id: usuarioId,
+        fecha: reservaFecha,
+        hora_inicio: slot.inicio,
+        hora_fin: slot.fin,
+        notas: reservaNotas || null,
+      });
+      await api.zonas.reservas.update(reserva.id, "confirmada");
+      setShowReservaForm(false);
+      setReservaZona(null);
+      setReservaFecha("");
+      setSlots([]);
+      setReservaNotas("");
+      load();
+    } catch (err: any) {
+      alert("Error al reservar: " + (err?.message ?? "Intenta de nuevo"));
+    } finally {
+      setReservandoSlot(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,29 +135,6 @@ export default function ZonasComunesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleReservar = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const body: any = {
-      zona_id: reservaZona.id,
-      usuario_id: usuarioId,
-      fecha: fd.get("fecha"),
-      hora_inicio: fd.get("hora_inicio"),
-      notas: fd.get("notas") || null,
-    };
-    const horaFin = fd.get("hora_fin");
-    if (horaFin) body.hora_fin = horaFin;
-    setSaving(true);
-    try {
-      await api.zonas.reservas.create(body);
-      setShowReservaForm(false);
-      setReservaZona(null);
-      (e.target as HTMLFormElement).reset();
-      load();
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleUpdateConfig = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -346,46 +398,84 @@ export default function ZonasComunesPage() {
         </div>
       )}
 
-      {/* Reserva form modal */}
+      {/* Reserva modal — slot picker */}
       {showReservaForm && reservaZona && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Reservar {reservaZona.nombre}</h3>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="font-semibold text-gray-900">
+                {reservaZona.icono} Reservar {reservaZona.nombre}
+              </h3>
+              <button
+                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); }}
+                className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
             <p className="text-xs text-gray-400 mb-4">
               Horario: {String(reservaZona.horario_inicio).slice(0,5)}–{String(reservaZona.horario_fin).slice(0,5)} ·
-              Duración: {reservaZona.duracion_min_horas}h – {reservaZona.duracion_max_horas}h ·
-              Anticipación: {reservaZona.anticipacion_min_dias}–{reservaZona.anticipacion_max_dias} días
+              Bloque: {reservaZona.duracion_min_horas}h
             </p>
-            <form onSubmit={handleReservar} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
-                <input name="fecha" type="date" required className={INPUT} />
+
+            {/* Fecha */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selecciona una fecha</label>
+              <input
+                type="date"
+                value={reservaFecha}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => { setReservaFecha(e.target.value); cargarSlots(reservaZona, e.target.value); }}
+                className={INPUT}
+              />
+            </div>
+
+            {/* Slots */}
+            {reservaFecha && (
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Horarios disponibles</p>
+                {slotsLoading ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">Verificando disponibilidad…</div>
+                ) : slots.length === 0 ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">No se encontraron horarios.</div>
+                ) : slots.every((s) => !s.libre) ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center text-red-600 text-sm font-medium">
+                    No hay disponibilidad para este día
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {slots.map((slot) => (
+                      <button
+                        key={slot.inicio}
+                        disabled={!slot.libre || reservandoSlot !== null}
+                        onClick={() => handleReservarSlot(slot)}
+                        className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${
+                          !slot.libre
+                            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through"
+                            : reservandoSlot === slot.inicio
+                            ? "bg-primary/10 text-primary border-primary/30 cursor-wait"
+                            : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                        }`}
+                      >
+                        {slot.inicio}
+                        <span className="block text-[10px] opacity-70">{slot.fin}</span>
+                        {!slot.libre && <span className="block text-[10px]">ocupado</span>}
+                        {reservandoSlot === slot.inicio && <span className="block text-[10px]">reservando…</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora inicio *</label>
-                  <input name="hora_inicio" type="time" required className={INPUT} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora fin</label>
-                  <input name="hora_fin" type="time" className={INPUT}
-                    placeholder="Auto" />
-                  <p className="text-xs text-gray-400 mt-0.5">Opcional — se calcula sola</p>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
-                <textarea name="notas" rows={2} className={INPUT} />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => { setShowReservaForm(false); setReservaZona(null); }}
-                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
-                <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
-                  {saving ? "Reservando…" : "Reservar"}
-                </button>
-              </div>
-            </form>
+            )}
+
+            {/* Notas */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
+              <textarea
+                value={reservaNotas}
+                onChange={(e) => setReservaNotas(e.target.value)}
+                rows={2}
+                placeholder="Ej: reunión de copropietarios…"
+                className={INPUT}
+              />
+            </div>
           </div>
         </div>
       )}

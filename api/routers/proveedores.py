@@ -9,7 +9,8 @@ router = APIRouter()
 
 
 class ProveedorCreate(BaseModel):
-    edificio_id: int
+    edificio_id: Optional[int] = None
+    conjunto_id: Optional[int] = None
     nombre: str
     contacto: Optional[str] = None
     telefono: Optional[str] = None
@@ -28,12 +29,36 @@ class ProveedorUpdate(BaseModel):
 
 
 @router.get("")
-def list_proveedores(edificio_id: Optional[int] = None, current_user: dict = Depends(get_current_user)):
+def list_proveedores(edificio_id: Optional[int] = None, conjunto_id: Optional[int] = None, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
-            if edificio_id:
+            # Cuando se filtra por edificio, expandir al conjunto completo
+            if edificio_id and not conjunto_id:
+                cur.execute("SELECT conjunto_id FROM edificios WHERE id = %s", (edificio_id,))
+                row = cur.fetchone()
+                if row and row["conjunto_id"]:
+                    conjunto_id = row["conjunto_id"]
+
+            if conjunto_id:
                 cur.execute("""
-                    SELECT p.*, e.nombre as edificio_nombre
+                    SELECT p.*,
+                           COALESCE(c.nombre, e.nombre, '') as edificio_nombre,
+                           c.nombre as conjunto_nombre
+                    FROM proveedores p
+                    LEFT JOIN edificios e ON e.id = p.edificio_id
+                    LEFT JOIN conjuntos c ON c.id = p.conjunto_id
+                    WHERE p.activo = TRUE
+                      AND (
+                        p.conjunto_id = %s
+                        OR (p.conjunto_id IS NULL AND p.edificio_id IN (
+                            SELECT id FROM edificios WHERE conjunto_id = %s
+                        ))
+                      )
+                    ORDER BY p.nombre
+                """, (conjunto_id, conjunto_id))
+            elif edificio_id:
+                cur.execute("""
+                    SELECT p.*, e.nombre as edificio_nombre, NULL::text as conjunto_nombre
                     FROM proveedores p
                     JOIN edificios e ON e.id = p.edificio_id
                     WHERE p.edificio_id = %s AND p.activo = TRUE
@@ -41,26 +66,41 @@ def list_proveedores(edificio_id: Optional[int] = None, current_user: dict = Dep
                 """, (edificio_id,))
             else:
                 cur.execute("""
-                    SELECT p.*, e.nombre as edificio_nombre
+                    SELECT p.*,
+                           COALESCE(c.nombre, e.nombre, '') as edificio_nombre,
+                           c.nombre as conjunto_nombre
                     FROM proveedores p
-                    JOIN edificios e ON e.id = p.edificio_id
+                    LEFT JOIN edificios e ON e.id = p.edificio_id
+                    LEFT JOIN conjuntos c ON c.id = p.conjunto_id
                     WHERE p.activo = TRUE
-                    ORDER BY e.nombre, p.nombre
+                    ORDER BY COALESCE(c.nombre, e.nombre), p.nombre
                 """)
             return {"proveedores": [dict(r) for r in cur.fetchall()]}
 
 
 @router.post("", status_code=201)
 def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_current_user)):
+    if not data.edificio_id and not data.conjunto_id:
+        raise HTTPException(status_code=400, detail="Se requiere edificio_id o conjunto_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM edificios WHERE id = %s", (data.edificio_id,))
-            if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Edificio no encontrado")
+            edificio_id = data.edificio_id
+            conjunto_id = data.conjunto_id
+
+            if edificio_id:
+                cur.execute("SELECT id, conjunto_id FROM edificios WHERE id = %s", (edificio_id,))
+                edificio = cur.fetchone()
+                if not edificio:
+                    raise HTTPException(status_code=404, detail="Edificio no encontrado")
+                # Promover al conjunto si lo tiene
+                if not conjunto_id and edificio["conjunto_id"]:
+                    conjunto_id = edificio["conjunto_id"]
+                    edificio_id = None
+
             cur.execute("""
-                INSERT INTO proveedores (edificio_id, nombre, contacto, telefono, email, especialidad, nit)
-                VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.nombre, data.contacto, data.telefono,
+                INSERT INTO proveedores (edificio_id, conjunto_id, nombre, contacto, telefono, email, especialidad, nit)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+            """, (edificio_id, conjunto_id, data.nombre, data.contacto, data.telefono,
                   data.email, data.especialidad, data.nit))
             return dict(cur.fetchone())
 
