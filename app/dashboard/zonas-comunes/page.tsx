@@ -24,6 +24,7 @@ export default function ZonasComunesPage() {
   const user = getUser();
   const edificioId = user?.edificio_id ?? 1;
   const usuarioId = user ? parseInt(user.sub) : 1;
+  const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
 
   const [zonas, setZonas] = useState<any[]>([]);
   const [reservas, setReservas] = useState<any[]>([]);
@@ -254,10 +255,12 @@ export default function ZonasComunesPage() {
                 className="rounded border-gray-300 text-primary" />
               Ver inactivas
             </label>
-            <button onClick={() => setShowZonaForm(true)}
-              className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 whitespace-nowrap">
-              + Nueva zona
-            </button>
+            {isAdmin && (
+              <button onClick={() => setShowZonaForm(true)}
+                className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 whitespace-nowrap">
+                + Nueva zona
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -302,12 +305,14 @@ export default function ZonasComunesPage() {
                       className="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                       Reservar
                     </button>
-                    <button
-                      onClick={() => { setSelectedZona(zona); setShowConfigForm(true); }}
-                      className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors"
-                      title="Configurar">
-                      ⚙️
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setSelectedZona(zona); setShowConfigForm(true); }}
+                        className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                        title="Configurar">
+                        ⚙️
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -374,13 +379,14 @@ export default function ZonasComunesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5">
-                          {r.estado === "pendiente" && (
+                          {isAdmin && r.estado === "pendiente" && (
                             <button onClick={() => handleConfirmar(r.id)}
                               className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded hover:bg-green-200 font-medium">
                               Confirmar
                             </button>
                           )}
-                          {(r.estado === "pendiente" || r.estado === "confirmada") && (
+                          {(r.estado === "pendiente" || r.estado === "confirmada") &&
+                           (isAdmin || r.usuario_id === usuarioId) && (
                             <button
                               onClick={() => setCancelModal({ id: r.id, zona: r.zona_nombre })}
                               className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 font-medium">

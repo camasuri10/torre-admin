@@ -145,12 +145,15 @@ export const api = {
 
   // ── Finanzas ───────────────────────────────────────────────────────────────
   cuotas: {
-    list: (params?: { edificio_id?: number; estado?: string; mes?: string }) => {
+    list: (params?: { edificio_id?: number; estado?: string; mes?: string; usuario_id?: number }) => {
       const q = new URLSearchParams(params as any).toString();
-      return request<any[]>(`/api/cuotas/${q ? "?" + q : ""}`);
+      return request<any[]>(`/api/cuotas${q ? "?" + q : ""}`);
     },
-    create: (data: any) => request<any>("/api/cuotas/", { method: "POST", body: JSON.stringify(data) }),
+    create: (data: any) => request<any>("/api/cuotas", { method: "POST", body: JSON.stringify(data) }),
+    generarMes: (data: { edificio_id: number; mes: string; monto: number; fecha_vencimiento: string }) =>
+      request<any>("/api/cuotas/generar-mes", { method: "POST", body: JSON.stringify(data) }),
     pagar: (id: number, data: any) => request<any>(`/api/cuotas/${id}/pagar`, { method: "PATCH", body: JSON.stringify(data) }),
+    marcarVencido: (id: number) => request<any>(`/api/cuotas/${id}/estado?estado=vencido`, { method: "PATCH" }),
     resumen: (edificio_id: number, mes?: string) => {
       const q = mes ? `?mes=${mes}` : "";
       return request<any>(`/api/cuotas/resumen/${edificio_id}${q}`);

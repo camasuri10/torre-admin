@@ -50,22 +50,17 @@ export default function MantenimientoPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const params: any = { edificio_id: edificioId };
-      if (filtroEstado) params.estado = filtroEstado;
-      if (filtroPrioridad) params.prioridad = filtroPrioridad;
-      if (filtroProgramado !== null) params.es_programado = filtroProgramado;
-      const [s, a] = await Promise.all([
-        api.mantenimientos.list(params),
-        api.mantenimientos.alertas.list(edificioId),
-      ]);
-      setSolicitudes(s);
-      setAlertas(a);
-    } catch {
-      // fallback
-    } finally {
-      setLoading(false);
-    }
+    const params: any = { edificio_id: edificioId };
+    if (filtroEstado) params.estado = filtroEstado;
+    if (filtroPrioridad) params.prioridad = filtroPrioridad;
+    if (filtroProgramado !== null) params.es_programado = filtroProgramado;
+    const [s, a] = await Promise.allSettled([
+      api.mantenimientos.list(params),
+      api.mantenimientos.alertas.list(edificioId),
+    ]);
+    if (s.status === "fulfilled") setSolicitudes(s.value);
+    if (a.status === "fulfilled") setAlertas(a.value);
+    setLoading(false);
   }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado]);
 
   useEffect(() => { load(); }, [load]);
@@ -139,7 +134,7 @@ export default function MantenimientoPage() {
     load();
   };
 
-  const canEdit = user?.rol !== "servicios";
+  const canEdit = !["servicios", "propietario", "inquilino"].includes(user?.rol ?? "");
 
   const pendientes = solicitudes.filter((s) => s.estado === "pendiente").length;
   const enProceso = solicitudes.filter((s) => s.estado === "en_proceso").length;
@@ -377,16 +372,18 @@ export default function MantenimientoPage() {
                       ))}
                     </div>
                   )}
-                  <div className="flex gap-2 mt-3">
-                    <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-                      📷 Subir foto
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadArchivo(e, "foto")} />
-                    </label>
-                    <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-                      📄 Subir factura
-                      <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={(e) => handleUploadArchivo(e, "factura")} />
-                    </label>
-                  </div>
+                  {canEdit && (
+                    <div className="flex gap-2 mt-3">
+                      <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
+                        📷 Subir foto
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadArchivo(e, "foto")} />
+                      </label>
+                      <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
+                        📄 Subir factura
+                        <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={(e) => handleUploadArchivo(e, "factura")} />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

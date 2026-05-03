@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 from db import get_db
 
 router = APIRouter()
@@ -19,11 +20,43 @@ class PagoRegistro(BaseModel):
     metodo_pago: Optional[str] = None
 
 
+class GenerarCuotasRequest(BaseModel):
+    edificio_id: int
+    mes: str           # "2026-05"
+    monto: float
+    fecha_vencimiento: str
+
+
+# ── Resumen — before /{cuota_id} to avoid route conflict ─────────────────────
+
+@router.get("/resumen/{edificio_id}")
+def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
+    mes_actual = mes or datetime.now().strftime("%Y-%m")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE c.estado = 'pagado') AS pagadas,
+                    COUNT(*) FILTER (WHERE c.estado = 'pendiente') AS pendientes,
+                    COUNT(*) FILTER (WHERE c.estado = 'vencido') AS vencidas,
+                    COALESCE(SUM(c.monto) FILTER (WHERE c.estado = 'pagado'), 0) AS total_recaudado,
+                    COALESCE(SUM(c.monto) FILTER (WHERE c.estado IN ('pendiente','vencido')), 0) AS total_pendiente,
+                    COALESCE(SUM(c.monto), 0) AS total_meta
+                FROM cuotas c
+                JOIN unidades u ON u.id = c.unidad_id
+                WHERE u.edificio_id = %s AND c.mes = %s
+            """, (edificio_id, mes_actual))
+            return cur.fetchone()
+
+
+# ── CRUD ──────────────────────────────────────────────────────────────────────
+
 @router.get("")
 def list_cuotas(
     edificio_id: Optional[int] = None,
     estado: Optional[str] = None,
     mes: Optional[str] = None,
+    usuario_id: Optional[int] = None,
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -48,6 +81,9 @@ def list_cuotas(
             if mes:
                 query += " AND c.mes = %s"
                 params.append(mes)
+            if usuario_id:
+                query += " AND usr.id = %s"
+                params.append(usuario_id)
             query += " ORDER BY c.fecha_vencimiento DESC, u.numero"
             cur.execute(query, params)
             return cur.fetchall()
@@ -64,6 +100,35 @@ def create_cuota(data: CuotaCreate):
             return cur.fetchone()
 
 
+@router.post("/generar-mes", status_code=201)
+def generar_cuotas_mes(data: GenerarCuotasRequest):
+    """Crea cuotas para todas las unidades del edificio para el mes dado."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM unidades WHERE edificio_id = %s", (data.edificio_id,))
+            unidades = cur.fetchall()
+            if not unidades:
+                raise HTTPException(status_code=404, detail="No hay unidades en el edificio")
+
+            creadas = 0
+            omitidas = 0
+            for u in unidades:
+                cur.execute(
+                    "SELECT id FROM cuotas WHERE unidad_id = %s AND mes = %s",
+                    (u["id"], data.mes),
+                )
+                if cur.fetchone():
+                    omitidas += 1
+                    continue
+                cur.execute(
+                    "INSERT INTO cuotas (unidad_id, mes, monto, fecha_vencimiento, estado) "
+                    "VALUES (%s,%s,%s,%s,'pendiente')",
+                    (u["id"], data.mes, data.monto, data.fecha_vencimiento),
+                )
+                creadas += 1
+            return {"creadas": creadas, "omitidas": omitidas, "mes": data.mes}
+
+
 @router.patch("/{cuota_id}/pagar")
 def registrar_pago(cuota_id: int, data: PagoRegistro):
     with get_db() as conn:
@@ -78,21 +143,17 @@ def registrar_pago(cuota_id: int, data: PagoRegistro):
             return row
 
 
-@router.get("/resumen/{edificio_id}")
-def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
+@router.patch("/{cuota_id}/estado")
+def update_estado_cuota(cuota_id: int, estado: str):
+    if estado not in ("pendiente", "vencido", "pagado"):
+        raise HTTPException(status_code=400, detail="Estado inválido. Use: pendiente, vencido, pagado")
     with get_db() as conn:
         with conn.cursor() as cur:
-            mes_filter = mes or "TO_CHAR(NOW(),'YYYY-MM')"
-            cur.execute("""
-                SELECT
-                    COUNT(*) FILTER (WHERE c.estado = 'pagado') AS pagadas,
-                    COUNT(*) FILTER (WHERE c.estado = 'pendiente') AS pendientes,
-                    COUNT(*) FILTER (WHERE c.estado = 'vencido') AS vencidas,
-                    COALESCE(SUM(c.monto) FILTER (WHERE c.estado = 'pagado'), 0) AS total_recaudado,
-                    COALESCE(SUM(c.monto) FILTER (WHERE c.estado IN ('pendiente','vencido')), 0) AS total_pendiente,
-                    COALESCE(SUM(c.monto), 0) AS total_meta
-                FROM cuotas c
-                JOIN unidades u ON u.id = c.unidad_id
-                WHERE u.edificio_id = %s AND c.mes = %s
-            """, (edificio_id, mes or "2025-07"))
-            return cur.fetchone()
+            cur.execute(
+                "UPDATE cuotas SET estado = %s WHERE id = %s RETURNING *",
+                (estado, cuota_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Cuota no encontrada")
+            return row

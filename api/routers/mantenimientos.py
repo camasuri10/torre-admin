@@ -18,7 +18,6 @@ class MantenimientoCreate(BaseModel):
     categoria: str
     prioridad: str = "media"
     solicitante_id: Optional[int] = None
-    # Campos nuevos
     es_programado: bool = False
     periodicidad: Optional[str] = None      # diario|semanal|mensual|trimestral|anual
     proveedor_id: Optional[int] = None
@@ -33,7 +32,6 @@ class MantenimientoUpdate(BaseModel):
     asignado_a: Optional[int] = None
     costo: Optional[float] = None
     fecha_resolucion: Optional[str] = None
-    # Campos nuevos
     es_programado: Optional[bool] = None
     periodicidad: Optional[str] = None
     proveedor_id: Optional[int] = None
@@ -71,6 +69,75 @@ _MANTENIMIENTO_SELECT = """
 """
 
 
+# ── Alertas — MUST be defined BEFORE /{mantenimiento_id} to avoid route conflict ──
+
+@router.get("/alertas")
+def list_alertas(edificio_id: Optional[int] = None):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if edificio_id:
+                cur.execute(
+                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
+                    "JOIN edificios e ON e.id = a.edificio_id WHERE a.edificio_id = %s ORDER BY a.fecha_programada",
+                    (edificio_id,),
+                )
+            else:
+                cur.execute(
+                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
+                    "JOIN edificios e ON e.id = a.edificio_id ORDER BY a.fecha_programada"
+                )
+            return cur.fetchall()
+
+
+@router.post("/alertas", status_code=201)
+def create_alerta(data: AlertaCreate):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO mantenimiento_alertas (edificio_id, titulo, descripcion, tipo, fecha_programada)
+                VALUES (%s,%s,%s,%s,%s) RETURNING *
+            """, (data.edificio_id, data.titulo, data.descripcion, data.tipo, data.fecha_programada))
+            return cur.fetchone()
+
+
+@router.patch("/alertas/{alerta_id}")
+def update_alerta(alerta_id: int, estado: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE mantenimiento_alertas SET estado = %s WHERE id = %s RETURNING *",
+                (estado, alerta_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Alerta no encontrada")
+            return row
+
+
+# ── Vencimientos — also before /{mantenimiento_id} ────────────────────────────
+
+@router.get("/vencimientos")
+def list_vencimientos(edificio_id: Optional[int] = None, dias: int = 30):
+    """Mantenimientos con fecha_vencimiento en los próximos N días."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            query = _MANTENIMIENTO_SELECT + """
+                WHERE m.fecha_vencimiento IS NOT NULL
+                  AND m.fecha_vencimiento <= CURRENT_DATE + INTERVAL '%s days'
+                  AND m.fecha_vencimiento >= CURRENT_DATE
+                  AND m.estado NOT IN ('resuelto','cancelado')
+            """
+            params = [dias]
+            if edificio_id:
+                query += " AND m.edificio_id = %s"
+                params.append(edificio_id)
+            query += " ORDER BY m.fecha_vencimiento"
+            cur.execute(query, params)
+            return cur.fetchall()
+
+
+# ── CRUD ──────────────────────────────────────────────────────────────────────
+
 @router.get("")
 def list_mantenimientos(
     edificio_id: Optional[int] = None,
@@ -95,26 +162,6 @@ def list_mantenimientos(
                 query += " AND m.es_programado = %s"
                 params.append(es_programado)
             query += " ORDER BY m.created_at DESC"
-            cur.execute(query, params)
-            return cur.fetchall()
-
-
-@router.get("/vencimientos")
-def list_vencimientos(edificio_id: Optional[int] = None, dias: int = 30):
-    """Mantenimientos con fecha_vencimiento en los próximos N días."""
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            query = _MANTENIMIENTO_SELECT + """
-                WHERE m.fecha_vencimiento IS NOT NULL
-                  AND m.fecha_vencimiento <= CURRENT_DATE + INTERVAL '%s days'
-                  AND m.fecha_vencimiento >= CURRENT_DATE
-                  AND m.estado NOT IN ('resuelto','cancelado')
-            """
-            params = [dias]
-            if edificio_id:
-                query += " AND m.edificio_id = %s"
-                params.append(edificio_id)
-            query += " ORDER BY m.fecha_vencimiento"
             cur.execute(query, params)
             return cur.fetchall()
 
@@ -214,48 +261,3 @@ async def upload_archivo(
                 VALUES (%s,%s,%s,%s,%s) RETURNING *
             """, (mantenimiento_id, tipo, data_url, nombre_archivo, subido_por))
             return cur.fetchone()
-
-
-# ── Alertas ──────────────────────────────────────────────────────────────────
-
-@router.get("/alertas")
-def list_alertas(edificio_id: Optional[int] = None):
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            if edificio_id:
-                cur.execute(
-                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
-                    "JOIN edificios e ON e.id = a.edificio_id WHERE a.edificio_id = %s ORDER BY a.fecha_programada",
-                    (edificio_id,),
-                )
-            else:
-                cur.execute(
-                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
-                    "JOIN edificios e ON e.id = a.edificio_id ORDER BY a.fecha_programada"
-                )
-            return cur.fetchall()
-
-
-@router.post("/alertas", status_code=201)
-def create_alerta(data: AlertaCreate):
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO mantenimiento_alertas (edificio_id, titulo, descripcion, tipo, fecha_programada)
-                VALUES (%s,%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.titulo, data.descripcion, data.tipo, data.fecha_programada))
-            return cur.fetchone()
-
-
-@router.patch("/alertas/{alerta_id}")
-def update_alerta(alerta_id: int, estado: str):
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE mantenimiento_alertas SET estado = %s WHERE id = %s RETURNING *",
-                (estado, alerta_id),
-            )
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Alerta no encontrada")
-            return row

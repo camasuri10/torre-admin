@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { getUser } from "@/lib/auth";
 
 const TIPO_LABELS: Record<string, string> = {
   informativo:  "Informativo",
@@ -46,6 +45,10 @@ type NuevoComunicado = {
 };
 
 export default function ComunicadosPage() {
+  const user = getUser();
+  const edificioId = user?.edificio_id ?? 1;
+  const canEdit = ["administrador", "superadmin"].includes(user?.rol ?? "");
+
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
   const [filtro, setFiltro]           = useState("todos");
   const [search, setSearch]           = useState("");
@@ -56,7 +59,7 @@ export default function ComunicadosPage() {
 
   async function load() {
     try {
-      const data = await api.comunicados.list({ edificio_id: EDIFICIO_ID });
+      const data = await api.comunicados.list({ edificio_id: edificioId });
       setComunicados(data);
     } catch (err) {
       console.error("Error cargando comunicados", err);
@@ -72,7 +75,7 @@ export default function ComunicadosPage() {
     setSaving(true);
     try {
       await api.comunicados.create({
-        edificio_id: EDIFICIO_ID,
+        edificio_id: edificioId,
         titulo:      form.titulo,
         contenido:   form.contenido,
         tipo:        form.tipo,
@@ -115,16 +118,18 @@ export default function ComunicadosPage() {
         <p className="text-sm text-gray-500">
           {loading ? "Cargando…" : `${filtrados.length} comunicado${filtrados.length !== 1 ? "s" : ""} publicado${filtrados.length !== 1 ? "s" : ""}`}
         </p>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="bg-primary text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-        >
-          {showForm ? "✕ Cancelar" : "+ Nuevo comunicado"}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="bg-primary text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            {showForm ? "✕ Cancelar" : "+ Nuevo comunicado"}
+          </button>
+        )}
       </div>
 
       {/* Create form */}
-      {showForm && (
+      {showForm && canEdit && (
         <form onSubmit={handleCreate} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
           <h3 className="font-semibold text-gray-900">Nuevo comunicado</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -239,14 +244,16 @@ export default function ComunicadosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    className="text-xs text-red-500 hover:underline"
-                  >
-                    Eliminar
-                  </button>
-                </div>
+                {canEdit && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
