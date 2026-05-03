@@ -13,6 +13,20 @@ class EdificioCreate(BaseModel):
     pisos: int = 1
 
 
+class UnidadCreate(BaseModel):
+    numero: str
+    piso: int = 1
+    area_m2: Optional[float] = None
+    coeficiente: Optional[float] = None
+
+
+class UnidadUpdate(BaseModel):
+    numero: Optional[str] = None
+    piso: Optional[int] = None
+    area_m2: Optional[float] = None
+    coeficiente: Optional[float] = None
+
+
 @router.get("")
 def list_edificios():
     with get_db() as conn:
@@ -70,6 +84,67 @@ def get_unidades(edificio_id: int):
                 (edificio_id,)
             )
             return cur.fetchall()
+
+
+@router.post("/{edificio_id}/unidades", status_code=201)
+def create_unidad(edificio_id: int, data: UnidadCreate):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO unidades (edificio_id, numero, piso, area_m2, coeficiente) "
+                "VALUES (%s,%s,%s,%s,%s) RETURNING *",
+                (edificio_id, data.numero, data.piso, data.area_m2, data.coeficiente),
+            )
+            row = cur.fetchone()
+            cur.execute(
+                "UPDATE edificios SET unidades = (SELECT COUNT(*) FROM unidades WHERE edificio_id=%s) WHERE id=%s",
+                (edificio_id, edificio_id),
+            )
+            return row
+
+
+@router.put("/{edificio_id}/unidades/{unidad_id}")
+def update_unidad(edificio_id: int, unidad_id: int, data: UnidadUpdate):
+    fields, values = [], []
+    for field, val in data.model_dump(exclude_none=True).items():
+        fields.append(f"{field} = %s")
+        values.append(val)
+    if not fields:
+        raise HTTPException(status_code=400, detail="Sin campos a actualizar")
+    values.extend([unidad_id, edificio_id])
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE unidades SET {', '.join(fields)} WHERE id=%s AND edificio_id=%s RETURNING *",
+                values,
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Unidad no encontrada")
+            return row
+
+
+@router.delete("/{edificio_id}/unidades/{unidad_id}", status_code=204)
+def delete_unidad(edificio_id: int, unidad_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM ocupaciones WHERE unidad_id=%s AND activo=TRUE",
+                (unidad_id,),
+            )
+            if cur.fetchone()["cnt"] > 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="La unidad tiene residentes activos. Retírelos primero.",
+                )
+            cur.execute(
+                "DELETE FROM unidades WHERE id=%s AND edificio_id=%s",
+                (unidad_id, edificio_id),
+            )
+            cur.execute(
+                "UPDATE edificios SET unidades = (SELECT COUNT(*) FROM unidades WHERE edificio_id=%s) WHERE id=%s",
+                (edificio_id, edificio_id),
+            )
 
 
 @router.get("/{edificio_id}/stats")

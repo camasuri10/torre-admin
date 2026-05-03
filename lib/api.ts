@@ -128,6 +128,12 @@ export const api = {
     unidades: (id: number) => request<any[]>(`/api/edificios/${id}/unidades`),
     create: (data: any) => request<any>("/api/edificios/", { method: "POST", body: JSON.stringify(data) }),
     getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
+    createUnidad: (id: number, data: { numero: string; piso: number; area_m2?: number; coeficiente?: number }) =>
+      request<any>(`/api/edificios/${id}/unidades`, { method: "POST", body: JSON.stringify(data) }),
+    updateUnidad: (id: number, uid: number, data: { numero?: string; piso?: number; area_m2?: number; coeficiente?: number }) =>
+      request<any>(`/api/edificios/${id}/unidades/${uid}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteUnidad: (id: number, uid: number) =>
+      request<void>(`/api/edificios/${id}/unidades/${uid}`, { method: "DELETE" }),
   },
 
   // ── Usuarios ───────────────────────────────────────────────────────────────

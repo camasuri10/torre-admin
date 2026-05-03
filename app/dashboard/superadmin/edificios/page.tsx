@@ -25,6 +25,11 @@ export default function EdificiosPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  const [editEdificio, setEditEdificio] = useState<Edificio | null>(null);
+  const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1 });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
@@ -51,6 +56,25 @@ export default function EdificiosPage() {
       loadEdificios();
     } catch { setError("Error al crear el edificio"); }
     finally { setSaving(false); }
+  }
+
+  function openEdit(ed: Edificio) {
+    setEditEdificio(ed);
+    setEditForm({ nombre: ed.nombre, direccion: ed.direccion, pisos: ed.pisos });
+    setEditError("");
+  }
+
+  async function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editEdificio) return;
+    setEditSaving(true);
+    setEditError("");
+    try {
+      await superadminApi.edificios.update(editEdificio.id, editForm);
+      setEditEdificio(null);
+      loadEdificios();
+    } catch { setEditError("Error al guardar los cambios"); }
+    finally { setEditSaving(false); }
   }
 
   const q = search.trim().toLowerCase();
@@ -162,14 +186,71 @@ export default function EdificiosPage() {
                 <span>🏠 {e.unidades} unidades</span>
                 <span>🏗️ {e.pisos} pisos</span>
               </div>
-              <Link
-                href={`/dashboard/superadmin/edificios/${e.id}`}
-                className="mt-4 w-full text-center block py-2 rounded-xl border border-primary/30 text-primary text-sm font-medium hover:bg-primary hover:text-white transition-all"
-              >
-                Gestionar módulos
-              </Link>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => openEdit(e)}
+                  className="flex-1 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:border-gray-300 transition-all"
+                >
+                  ✏️ Editar
+                </button>
+                <Link
+                  href={`/dashboard/superadmin/edificios/${e.id}`}
+                  className="flex-1 text-center py-2 rounded-xl border border-primary/30 text-primary text-sm font-medium hover:bg-primary hover:text-white transition-all"
+                >
+                  Gestionar
+                </Link>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit building modal */}
+      {editEdificio && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Editar edificio</h3>
+              <button onClick={() => setEditEdificio(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            <form onSubmit={handleEditSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                <input
+                  required value={editForm.nombre}
+                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
+                <input
+                  required value={editForm.direccion}
+                  onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
+                <input
+                  type="number" min={1} value={editForm.pisos}
+                  onChange={(e) => setEditForm({ ...editForm, pisos: parseInt(e.target.value) || 1 })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              {editError && <p className="text-red-600 text-xs">{editError}</p>}
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={editSaving}
+                  className="flex-1 bg-primary text-white py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
+                  {editSaving ? "Guardando…" : "Guardar cambios"}
+                </button>
+                <button type="button" onClick={() => setEditEdificio(null)}
+                  className="flex-1 border border-gray-200 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
