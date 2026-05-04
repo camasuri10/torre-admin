@@ -10,7 +10,8 @@ interface Edificio {
   id: number;
   nombre: string;
   direccion: string;
-  unidades: number;
+  total_unidades: number;
+  total_torres: number;
   pisos: number;
   modulos_activos: number;
 }
@@ -21,7 +22,7 @@ export default function EdificiosPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nombre: "", direccion: "", unidades: 0, pisos: 1 });
+  const [form, setForm] = useState({ nombre: "", direccion: "", pisos: 1 });
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
@@ -52,7 +53,7 @@ export default function EdificiosPage() {
     try {
       await superadminApi.edificios.create(form);
       setShowForm(false);
-      setForm({ nombre: "", direccion: "", unidades: 0, pisos: 1 });
+      setForm({ nombre: "", direccion: "", pisos: 1 });
       loadEdificios();
     } catch { setError("Error al crear el edificio"); }
     finally { setSaving(false); }
@@ -130,14 +131,6 @@ export default function EdificiosPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Unidades</label>
-              <input
-                type="number" min={0} value={form.unidades}
-                onChange={(e) => setForm({ ...form, unidades: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
               <input
                 type="number" min={1} value={form.pisos}
@@ -183,8 +176,8 @@ export default function EdificiosPage() {
               <h3 className="font-semibold text-gray-900 text-sm">{e.nombre}</h3>
               <p className="text-xs text-gray-400 mt-0.5">{e.direccion}</p>
               <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                <span>🏠 {e.unidades} unidades</span>
-                <span>🏗️ {e.pisos} pisos</span>
+                {e.total_torres > 0 && <span>🏗️ {e.total_torres} torre{e.total_torres !== 1 ? "s" : ""}</span>}
+                <span>🏠 {e.total_unidades ?? 0} unidades</span>
               </div>
               <div className="mt-4 flex gap-2">
                 <button

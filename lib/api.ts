@@ -45,7 +45,10 @@ export const authApi = {
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 export const superadminApi = {
-  stats: () => request<any>("/api/superadmin/stats"),
+  stats: (conjunto_id?: number) => {
+    const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
+    return request<any>(`/api/superadmin/stats${q}`);
+  },
   analytics: (edificio_id?: number) => {
     const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);
@@ -64,14 +67,14 @@ export const superadminApi = {
   admins: {
     list: () => request<any>("/api/superadmin/admins"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
-    updateEdificios: (id: number, edificio_ids: number[]) =>
-      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify({ edificio_ids }) }),
+    updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
+      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },
   staff: {
     list: () => request<any>("/api/superadmin/staff"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
-    updateEdificios: (id: number, edificio_ids: number[]) =>
-      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify({ edificio_ids }) }),
+    updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
+      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },
 };
 
@@ -110,13 +113,23 @@ export const mascotasApi = {
 
 // ── Proveedores ───────────────────────────────────────────────────────────────
 export const proveedoresApi = {
-  list: (edificio_id?: number) => {
-    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
-    return request<any>(`/api/proveedores${q}`);
+  list: (params?: { edificio_id?: number; conjunto_id?: number }) => {
+    const q = params ? new URLSearchParams(params as any).toString() : "";
+    return request<any>(`/api/proveedores${q ? "?" + q : ""}`);
   },
+  get: (id: number) => request<any>(`/api/proveedores/${id}`),
   create: (data: any) => request<any>("/api/proveedores", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: any) => request<any>(`/api/proveedores/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/proveedores/${id}`, { method: "DELETE" }),
+  contratos: {
+    list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/contratos`),
+    create: (proveedor_id: number, data: any) =>
+      request<any>(`/api/proveedores/${proveedor_id}/contratos`, { method: "POST", body: JSON.stringify(data) }),
+    update: (contrato_id: number, data: any) =>
+      request<any>(`/api/proveedores/contratos/${contrato_id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (contrato_id: number) =>
+      request<void>(`/api/proveedores/contratos/${contrato_id}`, { method: "DELETE" }),
+  },
 };
 
 // ── Edificios ─────────────────────────────────────────────────────────────────
@@ -125,12 +138,28 @@ export const api = {
     list: () => request<any[]>("/api/edificios/"),
     get: (id: number) => request<any>(`/api/edificios/${id}`),
     stats: (id: number) => request<any>(`/api/edificios/${id}/stats`),
-    unidades: (id: number) => request<any[]>(`/api/edificios/${id}/unidades`),
+    unidades: (id: number, torre_id?: number) => {
+      const q = torre_id ? `?torre_id=${torre_id}` : "";
+      return request<any[]>(`/api/edificios/${id}/unidades${q}`);
+    },
     create: (data: any) => request<any>("/api/edificios/", { method: "POST", body: JSON.stringify(data) }),
     getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
-    createUnidad: (id: number, data: { numero: string; piso: number; area_m2?: number; coeficiente?: number }) =>
+    // Torres
+    torres: {
+      list: (edificio_id: number) => request<any>(`/api/edificios/${edificio_id}/torres`),
+      create: (edificio_id: number, data: { nombre: string; numero?: string; pisos?: number }) =>
+        request<any>(`/api/edificios/${edificio_id}/torres`, { method: "POST", body: JSON.stringify(data) }),
+      update: (edificio_id: number, torre_id: number, data: any) =>
+        request<any>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "PUT", body: JSON.stringify(data) }),
+      delete: (edificio_id: number, torre_id: number) =>
+        request<void>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "DELETE" }),
+      unidades: (edificio_id: number, torre_id: number) =>
+        request<any[]>(`/api/edificios/${edificio_id}/torres/${torre_id}/unidades`),
+    },
+    // Unidades
+    createUnidad: (id: number, data: { torre_id: number; numero: string; piso?: number; tipo?: string; area_m2?: number; coeficiente?: number }) =>
       request<any>(`/api/edificios/${id}/unidades`, { method: "POST", body: JSON.stringify(data) }),
-    updateUnidad: (id: number, uid: number, data: { numero?: string; piso?: number; area_m2?: number; coeficiente?: number }) =>
+    updateUnidad: (id: number, uid: number, data: any) =>
       request<any>(`/api/edificios/${id}/unidades/${uid}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteUnidad: (id: number, uid: number) =>
       request<void>(`/api/edificios/${id}/unidades/${uid}`, { method: "DELETE" }),

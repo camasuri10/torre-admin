@@ -31,13 +31,13 @@ class BuildingSelectRequest(BaseModel):
     edificio_id: int
 
 
-def create_token(user: dict, edificio_id: int) -> str:
+def create_token(user: dict, edificio_id: Optional[int]) -> str:
     payload = {
         "sub": str(user["id"]),
         "email": user["email"],
         "nombre": user["nombre"],
         "rol": user["rol"],
-        "edificio_id": edificio_id,
+        "edificio_id": edificio_id,     # None for superadmin (context = "Todos")
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -64,7 +64,7 @@ def _get_user_edificios(cur, user: dict) -> list:
         cur.execute("SELECT id, nombre FROM edificios ORDER BY nombre")
         return [dict(r) for r in cur.fetchall()]
 
-    if rol == "administrador":
+    if rol in ("administrador", "portero", "servicios"):
         cur.execute(
             """SELECT e.id, e.nombre FROM edificios e
                JOIN usuario_edificios ue ON ue.edificio_id = e.id
@@ -74,20 +74,11 @@ def _get_user_edificios(cur, user: dict) -> list:
         )
         return [dict(r) for r in cur.fetchall()]
 
-    if rol in ("portero", "servicios"):
-        cur.execute(
-            """SELECT e.id, e.nombre FROM edificios e
-               JOIN usuario_edificios ue ON ue.edificio_id = e.id
-               WHERE ue.usuario_id = %s AND ue.activo = TRUE
-               ORDER BY e.nombre""",
-            (uid,),
-        )
-        return [dict(r) for r in cur.fetchall()]
-
-    # propietario / inquilino
+    # propietario / inquilino — busca edificio a través de torres
     cur.execute(
         """SELECT DISTINCT e.id, e.nombre FROM edificios e
-           JOIN unidades u ON u.edificio_id = e.id
+           JOIN torres t ON t.edificio_id = e.id
+           JOIN unidades u ON u.torre_id = t.id
            JOIN ocupaciones o ON o.unidad_id = u.id
            WHERE o.usuario_id = %s AND o.activo = TRUE
            ORDER BY e.nombre""",
@@ -115,6 +106,24 @@ def login(data: LoginRequest):
                 raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
             user = dict(user)
+
+            # Superadmin va directo al dashboard con contexto global "Todos"
+            if user["rol"] == "superadmin":
+                token = create_token(user, None)
+                return {
+                    "access_token": token,
+                    "token_type": "bearer",
+                    "user": {
+                        "id": user["id"],
+                        "nombre": user["nombre"],
+                        "email": user["email"],
+                        "rol": user["rol"],
+                        "edificio_id": None,
+                        "edificio_nombre": "Todos",
+                    },
+                    "edificio": None,
+                }
+
             edificios = _get_user_edificios(cur, user)
 
     if not edificios:

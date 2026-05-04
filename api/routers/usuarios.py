@@ -50,12 +50,13 @@ def list_usuarios(rol: Optional[str] = None, edificio_id: Optional[int] = None):
                     FROM usuarios u
                     LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
                     LEFT JOIN unidades un ON un.id = o.unidad_id
-                    LEFT JOIN edificios eu ON eu.id = un.edificio_id
+                    LEFT JOIN torres tor ON tor.id = un.torre_id
+                    LEFT JOIN edificios eu ON eu.id = tor.edificio_id
                     LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
                     LEFT JOIN edificios ed ON ed.id = ue.edificio_id
                     WHERE u.activo = TRUE
                       AND (
-                        un.edificio_id = %s
+                        eu.id = %s
                         OR ue.edificio_id = %s
                       )
                     ORDER BY u.id, u.nombre
@@ -81,13 +82,16 @@ def get_usuario(usuario_id: int):
             cur.execute("""
                 SELECT u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
                        u.notif_sistema, u.notif_email, u.notif_whatsapp,
+                       u.eps, u.aseguradora_riesgo,
                        o.tipo as tipo_ocupacion, o.fecha_inicio,
                        un.numero as unidad_numero,
+                       t.nombre as torre_nombre,
                        e.nombre as edificio_nombre, e.id as edificio_id
                 FROM usuarios u
                 LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
                 LEFT JOIN unidades un ON un.id = o.unidad_id
-                LEFT JOIN edificios e ON e.id = un.edificio_id
+                LEFT JOIN torres t ON t.id = un.torre_id
+                LEFT JOIN edificios e ON e.id = t.edificio_id
                 WHERE u.id = %s
             """, (usuario_id,))
             row = cur.fetchone()

@@ -44,7 +44,8 @@ def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
                     COALESCE(SUM(c.monto), 0) AS total_meta
                 FROM cuotas c
                 JOIN unidades u ON u.id = c.unidad_id
-                WHERE u.edificio_id = %s AND c.mes = %s
+                JOIN torres t ON t.id = u.torre_id
+                WHERE t.edificio_id = %s AND c.mes = %s
             """, (edificio_id, mes_actual))
             return cur.fetchone()
 
@@ -63,10 +64,12 @@ def list_cuotas(
             query = """
                 SELECT c.*, u.numero as unidad_numero, e.nombre as edificio_nombre,
                        e.id as edificio_id,
+                       t.nombre as torre_nombre,
                        usr.nombre as residente_nombre
                 FROM cuotas c
                 JOIN unidades u ON u.id = c.unidad_id
-                JOIN edificios e ON e.id = u.edificio_id
+                JOIN torres t ON t.id = u.torre_id
+                JOIN edificios e ON e.id = t.edificio_id
                 LEFT JOIN ocupaciones o ON o.unidad_id = u.id AND o.activo = TRUE
                 LEFT JOIN usuarios usr ON usr.id = o.usuario_id
                 WHERE 1=1
@@ -105,7 +108,11 @@ def generar_cuotas_mes(data: GenerarCuotasRequest):
     """Crea cuotas para todas las unidades del edificio para el mes dado."""
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM unidades WHERE edificio_id = %s", (data.edificio_id,))
+            cur.execute("""
+                SELECT u.id FROM unidades u
+                JOIN torres t ON t.id = u.torre_id
+                WHERE t.edificio_id = %s AND u.activo = TRUE
+            """, (data.edificio_id,))
             unidades = cur.fetchall()
             if not unidades:
                 raise HTTPException(status_code=404, detail="No hay unidades en el edificio")

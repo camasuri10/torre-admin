@@ -67,7 +67,7 @@ export default function MantenimientoPage() {
 
   // Proveedores se carga por separado para no bloquear la lista principal
   useEffect(() => {
-    proveedoresApi.list(edificioId)
+    proveedoresApi.list(edificioId ? { edificio_id: edificioId } : undefined)
       .then((p: any) => setProveedores(Array.isArray(p) ? p : (p?.proveedores ?? [])))
       .catch(() => {});
   }, [edificioId]);

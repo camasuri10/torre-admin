@@ -12,16 +12,20 @@ def reporte_dashboard(edificio_id: int):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT
-                    (SELECT COUNT(*) FROM unidades WHERE edificio_id = %s) AS total_unidades,
+                    (SELECT COUNT(*) FROM unidades u JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND u.activo=TRUE) AS total_unidades,
                     (SELECT COUNT(*) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
-                        WHERE u.edificio_id=%s AND c.estado='vencido') AS morosos,
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.estado='vencido') AS morosos,
                     (SELECT COUNT(*) FROM mantenimientos
                         WHERE edificio_id=%s AND estado IN ('pendiente','en_proceso')) AS solicitudes_pendientes,
-                    (SELECT COALESCE(SUM(monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
-                        WHERE u.edificio_id=%s AND c.estado='pagado'
+                    (SELECT COALESCE(SUM(c.monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.estado='pagado'
                         AND c.mes=TO_CHAR(NOW(),'YYYY-MM')) AS recaudo_mes,
-                    (SELECT COALESCE(SUM(monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
-                        WHERE u.edificio_id=%s AND c.mes=TO_CHAR(NOW(),'YYYY-MM')) AS meta_recaudo,
+                    (SELECT COALESCE(SUM(c.monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.mes=TO_CHAR(NOW(),'YYYY-MM')) AS meta_recaudo,
                     (SELECT COUNT(*) FROM accesos
                         WHERE edificio_id=%s AND DATE(fecha_entrada)=CURRENT_DATE) AS ingresos_hoy,
                     (SELECT COUNT(*) FROM paquetes
@@ -47,7 +51,8 @@ def reporte_finanzas(edificio_id: int, meses: int = 6):
                        COALESCE(SUM(c.monto), 0) as total
                 FROM cuotas c
                 JOIN unidades u ON u.id = c.unidad_id
-                WHERE u.edificio_id = %s
+                JOIN torres t ON t.id = u.torre_id
+                WHERE t.edificio_id = %s
                 GROUP BY c.mes
                 ORDER BY c.mes DESC
                 LIMIT %s

@@ -55,10 +55,10 @@ def list_zonas(edificio_id: Optional[int] = None, incluir_inactivas: bool = Fals
         with conn.cursor() as cur:
             base = """
                 SELECT z.*, e.nombre as edificio_nombre,
-                       t.nombre as torre_nombre, t.numero_torre
+                       t.nombre as torre_nombre, t.numero as torre_numero
                 FROM zonas_comunes z
                 JOIN edificios e ON e.id = z.edificio_id
-                LEFT JOIN edificios t ON t.id = z.torre_id
+                LEFT JOIN torres t ON t.id = z.torre_id
                 WHERE 1=1
             """
             params = []
