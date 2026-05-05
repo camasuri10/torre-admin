@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { getUser } from "@/lib/auth";
 
 const MOTIVO_BADGE: Record<string, string> = {
   visita:           "bg-blue-100 text-blue-700",
@@ -44,22 +43,27 @@ type NuevoAcceso = {
   visitante_documento: string;
   motivo: string;
   autorizado: boolean;
+  destino_unidad_id?: number;
 };
 
 export default function AccesosPage() {
+  const user      = getUser();
+  const edificioId = user?.edificio_id ?? 1;
+
   const [accesos, setAccesos]     = useState<Acceso[]>([]);
   const [stats, setStats]         = useState<Stats | null>(null);
+  const [unidades, setUnidades]   = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [saving, setSaving]       = useState(false);
   const [search, setSearch]       = useState("");
-  const [form, setForm]           = useState<NuevoAcceso>({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true });
+  const [form, setForm]           = useState<NuevoAcceso>({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true, destino_unidad_id: undefined });
 
   async function load() {
     try {
       const [data, s] = await Promise.all([
-        api.accesos.list({ edificio_id: EDIFICIO_ID }),
-        api.accesos.stats(EDIFICIO_ID),
+        api.accesos.list({ edificio_id: edificioId }),
+        api.accesos.stats(edificioId),
       ]);
       setAccesos(data);
       setStats(s);
@@ -70,14 +74,19 @@ export default function AccesosPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.edificios.unidades(edificioId)
+      .then((u: any) => setUnidades(Array.isArray(u) ? u : []))
+      .catch(() => {});
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.accesos.registrar({ edificio_id: EDIFICIO_ID, ...form });
-      setForm({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true });
+      await api.accesos.registrar({ edificio_id: edificioId, ...form });
+      setForm({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true, destino_unidad_id: undefined });
       setShowForm(false);
       await load();
     } catch (err) {
@@ -166,6 +175,19 @@ export default function AccesosPage() {
               <select value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
                 {Object.entries(MOTIVO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Apartamento / Unidad destino</label>
+              <select
+                value={form.destino_unidad_id ?? ""}
+                onChange={(e) => setForm({ ...form, destino_unidad_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                <option value="">— Sin especificar</option>
+                {unidades.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` (piso ${u.piso})` : ""}</option>
+                ))}
               </select>
             </div>
             <div className="flex items-center gap-3 pt-5">

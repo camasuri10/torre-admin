@@ -58,7 +58,9 @@ export default function GuardiasPage() {
         api.guardias.turnos.list({ edificio_id: edificioId }),
         api.guardias.cuadro(edificioId, mes ?? mesActual),
       ]);
-      setGuardias(g);
+      // Deduplicate by usuario_id in case DB has duplicate rows
+      const seen = new Set<number>();
+      setGuardias((g as any[]).filter((x: any) => { if (seen.has(x.usuario_id)) return false; seen.add(x.usuario_id); return true; }));
       setTurnos(t);
       setCuadro(c);
     } catch {
@@ -121,9 +123,14 @@ export default function GuardiasPage() {
   const nombresDias   = ["L", "M", "X", "J", "V", "S", "D"];
 
   function turnosDia(dia: number) {
+    const target = new Date(year, month - 1, dia);
     return cuadro.filter((t) => {
-      const d = new Date(t.fecha_inicio);
-      return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === dia;
+      const inicio = new Date(t.fecha_inicio);
+      const fin    = new Date(t.fecha_fin);
+      const dT = target.getTime();
+      const dI = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime();
+      const dF = new Date(fin.getFullYear(),   fin.getMonth(),   fin.getDate()).getTime();
+      return dT >= dI && dT <= dF;
     });
   }
 

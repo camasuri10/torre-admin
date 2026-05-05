@@ -128,13 +128,15 @@ def list_proveedores(
             if edificio_id:
                 query += """
                     AND p.id IN (
+                        SELECT proveedor_id FROM proveedor_edificios WHERE edificio_id = %s AND activo = TRUE
+                        UNION
                         SELECT proveedor_id FROM contratos_servicio WHERE edificio_id = %s AND activo = TRUE
                         UNION
                         SELECT proveedor_id FROM contratos_servicio cs
                         WHERE cs.conjunto_id IN (SELECT conjunto_id FROM edificios WHERE id = %s AND conjunto_id IS NOT NULL)
                     )
                 """
-                params.extend([edificio_id, edificio_id])
+                params.extend([edificio_id, edificio_id, edificio_id])
             elif conjunto_id:
                 query += " AND p.id IN (SELECT proveedor_id FROM contratos_servicio WHERE conjunto_id = %s AND activo = TRUE)"
                 params.append(conjunto_id)

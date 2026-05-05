@@ -64,8 +64,14 @@ def create_guardia(data: GuardiaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
+                "SELECT id FROM guardias WHERE usuario_id = %s AND edificio_id = %s AND activo = TRUE",
+                (data.usuario_id, data.edificio_id),
+            )
+            if cur.fetchone():
+                raise HTTPException(status_code=409, detail="Este usuario ya está registrado como guardia en este edificio")
+            cur.execute(
                 "INSERT INTO guardias (usuario_id, edificio_id) VALUES (%s,%s) RETURNING *",
-                (data.usuario_id, data.edificio_id)
+                (data.usuario_id, data.edificio_id),
             )
             return cur.fetchone()
 
