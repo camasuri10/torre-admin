@@ -166,6 +166,8 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
         raise HTTPException(status_code=403, detail="Sin permiso para crear proveedores")
 
     creado_por = int(current_user.get("sub", 0))
+    edificio_id = current_user.get("edificio_id")
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -174,7 +176,17 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
                 (data.nombre, data.contacto, data.telefono, data.email,
                  data.especialidad, data.nit, creado_por),
             )
-            return dict(cur.fetchone())
+            proveedor = dict(cur.fetchone())
+
+            # Auto-asociar al edificio del administrador que lo crea
+            if current_user.get("rol") == "administrador" and edificio_id:
+                cur.execute(
+                    """INSERT INTO proveedor_edificios (proveedor_id, edificio_id)
+                       VALUES (%s, %s) ON CONFLICT DO NOTHING""",
+                    (proveedor["id"], edificio_id),
+                )
+
+            return proveedor
 
 
 @router.put("/{proveedor_id}")
