@@ -31,21 +31,37 @@ def list_comunicados(
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
-            query = """
-                SELECT c.*,
-                       e.nombre as edificio_nombre,
-                       u.nombre as autor_nombre,
-                       CASE WHEN ce.leido IS NULL THEN FALSE ELSE ce.leido END as leido
-                FROM comunicados c
-                LEFT JOIN edificios e ON e.id = c.edificio_id
-                LEFT JOIN usuarios u ON u.id = c.autor_id
-                LEFT JOIN comunicado_envios ce
-                       ON ce.comunicado_id = c.id
-                      AND (%s::integer IS NULL OR ce.usuario_id = %s)
-                      AND ce.canal = 'sistema'
-                WHERE 1=1
-            """
-            params: list = [usuario_id, usuario_id]
+            # When usuario_id is provided, LEFT JOIN envios to get read status.
+            # When absent, skip the join entirely to avoid one-row-per-envio duplicates.
+            if usuario_id is not None:
+                query = """
+                    SELECT c.*,
+                           e.nombre as edificio_nombre,
+                           u.nombre as autor_nombre,
+                           COALESCE(ce.leido, FALSE) as leido
+                    FROM comunicados c
+                    LEFT JOIN edificios e ON e.id = c.edificio_id
+                    LEFT JOIN usuarios u ON u.id = c.autor_id
+                    LEFT JOIN comunicado_envios ce
+                           ON ce.comunicado_id = c.id
+                          AND ce.usuario_id = %s
+                          AND ce.canal = 'sistema'
+                    WHERE 1=1
+                """
+                params: list = [usuario_id]
+            else:
+                query = """
+                    SELECT c.*,
+                           e.nombre as edificio_nombre,
+                           u.nombre as autor_nombre,
+                           FALSE as leido
+                    FROM comunicados c
+                    LEFT JOIN edificios e ON e.id = c.edificio_id
+                    LEFT JOIN usuarios u ON u.id = c.autor_id
+                    WHERE 1=1
+                """
+                params = []
+
             if edificio_id:
                 query += " AND (c.edificio_id = %s OR c.edificio_id IS NULL)"
                 params.append(edificio_id)

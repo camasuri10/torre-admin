@@ -36,18 +36,18 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const [s, mant, com, cuotas, paq] = await Promise.all([
+        const [s, mant, com, cuotas, paq] = await Promise.allSettled([
           api.reportes.dashboard(edificioId),
           api.mantenimientos.list({ edificio_id: edificioId, estado: "pendiente" }),
           api.comunicados.list({ edificio_id: edificioId }),
           api.cuotas.list({ edificio_id: edificioId, estado: "vencido" }),
           api.paquetes.stats(edificioId),
         ]);
-        setStats(s);
-        setPendientes(mant.slice(0, 5));
-        setComunicados(com.slice(0, 3));
-        setMorosos(cuotas.slice(0, 5));
-        setPaquetes(paq);
+        if (s.status === "fulfilled") setStats(s.value);
+        if (mant.status === "fulfilled") setPendientes(mant.value.slice(0, 5));
+        if (com.status === "fulfilled") setComunicados(com.value.slice(0, 3));
+        if (cuotas.status === "fulfilled") setMorosos(cuotas.value.slice(0, 5));
+        if (paq.status === "fulfilled") setPaquetes(paq.value);
       } catch (err) {
         console.error("Error cargando dashboard", err);
       } finally {
