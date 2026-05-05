@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { getUser } from "@/lib/auth";
 
 const TURNO_COLORS: Record<string, string> = {
   dia: "bg-yellow-100 text-yellow-700",
@@ -27,6 +26,7 @@ const EVENTO_ICONS: Record<string, string> = {
 };
 
 export default function GuardiasPage() {
+  const edificioId = getUser()?.edificio_id;
   const [guardias, setGuardias] = useState<any[]>([]);
   const [turnos, setTurnos] = useState<any[]>([]);
   const [cuadro, setCuadro] = useState<any[]>([]);
@@ -37,12 +37,13 @@ export default function GuardiasPage() {
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
+    if (!edificioId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [g, t, c] = await Promise.all([
-        api.guardias.list(EDIFICIO_ID),
-        api.guardias.turnos.list({ edificio_id: EDIFICIO_ID }),
-        api.guardias.cuadro(EDIFICIO_ID),
+        api.guardias.list(edificioId),
+        api.guardias.turnos.list({ edificio_id: edificioId }),
+        api.guardias.cuadro(edificioId),
       ]);
       setGuardias(g);
       setTurnos(t);
@@ -71,7 +72,7 @@ export default function GuardiasPage() {
     const fd = new FormData(e.currentTarget);
     await api.guardias.turnos.create({
       guardia_id: Number(fd.get("guardia_id")),
-      edificio_id: EDIFICIO_ID,
+      edificio_id: edificioId,
       fecha_inicio: fd.get("fecha_inicio"),
       fecha_fin: fd.get("fecha_fin"),
       tipo_turno: fd.get("tipo_turno"),

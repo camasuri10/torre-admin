@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-
-const EDIFICIO_ID = 1;
+import { getUser } from "@/lib/auth";
 
 function formatCOP(n: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
@@ -20,21 +19,23 @@ function StatCard({ label, value, sub, color = "bg-blue-50 text-blue-700" }: any
 }
 
 export default function ReportesPage() {
+  const edificioId = getUser()?.edificio_id ?? 0;
   const [tab, setTab] = useState<"general" | "finanzas" | "mantenimiento" | "accesos" | "paquetes" | "guardias">("general");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
+    if (!edificioId) { setData(null); return; }
     setLoading(true);
     try {
       let result: any;
       switch (tab) {
-        case "general":    result = await api.reportes.dashboard(EDIFICIO_ID); break;
-        case "finanzas":   result = await api.reportes.finanzas(EDIFICIO_ID, 6); break;
-        case "mantenimiento": result = await api.reportes.mantenimiento(EDIFICIO_ID); break;
-        case "accesos":    result = await api.reportes.accesos(EDIFICIO_ID, 7); break;
-        case "paquetes":   result = await api.reportes.paquetes(EDIFICIO_ID); break;
-        case "guardias":   result = await api.reportes.guardias(EDIFICIO_ID); break;
+        case "general":       result = await api.reportes.dashboard(edificioId); break;
+        case "finanzas":      result = await api.reportes.finanzas(edificioId, 6); break;
+        case "mantenimiento": result = await api.reportes.mantenimiento(edificioId); break;
+        case "accesos":       result = await api.reportes.accesos(edificioId, 7); break;
+        case "paquetes":      result = await api.reportes.paquetes(edificioId); break;
+        case "guardias":      result = await api.reportes.guardias(edificioId); break;
       }
       setData(result);
     } catch {

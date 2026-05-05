@@ -305,20 +305,27 @@ export const api = {
   guardias: {
     list: (edificio_id?: number) => {
       const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
-      return request<any[]>(`/api/guardias/${q}`);
+      return request<any[]>(`/api/guardias${q}`);
     },
-    create: (data: any) => request<any>("/api/guardias/", { method: "POST", body: JSON.stringify(data) }),
+    create: (data: any) => request<any>("/api/guardias", { method: "POST", body: JSON.stringify(data) }),
     turnos: {
       list: (params?: { edificio_id?: number; guardia_id?: number }) => {
-        const q = new URLSearchParams(params as any).toString();
+        const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null));
+        const q = new URLSearchParams(filtered as any).toString();
         return request<any[]>(`/api/guardias/turnos${q ? "?" + q : ""}`);
       },
       create: (data: any) => request<any>("/api/guardias/turnos", { method: "POST", body: JSON.stringify(data) }),
       update: (id: number, data: any) =>
         request<any>(`/api/guardias/turnos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
       eventos: (turno_id: number) => request<any[]>(`/api/guardias/turnos/${turno_id}/eventos`),
-      crearEvento: (turno_id: number, formData: FormData) =>
-        fetch(`${BASE}/api/guardias/turnos/${turno_id}/eventos`, { method: "POST", body: formData }).then((r) => r.json()),
+      crearEvento: (turno_id: number, formData: FormData) => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("torre_auth_token") : null;
+        return fetch(`${BASE}/api/guardias/turnos/${turno_id}/eventos`, {
+          method: "POST",
+          body: formData,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }).then((r) => r.json());
+      },
     },
     cuadro: (edificio_id: number, semana?: string) => {
       const q = semana ? `?semana=${semana}` : "";

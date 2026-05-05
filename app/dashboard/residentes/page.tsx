@@ -39,6 +39,11 @@ export default function ResidentesPage() {
   const [mForm, setMForm]           = useState(EMPTY_MASCOTA);
   const [savingM, setSavingM]       = useState(false);
 
+  // Edit resident info
+  const [editingInfo, setEditingInfo]     = useState(false);
+  const [editInfoForm, setEditInfoForm]   = useState({ nombre: "", cedula: "", email: "", telefono: "" });
+  const [savingEditInfo, setSavingEditInfo] = useState(false);
+
   // Edit vehicle inline
   const [editVehiculo, setEditVehiculo]   = useState<any | null>(null);
   const [savingEditV, setSavingEditV]     = useState(false);
@@ -75,6 +80,7 @@ export default function ResidentesPage() {
     setDetailTab("info");
     setDetailData(null);
     setDetailLoading(true);
+    setEditingInfo(false);
     setEditVehiculo(null);
     setEditMascota(null);
     setShowAssignUnit(false);
@@ -155,6 +161,32 @@ export default function ResidentesPage() {
     await mascotasApi.delete(id);
     const full = await api.usuarios.get(selected.id);
     setDetailData(full);
+  }
+
+  function startEditInfo() {
+    if (!detailData) return;
+    setEditInfoForm({
+      nombre:   detailData.nombre ?? "",
+      cedula:   detailData.cedula ?? "",
+      email:    detailData.email ?? "",
+      telefono: detailData.telefono ?? "",
+    });
+    setEditingInfo(true);
+  }
+
+  async function handleEditInfo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected) return;
+    setSavingEditInfo(true);
+    try {
+      await api.usuarios.update(selected.id, editInfoForm);
+      setEditingInfo(false);
+      const full = await api.usuarios.get(selected.id);
+      setDetailData(full);
+      setSelected({ ...selected, nombre: editInfoForm.nombre });
+      await load();
+    } catch {
+    } finally { setSavingEditInfo(false); }
   }
 
   async function handleEditVehiculo(e: React.FormEvent) {
@@ -404,18 +436,48 @@ export default function ResidentesPage() {
                 <div className="text-center text-gray-400 py-10">Error al cargar</div>
               ) : detailTab === "info" ? (
                 <dl className="space-y-4">
-                  {[
-                    ["Nombre", detailData.nombre],
-                    ["Cédula", detailData.cedula ?? "—"],
-                    ["Email", detailData.email ?? "—"],
-                    ["Teléfono", detailData.telefono ?? "—"],
-                    ["Rol", detailData.rol],
-                  ].map(([label, val]) => (
-                    <div key={label}>
-                      <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{val}</dd>
-                    </div>
-                  ))}
+                  {/* Datos personales con edición inline */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Datos personales</span>
+                    {!editingInfo && (
+                      <button onClick={startEditInfo} className="text-xs text-primary font-medium hover:underline">✏️ Editar</button>
+                    )}
+                  </div>
+                  {editingInfo ? (
+                    <form onSubmit={handleEditInfo} className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
+                      <div className="grid grid-cols-1 gap-3">
+                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
+                          <input required value={editInfoForm.nombre} onChange={(e) => setEditInfoForm({ ...editInfoForm, nombre: e.target.value })} className={INPUT} /></div>
+                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+                          <input value={editInfoForm.cedula} onChange={(e) => setEditInfoForm({ ...editInfoForm, cedula: e.target.value })} className={INPUT} /></div>
+                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                          <input type="email" value={editInfoForm.email} onChange={(e) => setEditInfoForm({ ...editInfoForm, email: e.target.value })} className={INPUT} /></div>
+                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                          <input value={editInfoForm.telefono} onChange={(e) => setEditInfoForm({ ...editInfoForm, telefono: e.target.value })} className={INPUT} /></div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setEditingInfo(false)} className="text-xs text-gray-500 px-3 py-1.5">Cancelar</button>
+                        <button type="submit" disabled={savingEditInfo} className="bg-primary text-white text-xs px-4 py-1.5 rounded-lg disabled:opacity-60">
+                          {savingEditInfo ? "Guardando…" : "Guardar cambios"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      {[
+                        ["Nombre", detailData.nombre],
+                        ["Cédula", detailData.cedula ?? "—"],
+                        ["Email", detailData.email ?? "—"],
+                        ["Teléfono", detailData.telefono ?? "—"],
+                        ["Rol", detailData.rol],
+                      ].map(([label, val]) => (
+                        <div key={label}>
+                          <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</dt>
+                          <dd className="mt-1 text-sm text-gray-900">{val}</dd>
+                        </div>
+                      ))}
+                    </>
+                  )}
                   <div>
                     <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Unidades</dt>
                     <div className="space-y-1.5">
