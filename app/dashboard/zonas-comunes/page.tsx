@@ -200,7 +200,7 @@ export default function ZonasComunesPage() {
     setSaving(true);
     try {
       const canceladaPor = cancelModal.esPropia
-        ? (user?.name ?? "residente")
+        ? (user?.nombre ?? "residente")
         : "administrador";
       await api.zonas.reservas.cancelar(cancelModal.id, {
         cancelada_por: canceladaPor,

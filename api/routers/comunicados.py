@@ -41,11 +41,11 @@ def list_comunicados(
                 LEFT JOIN usuarios u ON u.id = c.autor_id
                 LEFT JOIN comunicado_envios ce
                        ON ce.comunicado_id = c.id
-                      AND ce.usuario_id = %s
+                      AND (%s::integer IS NULL OR ce.usuario_id = %s)
                       AND ce.canal = 'sistema'
                 WHERE 1=1
             """
-            params: list = [usuario_id]
+            params: list = [usuario_id, usuario_id]
             if edificio_id:
                 query += " AND (c.edificio_id = %s OR c.edificio_id IS NULL)"
                 params.append(edificio_id)
