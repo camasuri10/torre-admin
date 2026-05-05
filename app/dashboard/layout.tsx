@@ -24,7 +24,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["superadmin", "administrador", "propietario", "inquilino", "portero"] },
+      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["administrador", "propietario", "inquilino", "portero"] },
     ],
   },
   {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { conjuntosApi, superadminApi } from "@/lib/api";
 
-const EMPTY = { nombre: "", direccion: "", ciudad: "", pais: "Colombia" };
+const EMPTY = { nombre: "", nit: "", telefono: "", direccion: "", ciudad: "", pais: "Colombia" };
 
 export default function ConjuntosPage() {
   const [conjuntos, setConjuntos] = useState<any[]>([]);
@@ -15,6 +15,11 @@ export default function ConjuntosPage() {
   const [expanded, setExpanded]   = useState<number | null>(null);
   const [edificios, setEdificios] = useState<Record<number, any[]>>({});
   const [loadingEd, setLoadingEd] = useState<Record<number, boolean>>({});
+
+  // Edit conjunto
+  const [editingId, setEditingId]   = useState<number | null>(null);
+  const [editForm, setEditForm]     = useState(EMPTY);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Assign edificio form
   const [showAssign, setShowAssign] = useState<number | null>(null);
@@ -48,6 +53,33 @@ export default function ConjuntosPage() {
     } catch {
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEdit(c: any, e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditingId(c.id);
+    setEditForm({
+      nombre: c.nombre ?? "",
+      nit: c.nit ?? "",
+      telefono: c.telefono ?? "",
+      direccion: c.direccion ?? "",
+      ciudad: c.ciudad ?? "",
+      pais: c.pais ?? "Colombia",
+    });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setSavingEdit(true);
+    try {
+      await conjuntosApi.update(editingId, editForm);
+      setEditingId(null);
+      await load();
+    } catch {
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -121,6 +153,10 @@ export default function ConjuntosPage() {
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Benedictine Park" className={INPUT} /></div>
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Ciudad</label>
               <input value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })} placeholder="Bogotá" className={INPUT} /></div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
+              <input value={form.nit} onChange={(e) => setForm({ ...form, nit: e.target.value })} placeholder="900.123.456-1" className={INPUT} /></div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+              <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} placeholder="601 234 5678" className={INPUT} /></div>
             <div className="sm:col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
               <input value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} placeholder="Cra 15 #85-32" className={INPUT} /></div>
           </div>
@@ -149,13 +185,47 @@ export default function ConjuntosPage() {
               >
                 <div>
                   <div className="font-semibold text-gray-900">🏘️ {c.nombre}</div>
-                  <div className="text-sm text-gray-500 mt-0.5">{c.ciudad}{c.direccion ? ` · ${c.direccion}` : ""}</div>
+                  <div className="text-sm text-gray-500 mt-0.5">
+                    {c.ciudad}{c.direccion ? ` · ${c.direccion}` : ""}
+                    {c.nit ? ` · NIT: ${c.nit}` : ""}
+                    {c.telefono ? ` · ☎ ${c.telefono}` : ""}
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => startEdit(c, e)}
+                    className="text-xs text-primary font-medium hover:underline px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                  >
+                    ✏️ Editar
+                  </button>
                   <span className="text-sm text-gray-500">{c.total_edificios ?? 0} edificio(s)</span>
                   <span className={`text-gray-400 text-sm transition-transform ${expanded === c.id ? "rotate-180" : ""}`}>▼</span>
                 </div>
               </button>
+
+              {editingId === c.id && (
+                <form onSubmit={handleEdit} className="border-t border-blue-100 bg-blue-50 px-6 py-4 space-y-4">
+                  <h3 className="font-semibold text-gray-900 text-sm">Editar conjunto</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                      <input required value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={INPUT} /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Ciudad</label>
+                      <input value={editForm.ciudad} onChange={(e) => setEditForm({ ...editForm, ciudad: e.target.value })} placeholder="Bogotá" className={INPUT} /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
+                      <input value={editForm.nit} onChange={(e) => setEditForm({ ...editForm, nit: e.target.value })} placeholder="900.123.456-1" className={INPUT} /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                      <input value={editForm.telefono} onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })} placeholder="601 234 5678" className={INPUT} /></div>
+                    <div className="sm:col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
+                      <input value={editForm.direccion} onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })} placeholder="Cra 15 #85-32" className={INPUT} /></div>
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <button type="button" onClick={() => setEditingId(null)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
+                    <button type="submit" disabled={savingEdit} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">
+                      {savingEdit ? "Guardando…" : "Guardar cambios"}
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {expanded === c.id && (
                 <div className="border-t border-gray-100 px-6 py-4 bg-gray-50 space-y-3">

@@ -16,6 +16,8 @@ def _require_superadmin(current_user: dict = Depends(get_current_user)):
 
 class ConjuntoCreate(BaseModel):
     nombre: str
+    nit: Optional[str] = None
+    telefono: Optional[str] = None
     direccion: Optional[str] = None
     ciudad: Optional[str] = None
     pais: str = "Colombia"
@@ -23,6 +25,8 @@ class ConjuntoCreate(BaseModel):
 
 class ConjuntoUpdate(BaseModel):
     nombre: Optional[str] = None
+    nit: Optional[str] = None
+    telefono: Optional[str] = None
     direccion: Optional[str] = None
     ciudad: Optional[str] = None
     pais: Optional[str] = None
@@ -52,8 +56,8 @@ def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_superadmin)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO conjuntos (nombre, direccion, ciudad, pais) VALUES (%s,%s,%s,%s) RETURNING *",
-                (body.nombre, body.direccion, body.ciudad, body.pais),
+                "INSERT INTO conjuntos (nombre, nit, telefono, direccion, ciudad, pais) VALUES (%s,%s,%s,%s,%s,%s) RETURNING *",
+                (body.nombre, body.nit, body.telefono, body.direccion, body.ciudad, body.pais),
             )
             return dict(cur.fetchone())
 

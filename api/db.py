@@ -51,6 +51,8 @@ SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS conjuntos (
     id          SERIAL PRIMARY KEY,
     nombre      TEXT NOT NULL,
+    nit         TEXT,
+    telefono    TEXT,
     direccion   TEXT,
     ciudad      TEXT,
     pais        TEXT NOT NULL DEFAULT 'Colombia',
@@ -500,6 +502,10 @@ CREATE INDEX IF NOT EXISTS idx_edificios_conjunto      ON edificios(conjunto_id)
 
 # Incremental migrations for upgrading existing databases
 MIGRATION_SQL = """
+-- v3.6 — NIT y teléfono en conjuntos
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS nit      TEXT;
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS telefono TEXT;
+
 -- v3.5 — Jerarquía Conjunto → Edificio → Torre → Unidad
 
 -- Nuevas columnas en edificios (si vienen de versión anterior)
