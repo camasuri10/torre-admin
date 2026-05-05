@@ -5,45 +5,58 @@ import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
 const TURNO_COLORS: Record<string, string> = {
-  dia: "bg-yellow-100 text-yellow-700",
-  noche: "bg-indigo-100 text-indigo-700",
-  fin_semana: "bg-purple-100 text-purple-700",
+  dia:        "bg-yellow-100 text-yellow-700 border-yellow-200",
+  noche:      "bg-indigo-100 text-indigo-700 border-indigo-200",
+  fin_semana: "bg-purple-100 text-purple-700 border-purple-200",
+};
+
+const TURNO_ICONO: Record<string, string> = {
+  dia: "☀️", noche: "🌙", fin_semana: "📅",
 };
 
 const ESTADO_COLORS: Record<string, string> = {
   programado: "bg-blue-100 text-blue-700",
-  en_curso: "bg-green-100 text-green-700",
+  en_curso:   "bg-green-100 text-green-700",
   completado: "bg-gray-100 text-gray-600",
-  ausente: "bg-red-100 text-red-700",
+  ausente:    "bg-red-100 text-red-700",
 };
 
 const EVENTO_ICONS: Record<string, string> = {
-  novedad: "📝",
-  incidente: "⚠️",
-  ronda: "🔄",
-  alerta: "🚨",
-  otro: "📌",
+  novedad: "📝", incidente: "⚠️", ronda: "🔄", alerta: "🚨", otro: "📌",
 };
+
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function getMesStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export default function GuardiasPage() {
   const edificioId = getUser()?.edificio_id;
-  const [guardias, setGuardias] = useState<any[]>([]);
-  const [turnos, setTurnos] = useState<any[]>([]);
-  const [cuadro, setCuadro] = useState<any[]>([]);
+  const [guardias, setGuardias]           = useState<any[]>([]);
+  const [turnos, setTurnos]               = useState<any[]>([]);
+  const [cuadro, setCuadro]               = useState<any[]>([]);
   const [selectedTurno, setSelectedTurno] = useState<any | null>(null);
-  const [eventos, setEventos] = useState<any[]>([]);
-  const [tab, setTab] = useState<"cuadro" | "turnos" | "guardias">("cuadro");
+  const [eventos, setEventos]             = useState<any[]>([]);
+  const [tab, setTab]                     = useState<"cuadro" | "turnos" | "guardias">("cuadro");
   const [showTurnoForm, setShowTurnoForm] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]             = useState(true);
+  const [mesActual, setMesActual]         = useState(() => getMesStr(new Date()));
 
-  const load = async () => {
+  const navMes = (delta: number) => {
+    const [y, m] = mesActual.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setMesActual(getMesStr(d));
+  };
+
+  const load = async (mes?: string) => {
     if (!edificioId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [g, t, c] = await Promise.all([
         api.guardias.list(edificioId),
         api.guardias.turnos.list({ edificio_id: edificioId }),
-        api.guardias.cuadro(edificioId),
+        api.guardias.cuadro(edificioId, mes ?? mesActual),
       ]);
       setGuardias(g);
       setTurnos(t);
@@ -56,6 +69,7 @@ export default function GuardiasPage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (edificioId) load(mesActual); }, [mesActual]);
 
   const loadEventos = async (turno_id: number) => {
     const ev = await api.guardias.turnos.eventos(turno_id);
@@ -71,20 +85,20 @@ export default function GuardiasPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     await api.guardias.turnos.create({
-      guardia_id: Number(fd.get("guardia_id")),
+      guardia_id:  Number(fd.get("guardia_id")),
       edificio_id: edificioId,
       fecha_inicio: fd.get("fecha_inicio"),
-      fecha_fin: fd.get("fecha_fin"),
-      tipo_turno: fd.get("tipo_turno"),
-      notas: fd.get("notas") || null,
+      fecha_fin:    fd.get("fecha_fin"),
+      tipo_turno:   fd.get("tipo_turno"),
+      notas:        fd.get("notas") || null,
     });
     setShowTurnoForm(false);
-    load();
+    load(mesActual);
   };
 
   const handleUpdateEstado = async (turno_id: number, estado: string) => {
     await api.guardias.turnos.update(turno_id, { estado });
-    load();
+    load(mesActual);
     if (selectedTurno?.id === turno_id) setSelectedTurno((t: any) => ({ ...t, estado }));
   };
 
@@ -97,7 +111,25 @@ export default function GuardiasPage() {
     loadEventos(selectedTurno!.id);
   };
 
-  const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  // ── Generar calendario mensual ─────────────────────────────────────────────
+  const [year, month] = mesActual.split("-").map(Number);
+  const primerDia     = new Date(year, month - 1, 1);
+  const diasEnMes     = new Date(year, month, 0).getDate();
+  // Offset: lunes = 0
+  const offsetInicio  = (primerDia.getDay() + 6) % 7;
+  const totalCeldas   = Math.ceil((offsetInicio + diasEnMes) / 7) * 7;
+  const nombresDias   = ["L", "M", "X", "J", "V", "S", "D"];
+
+  function turnosDia(dia: number) {
+    return cuadro.filter((t) => {
+      const d = new Date(t.fecha_inicio);
+      return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === dia;
+    });
+  }
+
+  function nombreMesAnio() {
+    return `${MESES[month - 1]} ${year}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -116,11 +148,26 @@ export default function GuardiasPage() {
         ))}
       </div>
 
-      {/* Cuadro de turnos */}
+      {/* ── Calendario mensual ──────────────────────────────────────────── */}
       {tab === "cuadro" && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Header: navegación */}
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Cuadro de turnos — semana actual</h2>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navMes(-1)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+                title="Mes anterior"
+              >‹</button>
+              <h2 className="font-semibold text-gray-900 text-lg min-w-[180px] text-center">
+                {nombreMesAnio()}
+              </h2>
+              <button
+                onClick={() => navMes(1)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+                title="Mes siguiente"
+              >›</button>
+            </div>
             <button
               onClick={() => setShowTurnoForm(true)}
               className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-medium"
@@ -128,52 +175,68 @@ export default function GuardiasPage() {
               + Programar turno
             </button>
           </div>
-          {cuadro.length === 0 ? (
-            <div className="py-12 text-center text-gray-400">
-              <div className="text-4xl mb-2">📅</div>
-              <p>No hay turnos programados esta semana</p>
+
+          {/* Leyenda */}
+          <div className="px-5 py-2 flex flex-wrap gap-3 border-b border-gray-50">
+            {Object.entries(TURNO_ICONO).map(([tipo, icon]) => (
+              <span key={tipo} className={`text-xs px-2 py-0.5 rounded-full font-medium border ${TURNO_COLORS[tipo]}`}>
+                {icon} {tipo === "dia" ? "Día" : tipo === "noche" ? "Noche" : "Fin de semana"}
+              </span>
+            ))}
+          </div>
+
+          {/* Calendario */}
+          <div className="p-4">
+            {/* Días de la semana */}
+            <div className="grid grid-cols-7 mb-1">
+              {nombresDias.map((d) => (
+                <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Guardia</th>
-                    {DIAS.map((d) => <th key={d} className="px-3 py-3 text-center text-xs font-semibold text-gray-500">{d}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {Array.from(new Set(cuadro.map((t) => t.guardia_nombre))).map((nombre) => (
-                    <tr key={nombre as string} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{nombre as string}</td>
-                      {DIAS.map((_, i) => {
-                        const turno = cuadro.find((t) => {
-                          const d = new Date(t.fecha_inicio).getDay();
-                          const dayIdx = d === 0 ? 6 : d - 1;
-                          return t.guardia_nombre === nombre && dayIdx === i;
-                        });
-                        return (
-                          <td key={i} className="px-3 py-3 text-center">
-                            {turno ? (
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${TURNO_COLORS[turno.tipo_turno]}`}>
-                                {turno.tipo_turno === "dia" ? "☀️" : turno.tipo_turno === "noche" ? "🌙" : "📅"}
-                              </span>
-                            ) : (
-                              <span className="text-gray-200">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Celdas */}
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: totalCeldas }).map((_, idx) => {
+                const dia = idx - offsetInicio + 1;
+                const esMes = dia >= 1 && dia <= diasEnMes;
+                const esHoy = esMes && new Date().getDate() === dia && new Date().getMonth() === month - 1 && new Date().getFullYear() === year;
+                const turnos = esMes ? turnosDia(dia) : [];
+                return (
+                  <div
+                    key={idx}
+                    className={`min-h-[72px] rounded-lg p-1 ${
+                      !esMes ? "bg-gray-50/50" : esHoy ? "bg-blue-50 border border-blue-200" : "bg-gray-50/30 hover:bg-gray-50"
+                    }`}
+                  >
+                    {esMes && (
+                      <>
+                        <div className={`text-xs font-semibold mb-1 text-right pr-1 ${esHoy ? "text-blue-600" : "text-gray-500"}`}>
+                          {dia}
+                        </div>
+                        <div className="space-y-0.5">
+                          {turnos.slice(0, 3).map((t) => (
+                            <div
+                              key={t.id}
+                              title={`${t.guardia_nombre} — ${t.tipo_turno}`}
+                              className={`text-[10px] px-1 py-0.5 rounded font-medium truncate border ${TURNO_COLORS[t.tipo_turno] ?? "bg-gray-100 text-gray-600"}`}
+                            >
+                              {TURNO_ICONO[t.tipo_turno]} {t.guardia_nombre?.split(" ")[0]}
+                            </div>
+                          ))}
+                          {turnos.length > 3 && (
+                            <div className="text-[10px] text-gray-400 text-center">+{turnos.length - 3} más</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Turnos list */}
+      {/* ── Turnos list ─────────────────────────────────────────────────── */}
       {tab === "turnos" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -193,8 +256,8 @@ export default function GuardiasPage() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium text-gray-800">{t.guardia_nombre}</span>
                     <div className="flex gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TURNO_COLORS[t.tipo_turno]}`}>
-                        {t.tipo_turno}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${TURNO_COLORS[t.tipo_turno]}`}>
+                        {TURNO_ICONO[t.tipo_turno]} {t.tipo_turno}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLORS[t.estado]}`}>
                         {t.estado}
@@ -202,7 +265,7 @@ export default function GuardiasPage() {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {new Date(t.fecha_inicio).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                    {new Date(t.fecha_inicio).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}
                     {" → "}
                     {new Date(t.fecha_fin).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
                   </div>
@@ -226,6 +289,9 @@ export default function GuardiasPage() {
                   )}
                 </div>
               ))}
+              {turnos.length === 0 && !loading && (
+                <div className="px-5 py-8 text-center text-gray-400 text-sm">No hay turnos registrados</div>
+              )}
             </div>
           </div>
 
@@ -264,7 +330,7 @@ export default function GuardiasPage() {
                     </select>
                     <input name="descripcion" required placeholder="Descripción de la novedad..." className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                   </div>
-                  <button type="submit" className="w-full bg-primary text-white py-1.5 rounded-lg text-sm font-medium hover:bg-primary-dark">
+                  <button type="submit" className="w-full bg-primary text-white py-1.5 rounded-lg text-sm font-medium hover:bg-primary/90">
                     Registrar novedad
                   </button>
                 </form>
@@ -274,7 +340,7 @@ export default function GuardiasPage() {
         </div>
       )}
 
-      {/* Guardias list */}
+      {/* ── Guardias list ────────────────────────────────────────────────── */}
       {tab === "guardias" && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
@@ -301,7 +367,7 @@ export default function GuardiasPage() {
         </div>
       )}
 
-      {/* Turno form modal */}
+      {/* ── Modal: Programar turno ───────────────────────────────────────── */}
       {showTurnoForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -339,7 +405,7 @@ export default function GuardiasPage() {
                 <button type="button" onClick={() => setShowTurnoForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">
                   Cancelar
                 </button>
-                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">
+                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
                   Programar
                 </button>
               </div>

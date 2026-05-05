@@ -237,13 +237,20 @@ export const api = {
 
   // ── Comunicados ────────────────────────────────────────────────────────────
   comunicados: {
-    list: (params?: { edificio_id?: number; tipo?: string }) => {
-      const q = new URLSearchParams(params as any).toString();
+    list: (params?: { edificio_id?: number; tipo?: string; usuario_id?: number }) => {
+      const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null));
+      const q = new URLSearchParams(filtered as any).toString();
       return request<any[]>(`/api/comunicados/${q ? "?" + q : ""}`);
     },
     create: (data: any) => request<any>("/api/comunicados/", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/comunicados/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/comunicados/${id}`, { method: "DELETE" }),
+    envios: (id: number) => request<any[]>(`/api/comunicados/${id}/envios`),
+    marcarLeido: (comunicado_id: number, usuario_id: number) =>
+      request<any>(`/api/comunicados/${comunicado_id}/leido`, {
+        method: "PATCH",
+        body: JSON.stringify({ usuario_id }),
+      }),
   },
 
   // ── Zonas Comunes ──────────────────────────────────────────────────────────
@@ -327,8 +334,8 @@ export const api = {
         }).then((r) => r.json());
       },
     },
-    cuadro: (edificio_id: number, semana?: string) => {
-      const q = semana ? `?semana=${semana}` : "";
+    cuadro: (edificio_id: number, mes?: string) => {
+      const q = mes ? `?mes=${mes}` : "";
       return request<any[]>(`/api/guardias/cuadro-turnos/${edificio_id}${q}`);
     },
   },

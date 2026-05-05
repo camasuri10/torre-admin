@@ -184,8 +184,9 @@ async def create_evento(
 
 
 @router.get("/cuadro-turnos/{edificio_id}")
-def cuadro_turnos(edificio_id: int, semana: Optional[str] = None):
-    """Returns the weekly schedule grid for all guards in a building."""
+def cuadro_turnos(edificio_id: int, mes: Optional[str] = None):
+    """Returns the monthly schedule grid for all guards in a building.
+    `mes` should be YYYY-MM (defaults to current month)."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -194,8 +195,8 @@ def cuadro_turnos(edificio_id: int, semana: Optional[str] = None):
                 JOIN guardias g ON g.id = t.guardia_id
                 JOIN usuarios u ON u.id = g.usuario_id
                 WHERE t.edificio_id = %s
-                AND t.fecha_inicio >= COALESCE(%s::date, DATE_TRUNC('week', NOW()))
-                AND t.fecha_inicio < COALESCE(%s::date, DATE_TRUNC('week', NOW())) + INTERVAL '7 days'
+                AND DATE_TRUNC('month', t.fecha_inicio) =
+                    DATE_TRUNC('month', COALESCE(%s::date, NOW()::date))
                 ORDER BY t.fecha_inicio, u.nombre
-            """, (edificio_id, semana, semana))
+            """, (edificio_id, (mes + "-01") if mes else None))
             return cur.fetchall()

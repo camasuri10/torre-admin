@@ -5,6 +5,7 @@ import { api, vehiculosApi, mascotasApi } from "@/lib/api";
 import { getUser, getEdificiosDisponibles } from "@/lib/auth";
 
 const EMPTY_RESIDENTE = { nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
+const EMPTY_MASCOTA_NUEVA = { tieneMascota: false, nombre: "", especie: "perro", raza: "" };
 const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro" };
 const EMPTY_MASCOTA = { nombre: "", especie: "perro", raza: "", color: "" };
 
@@ -22,6 +23,7 @@ export default function ResidentesPage() {
   const [saving, setSaving]         = useState(false);
   const [search, setSearch]         = useState("");
   const [form, setForm]             = useState(EMPTY_RESIDENTE);
+  const [mascotaNueva, setMascotaNueva] = useState(EMPTY_MASCOTA_NUEVA);
 
   // Detalle panel
   const [selected, setSelected]       = useState<any | null>(null);
@@ -110,7 +112,16 @@ export default function ResidentesPage() {
           fecha_inicio: today,
         });
       }
+      if (mascotaNueva.tieneMascota && mascotaNueva.nombre) {
+        await mascotasApi.create({
+          usuario_id: newUser.id,
+          nombre: mascotaNueva.nombre,
+          especie: mascotaNueva.especie,
+          raza: mascotaNueva.raza || null,
+        });
+      }
       setForm(EMPTY_RESIDENTE);
+      setMascotaNueva(EMPTY_MASCOTA_NUEVA);
       setShowForm(false);
       await load();
     } catch {
@@ -324,9 +335,57 @@ export default function ResidentesPage() {
               </>
             )}
           </div>
+          {/* Mascota */}
+          <div className="border border-gray-100 rounded-lg p-3 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={mascotaNueva.tieneMascota}
+                onChange={(e) => setMascotaNueva({ ...mascotaNueva, tieneMascota: e.target.checked })}
+                className="rounded border-gray-300 text-primary"
+              />
+              <span className="text-sm font-medium text-gray-700">🐾 ¿Tiene mascota?</span>
+            </label>
+            {mascotaNueva.tieneMascota && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la mascota *</label>
+                  <input
+                    required={mascotaNueva.tieneMascota}
+                    value={mascotaNueva.nombre}
+                    onChange={(e) => setMascotaNueva({ ...mascotaNueva, nombre: e.target.value })}
+                    placeholder="Fido"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Especie</label>
+                  <select
+                    value={mascotaNueva.especie}
+                    onChange={(e) => setMascotaNueva({ ...mascotaNueva, especie: e.target.value })}
+                    className={INPUT}
+                  >
+                    <option value="perro">🐕 Perro</option>
+                    <option value="gato">🐈 Gato</option>
+                    <option value="ave">🐦 Ave</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Raza (opcional)</label>
+                  <input
+                    value={mascotaNueva.raza}
+                    onChange={(e) => setMascotaNueva({ ...mascotaNueva, raza: e.target.value })}
+                    placeholder="Golden Retriever"
+                    className={INPUT}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-gray-400">El residente quedará asociado automáticamente a este edificio.</p>
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
+            <button type="button" onClick={() => { setShowForm(false); setMascotaNueva(EMPTY_MASCOTA_NUEVA); }} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
             <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">
               {saving ? "Guardando…" : "Crear residente"}
             </button>

@@ -27,6 +27,7 @@ export default function ZonasComunesPage() {
   const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
 
   const [zonas, setZonas] = useState<any[]>([]);
+  const [unidades, setUnidades] = useState<any[]>([]);
   const [reservas, setReservas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"zonas" | "reservas">("zonas");
@@ -36,11 +37,12 @@ export default function ZonasComunesPage() {
   const [showZonaForm, setShowZonaForm] = useState(false);
   const [reservaZona, setReservaZona] = useState<any | null>(null);
   const [reservaFecha, setReservaFecha] = useState("");
+  const [reservaUnidadId, setReservaUnidadId] = useState<number | null>(null);
   const [slots, setSlots] = useState<{ inicio: string; fin: string; libre: boolean }[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [reservaNotas, setReservaNotas] = useState("");
   const [reservandoSlot, setReservandoSlot] = useState<string | null>(null);
-  const [cancelModal, setCancelModal] = useState<{ id: number; zona: string } | null>(null);
+  const [cancelModal, setCancelModal] = useState<{ id: number; zona: string; esPropia: boolean } | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [zonaForm, setZonaForm] = useState(ZONA_FORM_EMPTY);
   const [saving, setSaving] = useState(false);
@@ -78,13 +80,24 @@ export default function ZonasComunesPage() {
     setSlotsLoading(true);
     setSlots([]);
     try {
-      const { ocupados, config } = await api.zonas.disponibilidad(zona.id, fecha);
+      const { ocupados, config, conteo_hora } = await api.zonas.disponibilidad(zona.id, fecha);
       const raw = generarSlots(
         config?.horario_inicio ?? zona.horario_inicio,
         config?.horario_fin ?? zona.horario_fin,
         config?.duracion_min_horas ?? zona.duracion_min_horas,
       );
-      setSlots(raw.map((s) => ({ ...s, libre: slotLibre(s.inicio, s.fin, ocupados) })));
+      const capacidadHora: number | null = config?.capacidad_hora ?? zona.capacidad_hora ?? null;
+      // Solo incluir slots que estén libres (ocultar los ocupados en lugar de mostrarlos disabled)
+      const libres = raw.filter((s) => {
+        if (!slotLibre(s.inicio, s.fin, ocupados)) return false;
+        // Si hay capacidad_hora, verificar que no se haya alcanzado
+        if (capacidadHora) {
+          const count = (conteo_hora ?? {})[s.inicio.slice(0, 5)] ?? 0;
+          if (count >= capacidadHora) return false;
+        }
+        return true;
+      });
+      setSlots(libres.map((s) => ({ ...s, libre: true })));
     } catch {
       setSlots([]);
     } finally {
@@ -99,6 +112,7 @@ export default function ZonasComunesPage() {
       const reserva = await api.zonas.reservas.create({
         zona_id: reservaZona.id,
         usuario_id: usuarioId,
+        unidad_id: reservaUnidadId || null,
         fecha: reservaFecha,
         hora_inicio: slot.inicio,
         hora_fin: slot.fin,
@@ -110,6 +124,7 @@ export default function ZonasComunesPage() {
       setReservaFecha("");
       setSlots([]);
       setReservaNotas("");
+      setReservaUnidadId(null);
       load();
     } catch (err: any) {
       alert("Error al reservar: " + (err?.message ?? "Intenta de nuevo"));
@@ -121,12 +136,14 @@ export default function ZonasComunesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [z, r] = await Promise.all([
+      const [z, r, uns] = await Promise.all([
         api.zonas.list(edificioId, incluirInactivas),
         api.zonas.reservas.list({ edificio_id: edificioId }),
+        api.edificios.unidades(edificioId),
       ]);
       setZonas(z);
       setReservas(r);
+      setUnidades(uns);
     } catch {
       // ignore
     } finally {
@@ -141,15 +158,17 @@ export default function ZonasComunesPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setSaving(true);
+    const cap = fd.get("capacidad_hora");
     try {
       await api.zonas.updateConfig(selectedZona.id, {
-        duracion_min_horas: Number(fd.get("duracion_min_horas")),
-        duracion_max_horas: Number(fd.get("duracion_max_horas")),
+        duracion_min_horas:  Number(fd.get("duracion_min_horas")),
+        duracion_max_horas:  Number(fd.get("duracion_max_horas")),
         anticipacion_min_dias: Number(fd.get("anticipacion_min_dias")),
         anticipacion_max_dias: Number(fd.get("anticipacion_max_dias")),
-        horario_inicio: fd.get("horario_inicio"),
-        horario_fin: fd.get("horario_fin"),
-        activo: fd.get("activo") === "true",
+        horario_inicio:      fd.get("horario_inicio"),
+        horario_fin:         fd.get("horario_fin"),
+        activo:              fd.get("activo") === "true",
+        capacidad_hora:      cap ? Number(cap) : null,
       });
       setShowConfigForm(false);
       load();
@@ -180,8 +199,11 @@ export default function ZonasComunesPage() {
     if (!cancelModal) return;
     setSaving(true);
     try {
+      const canceladaPor = cancelModal.esPropia
+        ? (user?.name ?? "residente")
+        : "administrador";
       await api.zonas.reservas.cancelar(cancelModal.id, {
-        cancelada_por: "admin",
+        cancelada_por: canceladaPor,
         motivo: cancelMotivo || undefined,
       });
       setCancelModal(null);
@@ -300,7 +322,14 @@ export default function ZonasComunesPage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setReservaZona(zona); setShowReservaForm(true); }}
+                      onClick={() => {
+                        setReservaZona(zona);
+                        setShowReservaForm(true);
+                        // Pre-cargar unidad del usuario si es residente con ocupación
+                        if (!isAdmin && unidades.length > 0) {
+                          setReservaUnidadId(unidades[0]?.id ?? null);
+                        }
+                      }}
                       disabled={!zona.disponible || zona.activo === false}
                       className="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                       Reservar
@@ -388,7 +417,7 @@ export default function ZonasComunesPage() {
                           {(r.estado === "pendiente" || r.estado === "confirmada") &&
                            (isAdmin || r.usuario_id === usuarioId) && (
                             <button
-                              onClick={() => setCancelModal({ id: r.id, zona: r.zona_nombre })}
+                              onClick={() => setCancelModal({ id: r.id, zona: r.zona_nombre, esPropia: r.usuario_id === usuarioId && !isAdmin })}
                               className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 font-medium">
                               Cancelar
                             </button>
@@ -413,13 +442,28 @@ export default function ZonasComunesPage() {
                 {reservaZona.icono} Reservar {reservaZona.nombre}
               </h3>
               <button
-                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); }}
+                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); setReservaUnidadId(null); }}
                 className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <p className="text-xs text-gray-400 mb-4">
               Horario: {String(reservaZona.horario_inicio).slice(0,5)}–{String(reservaZona.horario_fin).slice(0,5)} ·
               Bloque: {reservaZona.duracion_min_horas}h
             </p>
+
+            {/* Unidad */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Apartamento / Unidad</label>
+              <select
+                value={reservaUnidadId ?? ""}
+                onChange={(e) => setReservaUnidadId(e.target.value ? Number(e.target.value) : null)}
+                className={INPUT}
+              >
+                <option value="">— Sin unidad —</option>
+                {unidades.map((u) => (
+                  <option key={u.id} value={u.id}>{u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}</option>
+                ))}
+              </select>
+            </div>
 
             {/* Fecha */}
             <div className="mb-4">
@@ -441,7 +485,7 @@ export default function ZonasComunesPage() {
                   <div className="text-center py-6 text-gray-400 text-sm">Verificando disponibilidad…</div>
                 ) : slots.length === 0 ? (
                   <div className="text-center py-6 text-gray-400 text-sm">No se encontraron horarios.</div>
-                ) : slots.every((s) => !s.libre) ? (
+                ) : slots.length === 0 ? (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center text-red-600 text-sm font-medium">
                     No hay disponibilidad para este día
                   </div>
@@ -450,19 +494,16 @@ export default function ZonasComunesPage() {
                     {slots.map((slot) => (
                       <button
                         key={slot.inicio}
-                        disabled={!slot.libre || reservandoSlot !== null}
+                        disabled={reservandoSlot !== null}
                         onClick={() => handleReservarSlot(slot)}
                         className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${
-                          !slot.libre
-                            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through"
-                            : reservandoSlot === slot.inicio
+                          reservandoSlot === slot.inicio
                             ? "bg-primary/10 text-primary border-primary/30 cursor-wait"
                             : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
                         }`}
                       >
                         {slot.inicio}
                         <span className="block text-[10px] opacity-70">{slot.fin}</span>
-                        {!slot.libre && <span className="block text-[10px]">ocupado</span>}
                         {reservandoSlot === slot.inicio && <span className="block text-[10px]">reservando…</span>}
                       </button>
                     ))}
@@ -567,6 +608,12 @@ export default function ZonasComunesPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Horario cierre</label>
                   <input name="horario_fin" type="time"
                     defaultValue={String(selectedZona.horario_fin).slice(0,5)} className={INPUT} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad máxima por hora (opcional)</label>
+                  <input name="capacidad_hora" type="number" min="1" placeholder="Ej: 5 reservas por hora"
+                    defaultValue={selectedZona.capacidad_hora ?? ""} className={INPUT} />
+                  <p className="text-xs text-gray-400 mt-0.5">Límite de reservas simultáneas para el mismo horario</p>
                 </div>
               </div>
               <div className="flex gap-3 justify-end">

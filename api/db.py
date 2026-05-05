@@ -282,15 +282,31 @@ CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
 
 -- Comunicados
 CREATE TABLE IF NOT EXISTS comunicados (
-    id          SERIAL PRIMARY KEY,
-    edificio_id INTEGER REFERENCES edificios(id),   -- NULL = todos
-    titulo      TEXT NOT NULL,
-    contenido   TEXT NOT NULL,
-    tipo        TEXT NOT NULL CHECK (tipo IN ('informativo','urgente','convocatoria','recordatorio')),
-    autor_id    INTEGER REFERENCES usuarios(id),
-    fecha       DATE NOT NULL DEFAULT CURRENT_DATE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                SERIAL PRIMARY KEY,
+    edificio_id       INTEGER REFERENCES edificios(id),   -- NULL = todos
+    titulo            TEXT NOT NULL,
+    contenido         TEXT NOT NULL,
+    tipo              TEXT NOT NULL CHECK (tipo IN ('informativo','urgente','convocatoria','recordatorio')),
+    autor_id          INTEGER REFERENCES usuarios(id),
+    fecha             DATE NOT NULL DEFAULT CURRENT_DATE,
+    canales           TEXT NOT NULL DEFAULT '["sistema"]',
+    fecha_programada  TIMESTAMPTZ,
+    imagen_url        TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Auditoría de envíos de comunicados por usuario y canal
+CREATE TABLE IF NOT EXISTS comunicado_envios (
+    id              SERIAL PRIMARY KEY,
+    comunicado_id   INTEGER NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
+    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    canal           TEXT NOT NULL CHECK (canal IN ('sistema','email','whatsapp')),
+    enviado_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    leido           BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (comunicado_id, usuario_id, canal)
+);
+CREATE INDEX IF NOT EXISTS idx_comunicado_envios_comunicado ON comunicado_envios(comunicado_id);
+CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios(usuario_id);
 
 -- Chat de seguridad
 CREATE TABLE IF NOT EXISTS chat_mensajes (
@@ -320,6 +336,7 @@ CREATE TABLE IF NOT EXISTS zonas_comunes (
     anticipacion_max_dias   INTEGER NOT NULL DEFAULT 30,
     horario_inicio          TIME NOT NULL DEFAULT '07:00',
     horario_fin             TIME NOT NULL DEFAULT '22:00',
+    capacidad_hora          INTEGER,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -632,6 +649,26 @@ ALTER TABLE reservas ADD COLUMN IF NOT EXISTS alerta_enviada     BOOLEAN NOT NUL
 ALTER TABLE reservas DROP CONSTRAINT IF EXISTS reservas_estado_check;
 ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check
     CHECK (estado IN ('confirmada','pendiente','cancelada','no_usada'));
+
+-- v4.0 — Comunicados mejorados (canales, programación, imagen, auditoría)
+ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS canales          TEXT DEFAULT '["sistema"]';
+ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS fecha_programada TIMESTAMPTZ;
+ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS imagen_url       TEXT;
+
+CREATE TABLE IF NOT EXISTS comunicado_envios (
+    id              SERIAL PRIMARY KEY,
+    comunicado_id   INTEGER NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
+    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    canal           TEXT NOT NULL CHECK (canal IN ('sistema','email','whatsapp')),
+    enviado_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    leido           BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (comunicado_id, usuario_id, canal)
+);
+CREATE INDEX IF NOT EXISTS idx_comunicado_envios_comunicado ON comunicado_envios(comunicado_id);
+CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios(usuario_id);
+
+-- v4.0 — Capacidad por hora en zonas comunes
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS capacidad_hora INTEGER;
 """
 
 

@@ -136,12 +136,21 @@ export default function MantenimientoPage() {
 
   const canEdit = !["servicios", "propietario", "inquilino"].includes(user?.rol ?? "");
 
-  const pendientes = solicitudes.filter((s) => s.estado === "pendiente").length;
-  const enProceso = solicitudes.filter((s) => s.estado === "en_proceso").length;
-  const resueltos = solicitudes.filter((s) => s.estado === "resuelto").length;
-  const altas = solicitudes.filter((s) => s.prioridad === "alta").length;
+  // Aplicar búsqueda aquí para que las stats siempre coincidan con la tabla
+  const sq = search.trim().toLowerCase();
+  const solicitudesFiltradas = sq
+    ? solicitudes.filter((s) =>
+        (s.titulo ?? "").toLowerCase().includes(sq) ||
+        (s.descripcion ?? "").toLowerCase().includes(sq)
+      )
+    : solicitudes;
+
+  const pendientes = solicitudesFiltradas.filter((s) => s.estado === "pendiente").length;
+  const enProceso = solicitudesFiltradas.filter((s) => s.estado === "en_proceso").length;
+  const resueltos = solicitudesFiltradas.filter((s) => s.estado === "resuelto").length;
+  const altas = solicitudesFiltradas.filter((s) => s.prioridad === "alta").length;
   const alertasProximas = alertas.filter((a) => a.estado === "pendiente").length;
-  const programados = solicitudes.filter((s) => s.es_programado).length;
+  const programados = solicitudesFiltradas.filter((s) => s.es_programado).length;
 
   const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
@@ -154,12 +163,22 @@ export default function MantenimientoPage() {
           { label: "En proceso", value: enProceso, color: "bg-blue-50 text-blue-700" },
           { label: "Resueltos", value: resueltos, color: "bg-green-50 text-green-700" },
           { label: "Prioridad alta", value: altas, color: "bg-red-50 text-red-700" },
-          { label: "Alertas activas", value: alertasProximas, color: "bg-purple-50 text-purple-700" },
+          { label: "Alertas preventivas", value: alertasProximas, color: "bg-purple-50 text-purple-700", tooltip: "Revisiones programadas pendientes (mantenimiento preventivo del edificio)" },
           { label: "Programados", value: programados, color: "bg-teal-50 text-teal-700" },
-        ].map((s) => (
-          <div key={s.label} className={`rounded-xl p-4 border border-current/10 ${s.color}`}>
+        ].map((s: any) => (
+          <div key={s.label} className={`rounded-xl p-4 border border-current/10 ${s.color} relative group`}>
             <div className="text-2xl font-bold">{s.value}</div>
-            <div className="text-sm">{s.label}</div>
+            <div className="text-sm flex items-center gap-1">
+              {s.label}
+              {s.tooltip && (
+                <span className="cursor-help text-xs opacity-60" title={s.tooltip}>ⓘ</span>
+              )}
+            </div>
+            {s.tooltip && (
+              <div className="absolute bottom-full left-0 mb-1 w-56 bg-gray-900 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                {s.tooltip}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -242,13 +261,7 @@ export default function MantenimientoPage() {
                     {loading ? (
                       <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
                     ) : (() => {
-                      const sq = search.trim().toLowerCase();
-                      const filtered = sq
-                        ? solicitudes.filter((s) =>
-                            (s.titulo ?? "").toLowerCase().includes(sq) ||
-                            (s.descripcion ?? "").toLowerCase().includes(sq)
-                          )
-                        : solicitudes;
+                      const filtered = solicitudesFiltradas;
                       if (filtered.length === 0) return (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
                       );

@@ -31,6 +31,7 @@ class ZonaConfigUpdate(BaseModel):
     disponible: Optional[bool] = None
     activo: Optional[bool] = None
     torre_id: Optional[int] = None
+    capacidad_hora: Optional[int] = None
 
 
 class ReservaCreate(BaseModel):
@@ -183,6 +184,20 @@ def create_reserva(data: ReservaCreate):
             if cur.fetchone():
                 raise HTTPException(status_code=409, detail="La zona ya está reservada en ese horario")
 
+            # Validar capacidad_hora si está configurada
+            if zona.get("capacidad_hora"):
+                cur.execute("""
+                    SELECT COUNT(*) FROM reservas
+                    WHERE zona_id = %s AND fecha = %s AND estado NOT IN ('cancelada','no_usada')
+                    AND hora_inicio = %s::time
+                """, (data.zona_id, data.fecha, data.hora_inicio))
+                count = cur.fetchone()["count"]
+                if count >= zona["capacidad_hora"]:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Se alcanzó la capacidad máxima de {zona['capacidad_hora']} reservas para este horario",
+                    )
+
             cur.execute("""
                 INSERT INTO reservas
                     (zona_id, usuario_id, registrado_por_id, unidad_id, fecha, hora_inicio, hora_fin, notas)
@@ -275,6 +290,20 @@ def check_disponibilidad(zona_id: int, fecha: str):
                 ORDER BY r.hora_inicio
             """, (zona_id, fecha))
             ocupados = cur.fetchall()
-            cur.execute("SELECT horario_inicio, horario_fin, duracion_min_horas FROM zonas_comunes WHERE id = %s", (zona_id,))
+
+            cur.execute("""
+                SELECT horario_inicio, horario_fin, duracion_min_horas, capacidad_hora
+                FROM zonas_comunes WHERE id = %s
+            """, (zona_id,))
             config = cur.fetchone()
-            return {"ocupados": ocupados, "config": config}
+
+            # Conteo de reservas por hora_inicio (para capacidad_hora)
+            cur.execute("""
+                SELECT hora_inicio, COUNT(*) as cantidad
+                FROM reservas
+                WHERE zona_id = %s AND fecha = %s AND estado NOT IN ('cancelada','no_usada')
+                GROUP BY hora_inicio
+            """, (zona_id, fecha))
+            conteo_hora = {str(r["hora_inicio"])[:5]: r["cantidad"] for r in cur.fetchall()}
+
+            return {"ocupados": ocupados, "config": config, "conteo_hora": conteo_hora}
