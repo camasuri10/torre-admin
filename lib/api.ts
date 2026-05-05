@@ -39,6 +39,8 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ user_id, edificio_id }),
     }),
+  seleccionarTodos: () =>
+    request<any>("/api/auth/seleccionar-todos", { method: "POST", body: JSON.stringify({}) }),
   misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
   me: () => request<any>("/api/auth/me"),
 };
@@ -84,9 +86,11 @@ export const conjuntosApi = {
   get: (id: number) => request<any>(`/api/conjuntos/${id}`),
   create: (data: any) => request<any>("/api/conjuntos", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: any) => request<any>(`/api/conjuntos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  torres: (id: number) => request<any>(`/api/conjuntos/${id}/torres`),
-  assignTorre: (conjunto_id: number, edificio_id: number, numero_torre?: string) =>
-    request<any>(`/api/conjuntos/${conjunto_id}/torres/${edificio_id}${numero_torre ? `?numero_torre=${numero_torre}` : ""}`, { method: "POST", body: JSON.stringify({}) }),
+  edificios: (id: number) => request<any>(`/api/conjuntos/${id}/edificios`),
+  assignEdificio: (conjunto_id: number, edificio_id: number) =>
+    request<any>(`/api/conjuntos/${conjunto_id}/edificios/${edificio_id}`, { method: "POST", body: JSON.stringify({}) }),
+  removeEdificio: (conjunto_id: number, edificio_id: number) =>
+    request<void>(`/api/conjuntos/${conjunto_id}/edificios/${edificio_id}`, { method: "DELETE" }),
 };
 
 // ── Vehículos ─────────────────────────────────────────────────────────────────
@@ -129,6 +133,13 @@ export const proveedoresApi = {
       request<any>(`/api/proveedores/contratos/${contrato_id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (contrato_id: number) =>
       request<void>(`/api/proveedores/contratos/${contrato_id}`, { method: "DELETE" }),
+  },
+  edificios: {
+    list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/edificios`),
+    add: (proveedor_id: number, data: { edificio_id?: number; conjunto_id?: number }) =>
+      request<any>(`/api/proveedores/${proveedor_id}/edificios`, { method: "POST", body: JSON.stringify(data) }),
+    remove: (proveedor_id: number, pe_id: number) =>
+      request<void>(`/api/proveedores/${proveedor_id}/edificios/${pe_id}`, { method: "DELETE" }),
   },
 };
 
@@ -176,6 +187,7 @@ export const api = {
     update: (id: number, data: any) => request<any>(`/api/usuarios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/usuarios/${id}`, { method: "DELETE" }),
     asignarUnidad: (data: any) => request<any>("/api/usuarios/ocupaciones", { method: "POST", body: JSON.stringify(data) }),
+    removeOcupacion: (id: number) => request<void>(`/api/usuarios/ocupaciones/${id}`, { method: "DELETE" }),
   },
 
   // ── Finanzas ───────────────────────────────────────────────────────────────

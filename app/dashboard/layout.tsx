@@ -156,7 +156,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
     : user?.rol === "superadmin" ? "Todos los edificios" : "—";
 
-  const canSwitch = edificios.length > 1;
+  const isSuperAdmin = user?.rol === "superadmin";
+  // SA always can switch (they need the "Todos" option); others need >1 building
+  const canSwitch = isSuperAdmin || edificios.length > 1;
 
   function handleNavClick() {
     setSidebarOpen(false);
@@ -170,6 +172,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const data = await authApi.seleccionarEdificio(parseInt(user.sub), edificioId);
       setToken(data.access_token);
       window.location.href = "/dashboard";
+    } catch {
+      setSwitching(false);
+    }
+  }
+
+  async function handleSwitchToTodos() {
+    setSwitching(true);
+    setShowSwitcher(false);
+    try {
+      const data = await authApi.seleccionarTodos();
+      setToken(data.access_token);
+      window.location.href = "/dashboard/superadmin";
     } catch {
       setSwitching(false);
     }
@@ -231,6 +245,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {showSwitcher && (
             <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+              {isSuperAdmin && (
+                <button
+                  onClick={handleSwitchToTodos}
+                  className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
+                    !user?.edificio_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
+                  }`}
+                >
+                  <span>🌐</span>
+                  <span className="truncate">Todos los edificios</span>
+                  {!user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
+                </button>
+              )}
               {edificios.map((e) => (
                 <button
                   key={e.id}

@@ -51,7 +51,7 @@ export default function EdificioGestionPage() {
   const [addSaving, setAddSaving]             = useState(false);
   const [addError, setAddError]               = useState("");
   const [editUnidad, setEditUnidad]           = useState<Unidad | null>(null);
-  const [editUForm, setEditUForm]             = useState({ numero: "", piso: 1, area_m2: "", coeficiente: "" });
+  const [editUForm, setEditUForm]             = useState({ numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "" });
   const [editUSaving, setEditUSaving]         = useState(false);
   const [editUError, setEditUError]           = useState("");
 
@@ -190,7 +190,7 @@ export default function EdificioGestionPage() {
 
   function openEditUnidad(u: Unidad) {
     setEditUnidad(u);
-    setEditUForm({ numero: u.numero, piso: u.piso ?? 1, area_m2: u.area_m2 != null ? String(u.area_m2) : "", coeficiente: u.coeficiente != null ? String(u.coeficiente) : "" });
+    setEditUForm({ numero: u.numero, piso: u.piso ?? 1, tipo: (u as any).tipo ?? "apartamento", area_m2: u.area_m2 != null ? String(u.area_m2) : "", coeficiente: u.coeficiente != null ? String(u.coeficiente) : "" });
     setEditUError("");
   }
 
@@ -202,6 +202,7 @@ export default function EdificioGestionPage() {
       await api.edificios.updateUnidad(edificioId, editUnidad.id, {
         numero: editUForm.numero,
         piso: editUForm.piso,
+        tipo: editUForm.tipo,
         area_m2: editUForm.area_m2 ? parseFloat(editUForm.area_m2) : undefined,
         coeficiente: editUForm.coeficiente ? parseFloat(editUForm.coeficiente) : undefined,
       });
@@ -251,7 +252,7 @@ export default function EdificioGestionPage() {
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
-            {t === "modulos" ? "Módulos" : t === "torres" ? "Torres" : "Unidades"}
+            {t === "modulos" ? "Módulos" : t === "torres" ? "Torres/Casas" : "Unidades"}
           </button>
         ))}
       </div>
@@ -444,8 +445,9 @@ export default function EdificioGestionPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="apartamento">Apartamento</option>
                     <option value="local">Local</option>
-                    <option value="parqueadero">Parqueadero</option>
-                    <option value="bodega">Bodega</option>
+                    <option value="oficina">Oficina</option>
+                    <option value="casa">Casa</option>
+                    <option value="otro">Otro</option>
                   </select>
                 </div>
                 <div>
@@ -586,6 +588,18 @@ export default function EdificioGestionPage() {
                 <input type="number" min={1} value={editUForm.piso}
                   onChange={(e) => setEditUForm({ ...editUForm, piso: parseInt(e.target.value) || 1 })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                <select value={editUForm.tipo}
+                  onChange={(e) => setEditUForm({ ...editUForm, tipo: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="apartamento">Apartamento</option>
+                  <option value="local">Local</option>
+                  <option value="oficina">Oficina</option>
+                  <option value="casa">Casa</option>
+                  <option value="otro">Otro</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Área m²</label>

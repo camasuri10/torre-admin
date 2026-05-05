@@ -45,8 +45,16 @@ export default function ProveedoresPage() {
   const [form, setForm]               = useState(EMPTY_FORM);
   const [saving, setSaving]           = useState(false);
 
-  // Contratos per-proveedor
+  // Asociaciones y contratos per-proveedor
   const [expandedId, setExpandedId]       = useState<number | null>(null);
+  // Asociaciones edificio/conjunto
+  const [asociaciones, setAsociaciones]   = useState<Record<number, any[]>>({});
+  const [asociacionesLoading, setAsociacionesLoading] = useState<Record<number, boolean>>({});
+  const [showAddAsoc, setShowAddAsoc]     = useState<number | null>(null);
+  const [asocEdificio, setAsocEdificio]   = useState("");
+  const [asocConjunto, setAsocConjunto]   = useState("");
+  const [asocSaving, setAsocSaving]       = useState(false);
+  // Contratos
   const [contratos, setContratos]         = useState<Record<number, any[]>>({});
   const [contratosLoading, setContratosLoading] = useState<Record<number, boolean>>({});
   const [showAddContrato, setShowAddContrato] = useState<number | null>(null);
@@ -101,10 +109,45 @@ export default function ProveedoresPage() {
     load();
   };
 
+  // ── Asociaciones ──────────────────────────────────────────────────────────────
+  async function loadAsociaciones(proveedorId: number) {
+    setAsociacionesLoading((prev) => ({ ...prev, [proveedorId]: true }));
+    try {
+      const data = await proveedoresApi.edificios.list(proveedorId);
+      setAsociaciones((prev) => ({ ...prev, [proveedorId]: data?.asociaciones ?? [] }));
+    } catch { } finally { setAsociacionesLoading((prev) => ({ ...prev, [proveedorId]: false })); }
+  }
+
+  async function handleAddAsoc(e: React.FormEvent, proveedorId: number) {
+    e.preventDefault();
+    // Admin: auto-use their edificio
+    const effEdificio = asocEdificio || (isAdmin && edificioId ? String(edificioId) : "");
+    if (!effEdificio && !asocConjunto) return;
+    setAsocSaving(true);
+    try {
+      await proveedoresApi.edificios.add(proveedorId, {
+        edificio_id: effEdificio ? parseInt(effEdificio) : undefined,
+        conjunto_id: asocConjunto ? parseInt(asocConjunto) : undefined,
+      });
+      setShowAddAsoc(null);
+      setAsocEdificio(""); setAsocConjunto("");
+      await loadAsociaciones(proveedorId);
+    } catch { } finally { setAsocSaving(false); }
+  }
+
+  async function handleRemoveAsoc(proveedorId: number, peId: number) {
+    if (!confirm("¿Quitar esta asociación?")) return;
+    try {
+      await proveedoresApi.edificios.remove(proveedorId, peId);
+      await loadAsociaciones(proveedorId);
+    } catch { alert("Error al quitar la asociación"); }
+  }
+
   // ── Contratos ─────────────────────────────────────────────────────────────────
   async function toggleContratos(proveedorId: number) {
     if (expandedId === proveedorId) { setExpandedId(null); return; }
     setExpandedId(proveedorId);
+    if (!asociaciones[proveedorId]) loadAsociaciones(proveedorId);
     if (contratos[proveedorId]) return;
     setContratosLoading((prev) => ({ ...prev, [proveedorId]: true }));
     try {
@@ -114,7 +157,12 @@ export default function ProveedoresPage() {
   }
 
   function openAddContrato(proveedorId: number) {
-    const defaultEdificio = isSuperAdmin ? "" : String(edificioId ?? "");
+    // For admin, pre-fill with their building if it's associated; else leave empty
+    const asocs = asociaciones[proveedorId] ?? [];
+    const myAsoc = isAdmin && edificioId
+      ? asocs.find((a: any) => a.edificio_id === edificioId)
+      : null;
+    const defaultEdificio = myAsoc ? String(edificioId) : (isSuperAdmin ? "" : String(edificioId ?? ""));
     setContratoForm({ ...EMPTY_CONTRATO, edificio_id: defaultEdificio });
     setContratoError("");
     setShowAddContrato(proveedorId);
@@ -233,9 +281,76 @@ export default function ProveedoresPage() {
                 </div>
               </div>
 
-              {/* Contratos panel */}
+              {/* Expanded panel: asociaciones + contratos */}
               {expandedId === p.id && (
-                <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4 space-y-3">
+                <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4 space-y-4">
+
+                  {/* Asociaciones */}
+                  {canManage && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Edificios/Conjuntos asociados</p>
+                      {asociacionesLoading[p.id] ? (
+                        <p className="text-xs text-gray-400">Cargando…</p>
+                      ) : (asociaciones[p.id] ?? []).length === 0 ? (
+                        <p className="text-xs text-gray-400">Sin asociaciones. Agrega un edificio o conjunto para crear contratos.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {(asociaciones[p.id] ?? []).map((a: any) => (
+                            <div key={a.id} className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700">
+                              <span>{a.edificio_nombre ?? a.conjunto_nombre}</span>
+                              {canManage && (
+                                <button onClick={() => handleRemoveAsoc(p.id, a.id)}
+                                  className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {showAddAsoc === p.id ? (
+                        <form onSubmit={(e) => handleAddAsoc(e, p.id)} className="flex flex-wrap items-end gap-2 mt-1">
+                          {isSuperAdmin ? (
+                            <>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Edificio</label>
+                                <select value={asocEdificio}
+                                  onChange={(e) => { setAsocEdificio(e.target.value); setAsocConjunto(""); }}
+                                  className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
+                                  <option value="">— elegir</option>
+                                  {edificios.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">o Conjunto</label>
+                                <select value={asocConjunto}
+                                  onChange={(e) => { setAsocConjunto(e.target.value); setAsocEdificio(""); }}
+                                  className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
+                                  <option value="">— elegir</option>
+                                  {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                </select>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-xs text-gray-500">Tu edificio: <strong>Edificio #{edificioId}</strong></p>
+                          )}
+                          <button type="submit" disabled={asocSaving || (isSuperAdmin && !asocEdificio && !asocConjunto)}
+                            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
+                            {asocSaving ? "…" : "Asociar"}
+                          </button>
+                          <button type="button" onClick={() => { setShowAddAsoc(null); setAsocEdificio(""); setAsocConjunto(""); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5">✕</button>
+                        </form>
+                      ) : (
+                        <button onClick={() => setShowAddAsoc(p.id)}
+                          className="text-xs text-primary font-medium hover:underline">
+                          + Asociar edificio/conjunto
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Contratos</p>
                   {contratosLoading[p.id] ? (
                     <p className="text-xs text-gray-400 text-center py-2">Cargando contratos…</p>
                   ) : (contratos[p.id] ?? []).length === 0 ? (
@@ -287,7 +402,7 @@ export default function ProveedoresPage() {
                           </select>
                         </div>
 
-                        {/* Edificio / conjunto */}
+                        {/* Edificio / conjunto — filtered to pre-associated ones for admin */}
                         {isSuperAdmin ? (
                           <>
                             <div>
@@ -296,7 +411,9 @@ export default function ProveedoresPage() {
                                 onChange={(e) => setContratoForm({ ...contratoForm, edificio_id: e.target.value, conjunto_id: "" })}
                                 className={INPUT}>
                                 <option value="">— ninguno</option>
-                                {edificios.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                {(asociaciones[p.id] ?? []).filter((a: any) => a.edificio_id).map((a: any) => (
+                                  <option key={a.edificio_id} value={a.edificio_id}>{a.edificio_nombre}</option>
+                                ))}
                               </select>
                             </div>
                             <div>
@@ -305,7 +422,9 @@ export default function ProveedoresPage() {
                                 onChange={(e) => setContratoForm({ ...contratoForm, conjunto_id: e.target.value, edificio_id: "" })}
                                 className={INPUT}>
                                 <option value="">— ninguno</option>
-                                {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                {(asociaciones[p.id] ?? []).filter((a: any) => a.conjunto_id).map((a: any) => (
+                                  <option key={a.conjunto_id} value={a.conjunto_id}>{a.conjunto_nombre}</option>
+                                ))}
                               </select>
                             </div>
                           </>
@@ -348,6 +467,7 @@ export default function ProveedoresPage() {
                       </div>
                     </form>
                   )}
+                  </div>
                 </div>
               )}
             </div>

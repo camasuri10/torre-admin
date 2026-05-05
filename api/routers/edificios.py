@@ -7,6 +7,22 @@ from routers.auth import get_current_user
 router = APIRouter()
 
 
+def _check_edificio_access(cur, user: dict, edificio_id: int):
+    """SA passes always; admin passes if assigned to the building; others → 403."""
+    rol = user.get("rol")
+    if rol == "superadmin":
+        return
+    if rol == "administrador":
+        uid = int(user.get("sub", 0))
+        cur.execute(
+            "SELECT 1 FROM usuario_edificios WHERE usuario_id=%s AND edificio_id=%s AND activo=TRUE",
+            (uid, edificio_id),
+        )
+        if cur.fetchone():
+            return
+    raise HTTPException(status_code=403, detail="Sin acceso a este edificio")
+
+
 class EdificioCreate(BaseModel):
     nombre: str
     direccion: str
@@ -127,9 +143,10 @@ def list_torres(edificio_id: int):
 
 
 @router.post("/{edificio_id}/torres", status_code=201)
-def create_torre(edificio_id: int, data: TorreCreate):
+def create_torre(edificio_id: int, data: TorreCreate, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute("SELECT id FROM edificios WHERE id = %s", (edificio_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Edificio no encontrado")
@@ -141,7 +158,7 @@ def create_torre(edificio_id: int, data: TorreCreate):
 
 
 @router.put("/{edificio_id}/torres/{torre_id}")
-def update_torre(edificio_id: int, torre_id: int, data: TorreUpdate):
+def update_torre(edificio_id: int, torre_id: int, data: TorreUpdate, current_user: dict = Depends(get_current_user)):
     fields, values = [], []
     for field, val in data.model_dump(exclude_none=True).items():
         fields.append(f"{field} = %s")
@@ -151,6 +168,7 @@ def update_torre(edificio_id: int, torre_id: int, data: TorreUpdate):
     values.extend([torre_id, edificio_id])
     with get_db() as conn:
         with conn.cursor() as cur:
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute(
                 f"UPDATE torres SET {', '.join(fields)} WHERE id=%s AND edificio_id=%s RETURNING *",
                 values,
@@ -162,9 +180,10 @@ def update_torre(edificio_id: int, torre_id: int, data: TorreUpdate):
 
 
 @router.delete("/{edificio_id}/torres/{torre_id}", status_code=204)
-def delete_torre(edificio_id: int, torre_id: int):
+def delete_torre(edificio_id: int, torre_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute(
                 "SELECT COUNT(*) AS cnt FROM unidades WHERE torre_id=%s AND activo=TRUE",
                 (torre_id,),
@@ -220,10 +239,10 @@ def get_unidades_torre(edificio_id: int, torre_id: int):
 
 
 @router.post("/{edificio_id}/unidades", status_code=201)
-def create_unidad(edificio_id: int, data: UnidadCreate):
+def create_unidad(edificio_id: int, data: UnidadCreate, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
-            # Verificar que la torre pertenece al edificio
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute(
                 "SELECT id FROM torres WHERE id = %s AND edificio_id = %s",
                 (data.torre_id, edificio_id),
@@ -240,7 +259,7 @@ def create_unidad(edificio_id: int, data: UnidadCreate):
 
 
 @router.put("/{edificio_id}/unidades/{unidad_id}")
-def update_unidad(edificio_id: int, unidad_id: int, data: UnidadUpdate):
+def update_unidad(edificio_id: int, unidad_id: int, data: UnidadUpdate, current_user: dict = Depends(get_current_user)):
     fields, values = [], []
     for field, val in data.model_dump(exclude_none=True).items():
         fields.append(f"{field} = %s")
@@ -250,7 +269,7 @@ def update_unidad(edificio_id: int, unidad_id: int, data: UnidadUpdate):
     values.append(unidad_id)
     with get_db() as conn:
         with conn.cursor() as cur:
-            # Verificar que la unidad pertenece al edificio via torre
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute(
                 """SELECT u.id FROM unidades u
                    JOIN torres t ON t.id = u.torre_id
@@ -268,9 +287,10 @@ def update_unidad(edificio_id: int, unidad_id: int, data: UnidadUpdate):
 
 
 @router.delete("/{edificio_id}/unidades/{unidad_id}", status_code=204)
-def delete_unidad(edificio_id: int, unidad_id: int):
+def delete_unidad(edificio_id: int, unidad_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            _check_edificio_access(cur, current_user, edificio_id)
             cur.execute(
                 "SELECT COUNT(*) AS cnt FROM ocupaciones WHERE unidad_id=%s AND activo=TRUE",
                 (unidad_id,),

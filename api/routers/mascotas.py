@@ -57,6 +57,15 @@ def create_mascota(data: MascotaCreate, current_user: dict = Depends(get_current
             return dict(cur.fetchone())
 
 
+def _assert_mascota_access(cur, mascota_id: int, current_user: dict):
+    cur.execute("SELECT usuario_id FROM mascotas WHERE id = %s AND activo = TRUE", (mascota_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+    if int(current_user["sub"]) != row["usuario_id"] and current_user["rol"] not in ("administrador", "superadmin"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+
 @router.put("/{mascota_id}")
 def update_mascota(mascota_id: int, data: MascotaUpdate, current_user: dict = Depends(get_current_user)):
     fields, values = [], []
@@ -68,6 +77,7 @@ def update_mascota(mascota_id: int, data: MascotaUpdate, current_user: dict = De
     values.append(mascota_id)
     with get_db() as conn:
         with conn.cursor() as cur:
+            _assert_mascota_access(cur, mascota_id, current_user)
             cur.execute(
                 f"UPDATE mascotas SET {', '.join(fields)} WHERE id = %s AND activo = TRUE RETURNING *",
                 values,
@@ -82,4 +92,5 @@ def update_mascota(mascota_id: int, data: MascotaUpdate, current_user: dict = De
 def delete_mascota(mascota_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            _assert_mascota_access(cur, mascota_id, current_user)
             cur.execute("UPDATE mascotas SET activo = FALSE WHERE id = %s", (mascota_id,))

@@ -82,16 +82,8 @@ def get_usuario(usuario_id: int):
             cur.execute("""
                 SELECT u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
                        u.notif_sistema, u.notif_email, u.notif_whatsapp,
-                       u.eps, u.aseguradora_riesgo,
-                       o.tipo as tipo_ocupacion, o.fecha_inicio,
-                       un.numero as unidad_numero,
-                       t.nombre as torre_nombre,
-                       e.nombre as edificio_nombre, e.id as edificio_id
+                       u.eps, u.aseguradora_riesgo
                 FROM usuarios u
-                LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
-                LEFT JOIN unidades un ON un.id = o.unidad_id
-                LEFT JOIN torres t ON t.id = un.torre_id
-                LEFT JOIN edificios e ON e.id = t.edificio_id
                 WHERE u.id = %s
             """, (usuario_id,))
             row = cur.fetchone()
@@ -99,6 +91,37 @@ def get_usuario(usuario_id: int):
                 raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
             result = dict(row)
+
+            # All ocupaciones — multiple allowed per unit
+            cur.execute("""
+                SELECT o.id, o.unidad_id, o.tipo, o.fecha_inicio,
+                       un.numero as unidad_numero,
+                       t.nombre as torre_nombre,
+                       e.nombre as edificio_nombre, e.id as edificio_id
+                FROM ocupaciones o
+                JOIN unidades un ON un.id = o.unidad_id
+                LEFT JOIN torres t ON t.id = un.torre_id
+                LEFT JOIN edificios e ON e.id = t.edificio_id
+                WHERE o.usuario_id = %s AND o.activo = TRUE
+                ORDER BY o.fecha_inicio DESC
+            """, (usuario_id,))
+            ocupaciones = [dict(r) for r in cur.fetchall()]
+            result["ocupaciones"] = ocupaciones
+
+            # Backward-compat flat fields from first ocupacion
+            if ocupaciones:
+                first = ocupaciones[0]
+                result["tipo_ocupacion"] = first["tipo"]
+                result["unidad_numero"] = first["unidad_numero"]
+                result["edificio_nombre"] = first["edificio_nombre"]
+                result["edificio_id"] = first["edificio_id"]
+                result["fecha_inicio"] = first["fecha_inicio"]
+            else:
+                result["tipo_ocupacion"] = None
+                result["unidad_numero"] = None
+                result["edificio_nombre"] = None
+                result["edificio_id"] = None
+                result["fecha_inicio"] = None
 
             # Vehículos
             cur.execute(
@@ -192,12 +215,21 @@ def delete_usuario(usuario_id: int):
 def create_ocupacion(data: OcupacionCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
+            # Only deactivate if this same user already has this tipo on this unit
+            # (allows multiple propietarios per unit)
             cur.execute(
-                "UPDATE ocupaciones SET activo = FALSE WHERE unidad_id = %s AND tipo = %s",
-                (data.unidad_id, data.tipo),
+                "UPDATE ocupaciones SET activo = FALSE WHERE unidad_id = %s AND tipo = %s AND usuario_id = %s",
+                (data.unidad_id, data.tipo, data.usuario_id),
             )
             cur.execute(
                 "INSERT INTO ocupaciones (unidad_id, usuario_id, tipo, fecha_inicio) VALUES (%s,%s,%s,%s) RETURNING *",
                 (data.unidad_id, data.usuario_id, data.tipo, data.fecha_inicio),
             )
             return cur.fetchone()
+
+
+@router.delete("/ocupaciones/{ocup_id}", status_code=204)
+def delete_ocupacion(ocup_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE ocupaciones SET activo = FALSE WHERE id = %s", (ocup_id,))

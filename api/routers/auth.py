@@ -190,6 +190,23 @@ def seleccionar_edificio(data: BuildingSelectRequest):
     }
 
 
+@router.post("/seleccionar-todos")
+def seleccionar_todos(current_user: dict = Depends(get_current_user)):
+    """Permite al SA volver al contexto global 'Todos los edificios'."""
+    if current_user.get("rol") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo para superadmin")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM usuarios WHERE id = %s AND activo = TRUE", (int(current_user["sub"]),))
+            user = dict(cur.fetchone())
+    token = create_token(user, None)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"id": user["id"], "nombre": user["nombre"], "email": user["email"], "rol": user["rol"], "edificio_id": None, "edificio_nombre": "Todos"},
+    }
+
+
 @router.get("/mis-edificios")
 def mis_edificios(current_user: dict = Depends(get_current_user)):
     """Returns all buildings the authenticated user belongs to."""

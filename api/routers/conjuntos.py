@@ -29,14 +29,18 @@ class ConjuntoUpdate(BaseModel):
 
 
 @router.get("")
-def list_conjuntos(sa=Depends(_require_superadmin)):
+def list_conjuntos(current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT c.*,
-                       COUNT(e.id) AS total_torres
+                       COUNT(DISTINCT e.id) AS total_edificios,
+                       COUNT(DISTINCT t.id) AS total_torres,
+                       COUNT(DISTINCT u.id) AS total_unidades
                 FROM conjuntos c
                 LEFT JOIN edificios e ON e.conjunto_id = c.id
+                LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
                 GROUP BY c.id
                 ORDER BY c.nombre
             """)
@@ -55,7 +59,7 @@ def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_superadmin)):
 
 
 @router.get("/{conjunto_id}")
-def get_conjunto(conjunto_id: int, sa=Depends(_require_superadmin)):
+def get_conjunto(conjunto_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM conjuntos WHERE id = %s", (conjunto_id,))
@@ -83,29 +87,57 @@ def update_conjunto(conjunto_id: int, body: ConjuntoUpdate, sa=Depends(_require_
             return dict(row)
 
 
-@router.get("/{conjunto_id}/torres")
-def get_torres_del_conjunto(conjunto_id: int, current_user: dict = Depends(get_current_user)):
+@router.get("/{conjunto_id}/edificios")
+def get_edificios_del_conjunto(conjunto_id: int, current_user: dict = Depends(get_current_user)):
+    """Devuelve los edificios (con sus torres y unidades) pertenecientes al conjunto."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT e.id, e.nombre, e.numero_torre, e.unidades, e.pisos, e.direccion
+                SELECT e.id, e.nombre, e.direccion, e.pisos,
+                       COUNT(DISTINCT t.id) AS total_torres,
+                       COUNT(DISTINCT u.id) AS total_unidades
                 FROM edificios e
+                LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
                 WHERE e.conjunto_id = %s
-                ORDER BY e.numero_torre, e.nombre
+                GROUP BY e.id
+                ORDER BY e.nombre
             """, (conjunto_id,))
-            return {"torres": [dict(r) for r in cur.fetchall()]}
+            return {"edificios": [dict(r) for r in cur.fetchall()]}
 
 
-@router.post("/{conjunto_id}/torres/{edificio_id}")
-def assign_torre_a_conjunto(conjunto_id: int, edificio_id: int, numero_torre: Optional[str] = None, sa=Depends(_require_superadmin)):
+@router.post("/{conjunto_id}/edificios/{edificio_id}")
+def assign_edificio_a_conjunto(
+    conjunto_id: int,
+    edificio_id: int,
+    sa=Depends(_require_superadmin),
+):
     """Asigna un edificio existente a un conjunto."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM conjuntos WHERE id = %s", (conjunto_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Conjunto no encontrado")
+            cur.execute("SELECT id FROM edificios WHERE id = %s", (edificio_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Edificio no encontrado")
             cur.execute(
-                "UPDATE edificios SET conjunto_id = %s, numero_torre = %s WHERE id = %s",
-                (conjunto_id, numero_torre, edificio_id),
+                "UPDATE edificios SET conjunto_id = %s WHERE id = %s",
+                (conjunto_id, edificio_id),
             )
-    return {"message": "Torre asignada al conjunto"}
+    return {"message": "Edificio asignado al conjunto"}
+
+
+@router.delete("/{conjunto_id}/edificios/{edificio_id}", status_code=204)
+def remove_edificio_del_conjunto(
+    conjunto_id: int,
+    edificio_id: int,
+    sa=Depends(_require_superadmin),
+):
+    """Quita un edificio del conjunto sin eliminarlo."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE edificios SET conjunto_id = NULL WHERE id = %s AND conjunto_id = %s",
+                (edificio_id, conjunto_id),
+            )

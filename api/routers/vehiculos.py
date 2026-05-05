@@ -59,6 +59,15 @@ def create_vehiculo(data: VehiculoCreate, current_user: dict = Depends(get_curre
             return dict(cur.fetchone())
 
 
+def _assert_vehiculo_access(cur, vehiculo_id: int, current_user: dict):
+    cur.execute("SELECT usuario_id FROM vehiculos WHERE id = %s AND activo = TRUE", (vehiculo_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+    if int(current_user["sub"]) != row["usuario_id"] and current_user["rol"] not in ("administrador", "superadmin"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+
 @router.put("/{vehiculo_id}")
 def update_vehiculo(vehiculo_id: int, data: VehiculoUpdate, current_user: dict = Depends(get_current_user)):
     fields, values = [], []
@@ -72,6 +81,7 @@ def update_vehiculo(vehiculo_id: int, data: VehiculoUpdate, current_user: dict =
     values.append(vehiculo_id)
     with get_db() as conn:
         with conn.cursor() as cur:
+            _assert_vehiculo_access(cur, vehiculo_id, current_user)
             cur.execute(
                 f"UPDATE vehiculos SET {', '.join(fields)} WHERE id = %s AND activo = TRUE RETURNING *",
                 values,
@@ -86,4 +96,5 @@ def update_vehiculo(vehiculo_id: int, data: VehiculoUpdate, current_user: dict =
 def delete_vehiculo(vehiculo_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            _assert_vehiculo_access(cur, vehiculo_id, current_user)
             cur.execute("UPDATE vehiculos SET activo = FALSE WHERE id = %s", (vehiculo_id,))

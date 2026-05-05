@@ -26,6 +26,11 @@ class ProveedorUpdate(BaseModel):
     nit: Optional[str] = None
 
 
+class ProveedorEdificioAdd(BaseModel):
+    edificio_id: Optional[int] = None
+    conjunto_id: Optional[int] = None
+
+
 class ContratoCreate(BaseModel):
     conjunto_id: Optional[int] = None
     edificio_id: Optional[int] = None
@@ -68,8 +73,18 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
             AND (
                 creado_por = %s
                 OR creado_por IN (SELECT id FROM usuarios WHERE rol = 'superadmin')
+                OR id IN (
+                    SELECT pe.proveedor_id FROM proveedor_edificios pe
+                    JOIN usuario_edificios ue ON ue.edificio_id = pe.edificio_id
+                    WHERE ue.usuario_id = %s AND ue.activo = TRUE
+                )
+                OR id IN (
+                    SELECT pe.proveedor_id FROM proveedor_edificios pe
+                    JOIN usuario_conjuntos uc ON uc.conjunto_id = pe.conjunto_id
+                    WHERE uc.usuario_id = %s AND uc.activo = TRUE
+                )
             )
-        """, (uid,))
+        """, (uid, uid, uid))
         return [r["id"] for r in cur.fetchall()]
 
     # portero / servicios / propietario / inquilino
@@ -242,11 +257,29 @@ def create_contrato(
     if not data.conjunto_id and not data.edificio_id:
         raise HTTPException(status_code=400, detail="Debe especificar conjunto_id o edificio_id")
 
+    rol = current_user.get("rol")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM proveedores WHERE id = %s AND activo = TRUE", (proveedor_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+            # Admin: validate the edificio/conjunto is pre-associated with this proveedor
+            if rol == "administrador":
+                if data.edificio_id:
+                    cur.execute(
+                        "SELECT id FROM proveedor_edificios WHERE proveedor_id=%s AND edificio_id=%s",
+                        (proveedor_id, data.edificio_id),
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=403, detail="Este proveedor no está asociado a ese edificio")
+                elif data.conjunto_id:
+                    cur.execute(
+                        "SELECT id FROM proveedor_edificios WHERE proveedor_id=%s AND conjunto_id=%s",
+                        (proveedor_id, data.conjunto_id),
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=403, detail="Este proveedor no está asociado a ese conjunto")
 
             cur.execute(
                 """INSERT INTO contratos_servicio
@@ -299,4 +332,96 @@ def delete_contrato(contrato_id: int, current_user: dict = Depends(get_current_u
             cur.execute(
                 "UPDATE contratos_servicio SET activo = FALSE WHERE id = %s",
                 (contrato_id,),
+            )
+
+
+# ── Proveedor ↔ Edificio/Conjunto associations ────────────────────────────────
+
+@router.get("/{proveedor_id}/edificios")
+def list_proveedor_edificios(proveedor_id: int, current_user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT pe.*,
+                       e.nombre AS edificio_nombre,
+                       c.nombre AS conjunto_nombre
+                FROM proveedor_edificios pe
+                LEFT JOIN edificios e ON e.id = pe.edificio_id
+                LEFT JOIN conjuntos c ON c.id = pe.conjunto_id
+                WHERE pe.proveedor_id = %s AND pe.activo = TRUE
+                ORDER BY COALESCE(e.nombre, c.nombre)
+            """, (proveedor_id,))
+            return {"asociaciones": [dict(r) for r in cur.fetchall()]}
+
+
+@router.post("/{proveedor_id}/edificios", status_code=201)
+def add_proveedor_edificio(
+    proveedor_id: int,
+    data: ProveedorEdificioAdd,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user.get("rol") not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    if not data.edificio_id and not data.conjunto_id:
+        raise HTTPException(status_code=400, detail="Debe especificar edificio_id o conjunto_id")
+    if data.edificio_id and data.conjunto_id:
+        raise HTTPException(status_code=400, detail="Especifique solo edificio_id o conjunto_id, no ambos")
+
+    rol = current_user.get("rol")
+    uid = int(current_user.get("sub", 0))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM proveedores WHERE id = %s AND activo = TRUE", (proveedor_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+            # Admin: validate they belong to the target edificio/conjunto
+            if rol == "administrador":
+                if data.edificio_id:
+                    cur.execute(
+                        "SELECT 1 FROM usuario_edificios WHERE usuario_id=%s AND edificio_id=%s AND activo=TRUE",
+                        (uid, data.edificio_id),
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=403, detail="No tienes acceso a ese edificio")
+                elif data.conjunto_id:
+                    cur.execute(
+                        "SELECT 1 FROM usuario_conjuntos WHERE usuario_id=%s AND conjunto_id=%s AND activo=TRUE",
+                        (uid, data.conjunto_id),
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=403, detail="No tienes acceso a ese conjunto")
+
+            try:
+                cur.execute(
+                    """INSERT INTO proveedor_edificios (proveedor_id, edificio_id, conjunto_id)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT DO NOTHING
+                       RETURNING *""",
+                    (proveedor_id, data.edificio_id, data.conjunto_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=409, detail="La asociación ya existe")
+                return dict(row)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/{proveedor_id}/edificios/{pe_id}", status_code=204)
+def remove_proveedor_edificio(
+    proveedor_id: int,
+    pe_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user.get("rol") not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE proveedor_edificios SET activo = FALSE WHERE id = %s AND proveedor_id = %s",
+                (pe_id, proveedor_id),
             )

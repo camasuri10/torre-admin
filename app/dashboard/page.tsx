@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
@@ -14,8 +15,9 @@ function formatCOP(amount: number) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const edificioId = user?.edificio_id;
 
   const [stats, setStats] = useState<any>(null);
   const [pendientes, setPendientes] = useState<any[]>([]);
@@ -25,6 +27,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // SA with global context ("Todos") should go to the superadmin panel
+    if (user?.rol === "superadmin" && !user?.edificio_id) {
+      router.replace("/dashboard/superadmin");
+      return;
+    }
+    if (!edificioId) { setLoading(false); return; }
+
     const load = async () => {
       try {
         const [s, mant, com, cuotas, paq] = await Promise.all([
@@ -46,7 +55,10 @@ export default function DashboardPage() {
       }
     };
     load();
-  }, []);
+  }, [edificioId, router, user?.rol]);
+
+  // SA without a specific building context redirects to superadmin panel
+  if (user?.rol === "superadmin" && !user?.edificio_id) return null;
 
   const recaudoPct = stats
     ? Math.round((stats.recaudo_mes / (stats.meta_recaudo || 1)) * 100)

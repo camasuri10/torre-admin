@@ -192,6 +192,24 @@ CREATE TABLE IF NOT EXISTS proveedores (
 -- FK diferido: usuarios.proveedor_id → proveedores (tabla creada después)
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
 
+-- Asociación muchos-a-muchos: proveedor ↔ edificio o conjunto
+CREATE TABLE IF NOT EXISTS proveedor_edificios (
+    id              SERIAL PRIMARY KEY,
+    proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
+    edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
+    activo          BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pe_one_target CHECK (
+        (edificio_id IS NOT NULL)::int + (conjunto_id IS NOT NULL)::int = 1
+    )
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_edificio
+    ON proveedor_edificios(proveedor_id, edificio_id) WHERE edificio_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
+    ON proveedor_edificios(proveedor_id, conjunto_id) WHERE conjunto_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
+
 -- Contratos de servicio (vinculan proveedor con conjunto o edificio)
 CREATE TABLE IF NOT EXISTS contratos_servicio (
     id              SERIAL PRIMARY KEY,
@@ -564,6 +582,24 @@ ALTER TABLE usuario_edificios ADD COLUMN IF NOT EXISTS fecha_fin    DATE;
 
 -- FK de usuarios.proveedor_id
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
+
+-- proveedor_edificios (muchos-a-muchos proveedor ↔ edificio/conjunto)
+CREATE TABLE IF NOT EXISTS proveedor_edificios (
+    id              SERIAL PRIMARY KEY,
+    proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
+    edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
+    activo          BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pe_one_target CHECK (
+        (edificio_id IS NOT NULL)::int + (conjunto_id IS NOT NULL)::int = 1
+    )
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_edificio
+    ON proveedor_edificios(proveedor_id, edificio_id) WHERE edificio_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
+    ON proveedor_edificios(proveedor_id, conjunto_id) WHERE conjunto_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
 
 -- Mantenimientos: columnas adicionales
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS es_programado     BOOLEAN NOT NULL DEFAULT FALSE;

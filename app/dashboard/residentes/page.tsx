@@ -39,6 +39,19 @@ export default function ResidentesPage() {
   const [mForm, setMForm]           = useState(EMPTY_MASCOTA);
   const [savingM, setSavingM]       = useState(false);
 
+  // Edit vehicle inline
+  const [editVehiculo, setEditVehiculo]   = useState<any | null>(null);
+  const [savingEditV, setSavingEditV]     = useState(false);
+
+  // Edit pet inline
+  const [editMascota, setEditMascota]     = useState<any | null>(null);
+  const [savingEditM, setSavingEditM]     = useState(false);
+
+  // Assign additional unit
+  const [showAssignUnit, setShowAssignUnit] = useState(false);
+  const [assignUnitForm, setAssignUnitForm] = useState({ unidad_id: "" as number | "", tipo: "propietario" });
+  const [savingAssignUnit, setSavingAssignUnit] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const data = await api.usuarios.list({ edificio_id: edificioId });
@@ -62,6 +75,10 @@ export default function ResidentesPage() {
     setDetailTab("info");
     setDetailData(null);
     setDetailLoading(true);
+    setEditVehiculo(null);
+    setEditMascota(null);
+    setShowAssignUnit(false);
+    setAssignUnitForm({ unidad_id: "", tipo: "propietario" });
     try {
       const full = await api.usuarios.get(r.id);
       setDetailData(full);
@@ -138,6 +155,63 @@ export default function ResidentesPage() {
     await mascotasApi.delete(id);
     const full = await api.usuarios.get(selected.id);
     setDetailData(full);
+  }
+
+  async function handleEditVehiculo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editVehiculo || !selected) return;
+    setSavingEditV(true);
+    try {
+      const { id, ...data } = editVehiculo;
+      await vehiculosApi.update(id, data);
+      setEditVehiculo(null);
+      const full = await api.usuarios.get(selected.id);
+      setDetailData(full);
+    } catch {
+    } finally { setSavingEditV(false); }
+  }
+
+  async function handleEditMascota(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editMascota || !selected) return;
+    setSavingEditM(true);
+    try {
+      const { id, ...data } = editMascota;
+      await mascotasApi.update(id, data);
+      setEditMascota(null);
+      const full = await api.usuarios.get(selected.id);
+      setDetailData(full);
+    } catch {
+    } finally { setSavingEditM(false); }
+  }
+
+  async function handleRemoveOcupacion(ocup_id: number) {
+    if (!confirm("¿Quitar esta unidad del residente?") || !selected) return;
+    try {
+      await api.usuarios.removeOcupacion(ocup_id);
+      const full = await api.usuarios.get(selected.id);
+      setDetailData(full);
+    } catch { alert("Error al quitar la unidad"); }
+  }
+
+  async function handleAssignAdditionalUnit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected || !assignUnitForm.unidad_id) return;
+    setSavingAssignUnit(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      await api.usuarios.asignarUnidad({
+        unidad_id: Number(assignUnitForm.unidad_id),
+        usuario_id: selected.id,
+        tipo: assignUnitForm.tipo,
+        fecha_inicio: today,
+      });
+      setShowAssignUnit(false);
+      setAssignUnitForm({ unidad_id: "", tipo: "propietario" });
+      const full = await api.usuarios.get(selected.id);
+      setDetailData(full);
+    } catch {
+    } finally { setSavingAssignUnit(false); }
   }
 
   const propietarios = residentes.filter((r) => r.tipo_ocupacion === "propietario" || r.rol === "propietario").length;
@@ -336,15 +410,57 @@ export default function ResidentesPage() {
                     ["Email", detailData.email ?? "—"],
                     ["Teléfono", detailData.telefono ?? "—"],
                     ["Rol", detailData.rol],
-                    ["Unidad", detailData.unidad_numero ?? "—"],
-                    ["Edificio", detailData.edificio_nombre ?? "—"],
-                    ["Tipo ocupación", detailData.tipo_ocupacion ?? "—"],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</dt>
                       <dd className="mt-1 text-sm text-gray-900">{val}</dd>
                     </div>
                   ))}
+                  <div>
+                    <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Unidades</dt>
+                    <div className="space-y-1.5">
+                      {(detailData.ocupaciones ?? []).length === 0 ? (
+                        <p className="text-sm text-gray-400">Sin unidades asignadas</p>
+                      ) : (detailData.ocupaciones ?? []).map((o: any) => (
+                        <div key={o.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm text-gray-900">{o.unidad_numero}</span>
+                            {o.edificio_nombre && <span className="text-xs text-gray-500">{o.edificio_nombre}</span>}
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${o.tipo === "propietario" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{o.tipo}</span>
+                          </div>
+                          <button onClick={() => handleRemoveOcupacion(o.id)} className="text-red-400 hover:text-red-600 text-xs ml-2 flex-shrink-0">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    {showAssignUnit ? (
+                      <form onSubmit={handleAssignAdditionalUnit} className="mt-3 bg-gray-50 rounded-lg p-3 space-y-2 border border-gray-200">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
+                            <select required value={assignUnitForm.unidad_id} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
+                              <option value="">Seleccionar…</option>
+                              {unidades.map((u: any) => <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                            <select value={assignUnitForm.tipo} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, tipo: e.target.value })} className={INPUT}>
+                              <option value="propietario">Propietario</option>
+                              <option value="inquilino">Inquilino</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => setShowAssignUnit(false)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                          <button type="submit" disabled={savingAssignUnit} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
+                            {savingAssignUnit ? "…" : "Asignar"}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button onClick={() => setShowAssignUnit(true)} className="mt-2 text-sm text-primary font-medium hover:underline">+ Asignar unidad</button>
+                    )}
+                  </div>
                   <div className="pt-3 border-t border-gray-100">
                     <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notificaciones</dt>
                     <div className="space-y-1 text-sm">
@@ -399,17 +515,46 @@ export default function ResidentesPage() {
                     {(detailData.vehiculos ?? []).length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-4">Sin vehículos registrados</p>
                     ) : (detailData.vehiculos ?? []).map((v: any) => (
-                      <div key={v.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                        <div>
-                          <span className="font-mono font-semibold text-gray-900 text-sm">{v.placa}</span>
-                          <span className="ml-2 text-xs text-gray-500">{v.marca} {v.modelo}</span>
-                          {v.color && <span className="ml-2 text-xs text-gray-400">· {v.color}</span>}
+                      editVehiculo?.id === v.id ? (
+                        <form key={v.id} onSubmit={handleEditVehiculo} className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Placa</label>
+                              <input required value={editVehiculo.placa} onChange={(e) => setEditVehiculo({ ...editVehiculo, placa: e.target.value.toUpperCase() })} className={INPUT} /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Tipo</label>
+                              <select value={editVehiculo.tipo} onChange={(e) => setEditVehiculo({ ...editVehiculo, tipo: e.target.value })} className={INPUT}>
+                                <option value="carro">Carro</option>
+                                <option value="moto">Moto</option>
+                                <option value="bicicleta">Bicicleta</option>
+                                <option value="otro">Otro</option>
+                              </select></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Marca</label>
+                              <input value={editVehiculo.marca ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, marca: e.target.value })} className={INPUT} /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Modelo</label>
+                              <input value={editVehiculo.modelo ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, modelo: e.target.value })} className={INPUT} /></div>
+                            <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-0.5">Color</label>
+                              <input value={editVehiculo.color ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, color: e.target.value })} className={INPUT} /></div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditVehiculo(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                            <button type="submit" disabled={savingEditV} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
+                              {savingEditV ? "…" : "Guardar"}
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div key={v.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                          <div>
+                            <span className="font-mono font-semibold text-gray-900 text-sm">{v.placa}</span>
+                            <span className="ml-2 text-xs text-gray-500">{v.marca} {v.modelo}</span>
+                            {v.color && <span className="ml-2 text-xs text-gray-400">· {v.color}</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 capitalize">{v.tipo}</span>
+                            <button onClick={() => setEditVehiculo({ id: v.id, placa: v.placa, marca: v.marca, modelo: v.modelo, color: v.color, tipo: v.tipo })} className="text-blue-400 hover:text-blue-600 text-xs px-2" title="Editar">✎</button>
+                            <button onClick={() => handleDeleteVehiculo(v.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 capitalize">{v.tipo}</span>
-                          <button onClick={() => handleDeleteVehiculo(v.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
-                        </div>
-                      </div>
+                      )
                     ))}
                   </div>
                 </div>
@@ -450,14 +595,43 @@ export default function ResidentesPage() {
                     {(detailData.mascotas ?? []).length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-4">Sin mascotas registradas</p>
                     ) : (detailData.mascotas ?? []).map((m: any) => (
-                      <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                        <div>
-                          <span className="font-medium text-gray-900 text-sm">{m.nombre}</span>
-                          <span className="ml-2 text-xs text-gray-500 capitalize">{m.especie}</span>
-                          {m.raza && <span className="ml-1 text-xs text-gray-400">· {m.raza}</span>}
+                      editMascota?.id === m.id ? (
+                        <form key={m.id} onSubmit={handleEditMascota} className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Nombre</label>
+                              <input required value={editMascota.nombre} onChange={(e) => setEditMascota({ ...editMascota, nombre: e.target.value })} className={INPUT} /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Especie</label>
+                              <select value={editMascota.especie} onChange={(e) => setEditMascota({ ...editMascota, especie: e.target.value })} className={INPUT}>
+                                <option value="perro">Perro</option>
+                                <option value="gato">Gato</option>
+                                <option value="ave">Ave</option>
+                                <option value="otro">Otro</option>
+                              </select></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Raza</label>
+                              <input value={editMascota.raza ?? ""} onChange={(e) => setEditMascota({ ...editMascota, raza: e.target.value })} className={INPUT} /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Color</label>
+                              <input value={editMascota.color ?? ""} onChange={(e) => setEditMascota({ ...editMascota, color: e.target.value })} className={INPUT} /></div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditMascota(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                            <button type="submit" disabled={savingEditM} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
+                              {savingEditM ? "…" : "Guardar"}
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                          <div>
+                            <span className="font-medium text-gray-900 text-sm">{m.nombre}</span>
+                            <span className="ml-2 text-xs text-gray-500 capitalize">{m.especie}</span>
+                            {m.raza && <span className="ml-1 text-xs text-gray-400">· {m.raza}</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setEditMascota({ id: m.id, nombre: m.nombre, especie: m.especie, raza: m.raza, color: m.color })} className="text-blue-400 hover:text-blue-600 text-xs px-2" title="Editar">✎</button>
+                            <button onClick={() => handleDeleteMascota(m.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
+                          </div>
                         </div>
-                        <button onClick={() => handleDeleteMascota(m.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
-                      </div>
+                      )
                     ))}
                   </div>
                 </div>
