@@ -28,6 +28,10 @@ class MantenimientoCreate(BaseModel):
 
 
 class MantenimientoUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    categoria: Optional[str] = None
+    prioridad: Optional[str] = None
     estado: Optional[str] = None
     asignado_a: Optional[int] = None
     costo: Optional[float] = None
@@ -201,6 +205,14 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
     with get_db() as conn:
         with conn.cursor() as cur:
             fields, params = [], []
+            if data.titulo is not None:
+                fields.append("titulo = %s"); params.append(data.titulo)
+            if data.descripcion is not None:
+                fields.append("descripcion = %s"); params.append(data.descripcion)
+            if data.categoria is not None:
+                fields.append("categoria = %s"); params.append(data.categoria)
+            if data.prioridad is not None:
+                fields.append("prioridad = %s"); params.append(data.prioridad)
             if data.estado is not None:
                 fields.append("estado = %s")
                 params.append(data.estado)

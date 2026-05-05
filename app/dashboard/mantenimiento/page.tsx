@@ -45,7 +45,9 @@ export default function MantenimientoPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showAlertaForm, setShowAlertaForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [esProgramado, setEsProgramado] = useState(false);
+  const [editEsProgramado, setEditEsProgramado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -118,6 +120,39 @@ export default function MantenimientoPage() {
     });
     setShowAlertaForm(false);
     (e.target as HTMLFormElement).reset();
+    load();
+  };
+
+  const openEdit = () => {
+    setEditEsProgramado(selected?.es_programado ?? false);
+    setShowEditForm(true);
+  };
+
+  const handleEditar = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const body: any = {
+      titulo:      fd.get("titulo"),
+      descripcion: fd.get("descripcion") || null,
+      categoria:   fd.get("categoria"),
+      prioridad:   fd.get("prioridad"),
+      es_programado: editEsProgramado,
+      periodicidad: editEsProgramado ? fd.get("periodicidad") : null,
+    };
+    const proveedor = fd.get("proveedor_id");
+    if (proveedor) body.proveedor_id = parseInt(proveedor as string);
+    else body.proveedor_id = null;
+    const vencimiento = fd.get("fecha_vencimiento");
+    body.fecha_vencimiento = vencimiento || null;
+    const presupuesto = fd.get("presupuesto");
+    body.presupuesto = presupuesto ? parseFloat(presupuesto as string) : null;
+    const contrato = fd.get("contrato_url");
+    body.contrato_url = contrato || null;
+
+    await api.mantenimientos.update(selected!.id, body);
+    setShowEditForm(false);
+    const updated = await api.mantenimientos.get(selected!.id);
+    setSelected(updated);
     load();
   };
 
@@ -319,7 +354,14 @@ export default function MantenimientoPage() {
                       </span>
                     )}
                   </div>
-                  <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">✕</button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {canEdit && (
+                      <button onClick={openEdit} className="text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-colors" title="Editar solicitud">
+                        ✏️ Editar
+                      </button>
+                    )}
+                    <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
                 </div>
               </div>
               <div className="p-5 space-y-4">
@@ -543,6 +585,104 @@ export default function MantenimientoPage() {
                 </button>
                 <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
                   Crear
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Editar solicitud modal */}
+      {showEditForm && selected && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="font-semibold text-gray-900 mb-4">Editar solicitud #{selected.id}</h3>
+            <form onSubmit={handleEditar} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                <input name="titulo" required defaultValue={selected.titulo} className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea name="descripcion" rows={3} defaultValue={selected.descripcion ?? ""} className={INPUT} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                  <select name="categoria" defaultValue={selected.categoria} className={INPUT}>
+                    {Object.keys(CAT_ICON).map((c) => <option key={c} value={c}>{CAT_ICON[c]} {c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
+                  <select name="prioridad" defaultValue={selected.prioridad} className={INPUT}>
+                    <option value="alta">Alta</option>
+                    <option value="media">Media</option>
+                    <option value="baja">Baja</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggle programado */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">¿Es mantenimiento programado?</div>
+                  <div className="text-xs text-gray-400">Mantenimientos recurrentes o preventivos</div>
+                </div>
+                <button type="button"
+                  onClick={() => setEditEsProgramado((v) => !v)}
+                  className={`relative w-10 h-6 rounded-full transition-colors ${editEsProgramado ? "bg-teal-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${editEsProgramado ? "left-5" : "left-1"}`} />
+                </button>
+              </div>
+
+              {editEsProgramado && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
+                  <select name="periodicidad" defaultValue={selected.periodicidad ?? "mensual"} className={INPUT}>
+                    {PERIODICIDADES.map((p) => (
+                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                  <select name="proveedor_id" defaultValue={selected.proveedor_id ?? ""} className={INPUT}>
+                    <option value="">Sin proveedor</option>
+                    {proveedores.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Presupuesto</label>
+                  <input name="presupuesto" type="number" step="0.01" min="0"
+                    defaultValue={selected.presupuesto ?? ""} placeholder="0.00" className={INPUT} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento</label>
+                <input name="fecha_vencimiento" type="date"
+                  defaultValue={selected.fecha_vencimiento ? selected.fecha_vencimiento.slice(0, 10) : ""} className={INPUT} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">URL del contrato</label>
+                <input name="contrato_url" type="url" placeholder="https://…"
+                  defaultValue={selected.contrato_url ?? ""} className={INPUT} />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => setShowEditForm(false)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
+                  Guardar cambios
                 </button>
               </div>
             </form>
