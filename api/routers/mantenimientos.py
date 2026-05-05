@@ -56,7 +56,7 @@ _MANTENIMIENTO_SELECT = """
            sol.nombre as solicitante_nombre,
            asig.nombre as asignado_nombre,
            p.nombre as proveedor_nombre,
-           t.nombre as torre_nombre, t.numero_torre,
+           t.nombre as torre_nombre, t.numero as numero_torre,
            (SELECT json_agg(json_build_object('id',a.id,'tipo',a.tipo,'url',a.url,'nombre',a.nombre_archivo))
             FROM mantenimiento_archivos a WHERE a.mantenimiento_id = m.id) as archivos
     FROM mantenimientos m
@@ -65,7 +65,7 @@ _MANTENIMIENTO_SELECT = """
     LEFT JOIN usuarios sol ON sol.id = m.solicitante_id
     LEFT JOIN usuarios asig ON asig.id = m.asignado_a
     LEFT JOIN proveedores p ON p.id = m.proveedor_id
-    LEFT JOIN edificios t ON t.id = m.torre_id
+    LEFT JOIN torres t ON t.id = m.torre_id
 """
 
 
