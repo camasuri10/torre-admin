@@ -430,9 +430,13 @@ export default function ComunicadosPage() {
                             e.stopPropagation();
                             auditComunicado === c.id ? setAuditComunicado(null) : loadAudit(c.id);
                           }}
-                          className="text-xs text-gray-400 hover:text-primary"
+                          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                            auditComunicado === c.id
+                              ? "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200"
+                              : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                          }`}
                         >
-                          {auditComunicado === c.id ? "✕ cerrar" : "📊 envíos"}
+                          {auditComunicado === c.id ? "✕ Cerrar" : "📊 Estadísticas"}
                         </button>
                       </>
                     )}
