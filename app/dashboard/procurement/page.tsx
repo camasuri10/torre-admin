@@ -140,7 +140,10 @@ export default function ProcurementPage() {
     if (statsR.status === "fulfilled") setStats(statsR.value);
     if (ordenesR.status === "fulfilled") setOrdenes(ordenesR.value);
     if (pendR.status === "fulfilled") setPendientes(pendR.value);
-    if (provsR.status === "fulfilled") setProveedores(provsR.value);
+    if (provsR.status === "fulfilled") {
+      const d = provsR.value;
+      setProveedores(Array.isArray(d) ? d : (d?.proveedores ?? []));
+    }
     setLoadingOrdenes(false);
     if (rol === "superadmin") {
       api.procurement.flujos.list(edificioId).then(setFlujos).catch(() => {});
@@ -574,7 +577,7 @@ export default function ProcurementPage() {
                   <div className="px-4 py-3">
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Items</div>
                     <div className="space-y-1">
-                      {selectedOrden.items.map((item: any) => (
+                      {(selectedOrden.items ?? []).map((item: any) => (
                         <div key={item.id} className="flex justify-between items-baseline gap-2 text-sm">
                           <span className="text-gray-700 min-w-0 truncate">
                             {item.descripcion}
@@ -592,7 +595,7 @@ export default function ProcurementPage() {
                   <div className="px-4 py-3">
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Historial aprobación</div>
                     <div className="space-y-2">
-                      {selectedOrden.aprobaciones.map((a: any) => (
+                      {(selectedOrden.aprobaciones ?? []).map((a: any) => (
                         <div key={a.id} className="flex items-start gap-2 text-xs">
                           <span className={`mt-0.5 px-1.5 py-0.5 rounded font-semibold shrink-0 ${
                             a.estado === "aprobada" ? "bg-green-100 text-green-700" :
