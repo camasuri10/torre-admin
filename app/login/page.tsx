@@ -6,10 +6,11 @@ import { authApi } from "@/lib/api";
 import { setToken, setEdificiosDisponibles, setUserTemp } from "@/lib/auth";
 
 const DEMO_CREDENTIALS = [
-  { rol: "Super Admin",   email: "superadmin@torreadmin.co", password: "Super123!" },
-  { rol: "Administrador", email: "admin@torreadmin.co",      password: "Admin123!" },
-  { rol: "Propietario",   email: "c.martinez@gmail.com",     password: "Prop123!" },
-  { rol: "Portero",       email: "guardia1@torreadmin.co",   password: "Guardia123!" },
+  { rol: "Super Admin",     email: "superadmin@torreadmin.co",  password: "Super123!" },
+  { rol: "Admin Backoffice", email: "backoffice@torreadmin.co", password: "Back123!" },
+  { rol: "Administrador",   email: "admin@torreadmin.co",       password: "Admin123!" },
+  { rol: "Propietario",     email: "c.martinez@gmail.com",      password: "Prop123!" },
+  { rol: "Portero",         email: "guardia1@torreadmin.co",    password: "Guardia123!" },
 ];
 
 export default function LoginPage() {
@@ -34,7 +35,14 @@ export default function LoginPage() {
       }
 
       setToken(data.access_token);
-      router.push("/dashboard");
+      const rol = data.user?.rol;
+      if (rol === "backoffice") {
+        router.push("/dashboard/backoffice");
+      } else if (rol === "superadmin") {
+        router.push("/dashboard/superadmin");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: any) {
       const msg = err?.message ?? "";
       if (msg.includes("400") || msg.includes("sin edificio")) {

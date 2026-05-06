@@ -566,10 +566,10 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_sistema   BOOLEAN NOT NULL D
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_email     BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_whatsapp  BOOLEAN NOT NULL DEFAULT FALSE;
 
--- Actualizar constraint de rol
+-- Actualizar constraint de rol (incluye todos los roles actuales)
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
-    CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero','servicios'));
+    CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero','servicios','backoffice'));
 
 -- Proveedores: hacer edificio_id nullable, agregar creado_por y conjunto_id
 ALTER TABLE proveedores ALTER COLUMN edificio_id DROP NOT NULL;
@@ -692,13 +692,14 @@ def init_db():
 def _ensure_passwords(cur, pwd_context):
     """Update password_hash for seeded users that don't have one yet."""
     demo_passwords = {
-        "admin@torreadmin.co":      "Admin123!",
-        "superadmin@torreadmin.co": "Super123!",
-        "guardia1@torreadmin.co":   "Guardia123!",
-        "c.martinez@gmail.com":     "Prop123!",
-        "mfgomez@hotmail.com":      "Torre123!",
-        "jsrojas@gmail.com":        "Torre123!",
-        "lv.herrera@outlook.com":   "Torre123!",
+        "admin@torreadmin.co":        "Admin123!",
+        "superadmin@torreadmin.co":   "Super123!",
+        "backoffice@torreadmin.co":   "Back123!",
+        "guardia1@torreadmin.co":     "Guardia123!",
+        "c.martinez@gmail.com":       "Prop123!",
+        "mfgomez@hotmail.com":        "Torre123!",
+        "jsrojas@gmail.com":          "Torre123!",
+        "lv.herrera@outlook.com":     "Torre123!",
     }
     for email, pw in demo_passwords.items():
         cur.execute(
@@ -768,6 +769,13 @@ def _ensure_edificio_assignments(cur):
             ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin"),
         )
 
+    cur.execute("SELECT id FROM usuarios WHERE email = 'backoffice@torreadmin.co'")
+    if not cur.fetchone():
+        cur.execute(
+            "INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES (%s,%s,%s,%s,%s)",
+            ("Admin Backoffice", "00.000.002", "backoffice@torreadmin.co", "300 000 0002", "backoffice"),
+        )
+
     print("✅ Demo edificio assignments ensured")
 
 
@@ -814,6 +822,13 @@ def seed_db():
                 ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin", sa_hash),
             )
             sa_id = cur.fetchone()["id"]
+
+            # ── Backoffice ───────────────────────────────────────────────────
+            bo_hash = pwd_context.hash("Back123!") if pwd_context else None
+            cur.execute(
+                "INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash) VALUES (%s,%s,%s,%s,%s,%s)",
+                ("Admin Backoffice", "00.000.002", "backoffice@torreadmin.co", "300 000 0002", "backoffice", bo_hash),
+            )
 
             # ── Conjunto Nórdico ─────────────────────────────────────────────
             cur.execute(

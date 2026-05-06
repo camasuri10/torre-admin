@@ -30,6 +30,7 @@ export default function BackofficeDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -40,7 +41,16 @@ export default function BackofficeDashboard() {
         setStats(s);
         setAnalytics(a);
       })
-      .catch(console.error)
+      .catch((err: any) => {
+        const msg: string = err?.message ?? String(err);
+        if (msg.includes("401")) {
+          setError("Sesión expirada. Por favor, vuelve a iniciar sesión.");
+        } else if (msg.includes("403")) {
+          setError("Tu usuario no tiene permisos de Backoffice.");
+        } else {
+          setError(`Error al cargar los datos: ${msg}`);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -55,10 +65,10 @@ export default function BackofficeDashboard() {
     );
   }
 
-  if (!stats) {
+  if (error || !stats) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
-        Error al cargar los datos. Verifique que tiene permisos de Backoffice.
+        {error ?? "Error al cargar los datos. Verifique que tiene permisos de Backoffice."}
       </div>
     );
   }

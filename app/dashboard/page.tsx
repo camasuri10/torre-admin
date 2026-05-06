@@ -41,9 +41,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // SA with global context ("Todos") should go to the superadmin panel
+    // SA/Backoffice with global context ("Todos") go to their respective panels
     if (user?.rol === "superadmin" && !user?.edificio_id) {
       router.replace("/dashboard/superadmin");
+      return;
+    }
+    if (user?.rol === "backoffice" && !user?.edificio_id) {
+      router.replace("/dashboard/backoffice");
       return;
     }
     if (!edificioId) { setLoading(false); return; }
@@ -71,8 +75,8 @@ export default function DashboardPage() {
     load();
   }, [edificioId, router, user?.rol]);
 
-  // SA without a specific building context redirects to superadmin panel
-  if (user?.rol === "superadmin" && !user?.edificio_id) return null;
+  // SA/Backoffice without a specific building context redirect to their panels
+  if ((user?.rol === "superadmin" || user?.rol === "backoffice") && !user?.edificio_id) return null;
 
   const recaudoPct = stats
     ? Math.round((stats.recaudo_mes / (stats.meta_recaudo || 1)) * 100)
