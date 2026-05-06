@@ -545,6 +545,96 @@ CREATE TABLE IF NOT EXISTS encuesta_respuestas (
     valor_escala INTEGER
 );
 
+-- Procurement
+CREATE TABLE IF NOT EXISTS ordenes_compra (
+    id                  SERIAL PRIMARY KEY,
+    numero_orden        TEXT UNIQUE NOT NULL,
+    titulo              TEXT NOT NULL,
+    tipo_orden          TEXT NOT NULL CHECK (tipo_orden IN (
+                            'compra_bienes','servicio_mantenimiento','servicio_seguridad',
+                            'servicio_aseo','obra_civil','otro')),
+    proveedor_id        INTEGER REFERENCES proveedores(id),
+    descripcion         TEXT,
+    monto_estimado      NUMERIC(15,2) NOT NULL DEFAULT 0,
+    monto_final         NUMERIC(15,2),
+    estado              TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
+                            'borrador','pendiente_aprobacion','aprobada',
+                            'rechazada','en_ejecucion','completada','cancelada')),
+    fecha_necesidad     DATE,
+    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    solicitante_id      INTEGER REFERENCES usuarios(id),
+    motivo_cancelacion  TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS orden_items (
+    id              SERIAL PRIMARY KEY,
+    orden_id        INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+    descripcion     TEXT NOT NULL,
+    cantidad        NUMERIC(10,2) NOT NULL DEFAULT 1,
+    unidad_medida   TEXT DEFAULT 'und',
+    precio_unitario NUMERIC(15,2) NOT NULL DEFAULT 0,
+    subtotal        NUMERIC(15,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED
+);
+
+CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
+    id                   SERIAL PRIMARY KEY,
+    titulo               TEXT NOT NULL,
+    tipo                 TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
+    descripcion          TEXT,
+    fecha_limite         DATE,
+    criterios_evaluacion TEXT,
+    estado               TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
+    edificio_id          INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    created_by           INTEGER REFERENCES usuarios(id),
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cotizaciones (
+    id                SERIAL PRIMARY KEY,
+    solicitud_id      INTEGER REFERENCES solicitudes_cotizacion(id) ON DELETE SET NULL,
+    orden_id          INTEGER REFERENCES ordenes_compra(id) ON DELETE SET NULL,
+    proveedor_id      INTEGER NOT NULL REFERENCES proveedores(id),
+    numero_cotizacion TEXT,
+    fecha_recepcion   DATE NOT NULL DEFAULT CURRENT_DATE,
+    monto             NUMERIC(15,2) NOT NULL,
+    condiciones_pago  TEXT,
+    tiempo_entrega    TEXT,
+    vigencia          DATE,
+    estado            TEXT NOT NULL DEFAULT 'recibida'
+                          CHECK (estado IN ('recibida','ganadora','perdedora')),
+    observaciones     TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS flujos_aprobacion (
+    id           SERIAL PRIMARY KEY,
+    nombre       TEXT NOT NULL,
+    tipo_orden   TEXT DEFAULT NULL,
+    monto_minimo NUMERIC(15,2) NOT NULL DEFAULT 0,
+    monto_maximo NUMERIC(15,2),
+    nivel        INTEGER NOT NULL DEFAULT 1,
+    approver_rol TEXT NOT NULL,
+    approver_id  INTEGER REFERENCES usuarios(id),
+    edificio_id  INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+    activo       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS orden_aprobaciones (
+    id             SERIAL PRIMARY KEY,
+    orden_id       INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+    approver_id    INTEGER REFERENCES usuarios(id),
+    approver_rol   TEXT,
+    nivel          INTEGER NOT NULL DEFAULT 1,
+    estado         TEXT NOT NULL DEFAULT 'pendiente'
+                       CHECK (estado IN ('pendiente','aprobada','rechazada')),
+    comentario     TEXT,
+    fecha_decision TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ─── Índices ────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_torres_edificio         ON torres(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_torre          ON unidades(torre_id);
@@ -577,6 +667,15 @@ CREATE INDEX IF NOT EXISTS idx_encuestas_edificio      ON encuestas(edificio_id)
 CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas      ON encuesta_preguntas(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones       ON encuesta_sesiones(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas     ON encuesta_respuestas(sesion_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_edificio        ON ordenes_compra(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_estado          ON ordenes_compra(estado);
+CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor       ON ordenes_compra(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_orden_items             ON orden_items(orden_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol        ON cotizaciones(solicitud_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden      ON cotizaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_orden_aprob             ON orden_aprobaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_flujos_edificio         ON flujos_aprobacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio    ON solicitudes_cotizacion(edificio_id);
 """
 
 
@@ -786,6 +885,66 @@ CREATE INDEX IF NOT EXISTS idx_encuestas_edificio  ON encuestas(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
+
+-- v8.0 — Módulo de Procurement
+CREATE TABLE IF NOT EXISTS ordenes_compra (
+    id SERIAL PRIMARY KEY, numero_orden TEXT UNIQUE NOT NULL, titulo TEXT NOT NULL,
+    tipo_orden TEXT NOT NULL CHECK (tipo_orden IN (
+        'compra_bienes','servicio_mantenimiento','servicio_seguridad','servicio_aseo','obra_civil','otro')),
+    proveedor_id INTEGER REFERENCES proveedores(id), descripcion TEXT,
+    monto_estimado NUMERIC(15,2) NOT NULL DEFAULT 0, monto_final NUMERIC(15,2),
+    estado TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
+        'borrador','pendiente_aprobacion','aprobada','rechazada','en_ejecucion','completada','cancelada')),
+    fecha_necesidad DATE, edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    solicitante_id INTEGER REFERENCES usuarios(id), motivo_cancelacion TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS orden_items (
+    id SERIAL PRIMARY KEY, orden_id INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+    descripcion TEXT NOT NULL, cantidad NUMERIC(10,2) NOT NULL DEFAULT 1,
+    unidad_medida TEXT DEFAULT 'und', precio_unitario NUMERIC(15,2) NOT NULL DEFAULT 0,
+    subtotal NUMERIC(15,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED
+);
+CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
+    id SERIAL PRIMARY KEY, titulo TEXT NOT NULL, tipo TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
+    descripcion TEXT, fecha_limite DATE, criterios_evaluacion TEXT,
+    estado TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
+    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES usuarios(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS cotizaciones (
+    id SERIAL PRIMARY KEY, solicitud_id INTEGER REFERENCES solicitudes_cotizacion(id) ON DELETE SET NULL,
+    orden_id INTEGER REFERENCES ordenes_compra(id) ON DELETE SET NULL,
+    proveedor_id INTEGER NOT NULL REFERENCES proveedores(id), numero_cotizacion TEXT,
+    fecha_recepcion DATE NOT NULL DEFAULT CURRENT_DATE, monto NUMERIC(15,2) NOT NULL,
+    condiciones_pago TEXT, tiempo_entrega TEXT, vigencia DATE,
+    estado TEXT NOT NULL DEFAULT 'recibida' CHECK (estado IN ('recibida','ganadora','perdedora')),
+    observaciones TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS flujos_aprobacion (
+    id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, tipo_orden TEXT DEFAULT NULL,
+    monto_minimo NUMERIC(15,2) NOT NULL DEFAULT 0, monto_maximo NUMERIC(15,2),
+    nivel INTEGER NOT NULL DEFAULT 1, approver_rol TEXT NOT NULL,
+    approver_id INTEGER REFERENCES usuarios(id),
+    edificio_id INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS orden_aprobaciones (
+    id SERIAL PRIMARY KEY, orden_id INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+    approver_id INTEGER REFERENCES usuarios(id), approver_rol TEXT,
+    nivel INTEGER NOT NULL DEFAULT 1,
+    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','aprobada','rechazada')),
+    comentario TEXT, fecha_decision TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ordenes_edificio     ON ordenes_compra(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_estado       ON ordenes_compra(estado);
+CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor    ON ordenes_compra(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_orden_items          ON orden_items(orden_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol     ON cotizaciones(solicitud_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden   ON cotizaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_orden_aprob          ON orden_aprobaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_flujos_edificio      ON flujos_aprobacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio ON solicitudes_cotizacion(edificio_id);
 """
 
 
@@ -853,6 +1012,7 @@ def _ensure_edificio_assignments(cur):
         ("chat",          "Chat Seguridad",    "💬"),
         ("guardias",      "Guardias y Turnos", "👮"),
         ("reportes",      "Reportes",          "📈"),
+        ("procurement",   "Procurement",       "🛒"),
     ]
     for clave, nombre, icono in modulos:
         cur.execute(
@@ -918,6 +1078,7 @@ def seed_db():
                 ("chat",          "Chat Seguridad",    "💬"),
                 ("guardias",      "Guardias y Turnos", "👮"),
                 ("reportes",      "Reportes",          "📈"),
+                ("procurement",   "Procurement",       "🛒"),
             ]
             cur.executemany(
                 "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s)",

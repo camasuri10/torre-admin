@@ -18,6 +18,7 @@ from routers import (
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
     conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
+    procurement,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ app.include_router(mascotas.router,       prefix="/api/mascotas",        tags=["
 app.include_router(proveedores.router,    prefix="/api/proveedores",     tags=["Proveedores"])
 app.include_router(backoffice.router,     prefix="/api/backoffice",      tags=["Backoffice"])
 app.include_router(encuestas.router,      prefix="/api/encuestas",        tags=["Encuestas"])
+app.include_router(procurement.router,    prefix="/api/procurement",      tags=["Procurement"])
 
 
 @app.get("/api/health")
@@ -160,6 +162,132 @@ def migrate_v7():
             CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
             CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
             CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
+        """),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        cur.execute(sql)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/migrate-v8")
+def migrate_v8():
+    """Apply v8 migrations: procurement tables (ordenes, items, cotizaciones, flujos, aprobaciones)."""
+    from db import get_db
+    migrations = [
+        ("ordenes_compra table", """
+            CREATE TABLE IF NOT EXISTS ordenes_compra (
+                id              SERIAL PRIMARY KEY,
+                numero_orden    TEXT UNIQUE NOT NULL,
+                titulo          TEXT NOT NULL,
+                tipo_orden      TEXT NOT NULL CHECK (tipo_orden IN (
+                                    'compra_bienes','servicio_mantenimiento','servicio_seguridad',
+                                    'servicio_aseo','obra_civil','otro')),
+                proveedor_id    INTEGER REFERENCES proveedores(id),
+                descripcion     TEXT,
+                monto_estimado  NUMERIC(15,2) NOT NULL DEFAULT 0,
+                monto_final     NUMERIC(15,2),
+                estado          TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
+                                    'borrador','pendiente_aprobacion','aprobada',
+                                    'rechazada','en_ejecucion','completada','cancelada')),
+                fecha_necesidad DATE,
+                edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                solicitante_id  INTEGER REFERENCES usuarios(id),
+                motivo_cancelacion TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("orden_items table", """
+            CREATE TABLE IF NOT EXISTS orden_items (
+                id              SERIAL PRIMARY KEY,
+                orden_id        INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+                descripcion     TEXT NOT NULL,
+                cantidad        NUMERIC(10,2) NOT NULL DEFAULT 1,
+                unidad_medida   TEXT DEFAULT 'und',
+                precio_unitario NUMERIC(15,2) NOT NULL DEFAULT 0,
+                subtotal        NUMERIC(15,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED
+            );
+        """),
+        ("solicitudes_cotizacion table", """
+            CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
+                id              SERIAL PRIMARY KEY,
+                titulo          TEXT NOT NULL,
+                tipo            TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
+                descripcion     TEXT,
+                fecha_limite    DATE,
+                criterios_evaluacion TEXT,
+                estado          TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
+                edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                created_by      INTEGER REFERENCES usuarios(id),
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("cotizaciones table", """
+            CREATE TABLE IF NOT EXISTS cotizaciones (
+                id                  SERIAL PRIMARY KEY,
+                solicitud_id        INTEGER REFERENCES solicitudes_cotizacion(id) ON DELETE SET NULL,
+                orden_id            INTEGER REFERENCES ordenes_compra(id) ON DELETE SET NULL,
+                proveedor_id        INTEGER NOT NULL REFERENCES proveedores(id),
+                numero_cotizacion   TEXT,
+                fecha_recepcion     DATE NOT NULL DEFAULT CURRENT_DATE,
+                monto               NUMERIC(15,2) NOT NULL,
+                condiciones_pago    TEXT,
+                tiempo_entrega      TEXT,
+                vigencia            DATE,
+                estado              TEXT NOT NULL DEFAULT 'recibida'
+                                        CHECK (estado IN ('recibida','ganadora','perdedora')),
+                observaciones       TEXT,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("flujos_aprobacion table", """
+            CREATE TABLE IF NOT EXISTS flujos_aprobacion (
+                id              SERIAL PRIMARY KEY,
+                nombre          TEXT NOT NULL,
+                tipo_orden      TEXT DEFAULT NULL,
+                monto_minimo    NUMERIC(15,2) NOT NULL DEFAULT 0,
+                monto_maximo    NUMERIC(15,2),
+                nivel           INTEGER NOT NULL DEFAULT 1,
+                approver_rol    TEXT NOT NULL,
+                approver_id     INTEGER REFERENCES usuarios(id),
+                edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+                activo          BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("orden_aprobaciones table", """
+            CREATE TABLE IF NOT EXISTS orden_aprobaciones (
+                id              SERIAL PRIMARY KEY,
+                orden_id        INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+                approver_id     INTEGER REFERENCES usuarios(id),
+                approver_rol    TEXT,
+                nivel           INTEGER NOT NULL DEFAULT 1,
+                estado          TEXT NOT NULL DEFAULT 'pendiente'
+                                    CHECK (estado IN ('pendiente','aprobada','rechazada')),
+                comentario      TEXT,
+                fecha_decision  TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("procurement indices", """
+            CREATE INDEX IF NOT EXISTS idx_ordenes_edificio    ON ordenes_compra(edificio_id);
+            CREATE INDEX IF NOT EXISTS idx_ordenes_estado      ON ordenes_compra(estado);
+            CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor   ON ordenes_compra(proveedor_id);
+            CREATE INDEX IF NOT EXISTS idx_orden_items         ON orden_items(orden_id);
+            CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol    ON cotizaciones(solicitud_id);
+            CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden  ON cotizaciones(orden_id);
+            CREATE INDEX IF NOT EXISTS idx_orden_aprob         ON orden_aprobaciones(orden_id);
+            CREATE INDEX IF NOT EXISTS idx_flujos_edificio     ON flujos_aprobacion(edificio_id);
         """),
     ]
     results = []

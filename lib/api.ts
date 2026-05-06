@@ -393,6 +393,57 @@ export const api = {
     resultados: (id: number) => request<any>(`/api/encuestas/${id}/resultados`),
   },
 
+  // ── Procurement ────────────────────────────────────────────────────────────
+  procurement: {
+    stats: (edificio_id: number) =>
+      request<any>(`/api/procurement/stats?edificio_id=${edificio_id}`),
+    ordenes: {
+      list: (params?: { edificio_id?: number; estado?: string; tipo_orden?: string }) => {
+        const q = params ? new URLSearchParams(params as any).toString() : "";
+        return request<any[]>(`/api/procurement/ordenes${q ? "?" + q : ""}`);
+      },
+      get: (id: number) => request<any>(`/api/procurement/ordenes/${id}`),
+      create: (data: any) =>
+        request<any>("/api/procurement/ordenes", { method: "POST", body: JSON.stringify(data) }),
+      update: (id: number, data: any) =>
+        request<any>(`/api/procurement/ordenes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+      cambiarEstado: (id: number, accion: string, comentario?: string) =>
+        request<any>(`/api/procurement/ordenes/${id}/estado`, {
+          method: "PATCH",
+          body: JSON.stringify({ accion, comentario }),
+        }),
+    },
+    aprobaciones: {
+      pendientes: () => request<any[]>("/api/procurement/aprobaciones/pendientes"),
+    },
+    cotizaciones: {
+      list: (params?: { solicitud_id?: number; orden_id?: number; edificio_id?: number }) => {
+        const q = params ? new URLSearchParams(params as any).toString() : "";
+        return request<any[]>(`/api/procurement/cotizaciones${q ? "?" + q : ""}`);
+      },
+      create: (data: any) =>
+        request<any>("/api/procurement/cotizaciones", { method: "POST", body: JSON.stringify(data) }),
+      marcarGanadora: (id: number) =>
+        request<any>(`/api/procurement/cotizaciones/${id}/ganadora`, { method: "PATCH", body: "{}" }),
+    },
+    solicitudes: {
+      list: (edificio_id: number) =>
+        request<any[]>(`/api/procurement/solicitudes?edificio_id=${edificio_id}`),
+      create: (data: any) =>
+        request<any>("/api/procurement/solicitudes", { method: "POST", body: JSON.stringify(data) }),
+      cerrar: (id: number) =>
+        request<any>(`/api/procurement/solicitudes/${id}/cerrar`, { method: "PATCH", body: "{}" }),
+    },
+    flujos: {
+      list: (edificio_id: number) =>
+        request<any[]>(`/api/procurement/flujos?edificio_id=${edificio_id}`),
+      create: (data: any) =>
+        request<any>("/api/procurement/flujos", { method: "POST", body: JSON.stringify(data) }),
+      delete: (id: number) =>
+        request<void>(`/api/procurement/flujos/${id}`, { method: "DELETE" }),
+    },
+  },
+
   // ── Reportes ───────────────────────────────────────────────────────────────
   reportes: {
     dashboard: (edificio_id: number) => request<any>(`/api/reportes/dashboard/${edificio_id}`),
