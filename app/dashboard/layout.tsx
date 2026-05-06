@@ -312,7 +312,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User info */}
-        <div className="px-4 py-4 border-t border-white/10">
+        <div className="px-4 py-4 border-t border-white/10 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">{initials}</span>
@@ -325,14 +325,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {user ? ROL_LABELS[user.rol] : ""}
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="ml-auto text-blue-300 hover:text-white transition-colors text-lg"
-              title="Cerrar sesión"
-            >
-              ⏻
-            </button>
           </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <span className="text-base">⏻</span>
+            Cerrar sesión
+          </button>
         </div>
       </aside>
 

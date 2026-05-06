@@ -202,16 +202,21 @@ export default function AdminsPage() {
           <h2 className="text-xl font-bold text-gray-900">Personal</h2>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona administradores, porteros y staff de servicios</p>
         </div>
-        <button onClick={() => { setShowForm((v) => !v); setError(""); }}
+        <button
+          onClick={() => {
+            setForm({ ...emptyForm, rol: pageTab === "admins" ? "administrador" : "portero" });
+            setShowForm((v) => !v);
+            setError("");
+          }}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0">
-          + Nuevo personal
+          {pageTab === "admins" ? "+ Nuevo Administrador" : "+ Nuevo Staff de Servicio"}
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
         {([["admins", "👤 Administradores", admins.length], ["staff", "🧹 Staff Servicios", staff.length]] as const).map(([t, label, count]) => (
-          <button key={t} onClick={() => setPageTab(t)}
+          <button key={t} onClick={() => { setPageTab(t); setShowForm(false); setError(""); }}
             className={`px-5 py-3 text-sm font-medium transition-colors flex items-center gap-2 ${
               pageTab === t ? "border-b-2 border-primary text-primary" : "text-gray-500 hover:text-gray-800"
             }`}>
@@ -231,7 +236,9 @@ export default function AdminsPage() {
       {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear personal</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">
+            {pageTab === "admins" ? "Nuevo Administrador" : "Nuevo Staff de Servicio"}
+          </h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo *</label>
@@ -252,9 +259,14 @@ export default function AdminsPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Rol *</label>
               <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value, proveedor_id: "" })}
                 className={INPUT}>
-                <option value="administrador">Administrador</option>
-                <option value="portero">Portero / Seguridad</option>
-                <option value="servicios">Servicios Generales</option>
+                {pageTab === "admins" ? (
+                  <option value="administrador">Administrador</option>
+                ) : (
+                  <>
+                    <option value="portero">Portero / Seguridad</option>
+                    <option value="servicios">Servicios Generales</option>
+                  </>
+                )}
               </select>
             </div>
             <div>
