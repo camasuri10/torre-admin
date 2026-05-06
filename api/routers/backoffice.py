@@ -12,8 +12,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def _require_backoffice(current_user: dict = Depends(get_current_user)):
-    if current_user.get("rol") != "backoffice":
-        raise HTTPException(status_code=403, detail="Solo para usuarios Backoffice")
+    if current_user.get("rol") not in ("backoffice", "superadmin"):
+        raise HTTPException(status_code=403, detail="Solo para usuarios Backoffice o SuperAdmin")
     return current_user
 
 
