@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, vehiculosApi, mascotasApi } from "@/lib/api";
 import { getUser, getEdificiosDisponibles } from "@/lib/auth";
 
-const EMPTY_RESIDENTE = { nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
+const EMPTY_RESIDENTE = { nombre: "", tipo_documento: "CC", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
 const EMPTY_MASCOTA_NUEVA = { tieneMascota: false, nombre: "", especie: "perro", raza: "" };
 const EMPTY_VEHICULO_NUEVO = { tieneVehiculo: false, placa: "", tipo: "carro", marca: "", modelo: "", color: "" };
 const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro" };
@@ -329,9 +329,20 @@ export default function ResidentesPage() {
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
+            <div className="sm:col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Juan Rodríguez" className={INPUT} /></div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo de documento</label>
+              <select value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className={INPUT}>
+                <option value="CC">CC — Cédula de Ciudadanía</option>
+                <option value="CE">CE — Cédula de Extranjería</option>
+                <option value="TI">TI — Tarjeta de Identidad</option>
+                <option value="PA">PA — Pasaporte</option>
+                <option value="PEP">PEP — Permiso Especial de Permanencia</option>
+                <option value="PPT">PPT — Permiso de Protección Temporal</option>
+                <option value="NIT">NIT</option>
+                <option value="RC">RC — Registro Civil</option>
+              </select></div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1">Número de documento</label>
               <input value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} placeholder="79.111.222" className={INPUT} /></div>
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="usuario@email.com" className={INPUT} /></div>

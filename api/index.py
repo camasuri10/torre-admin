@@ -115,6 +115,7 @@ def migrate_v6():
         """),
         ("contratos valor", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS valor NUMERIC(15,2);"),
         ("contratos moneda", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP';"),
+        ("usuarios tipo_documento", "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC';"),
     ]
     results = []
     try:

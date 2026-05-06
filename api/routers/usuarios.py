@@ -11,6 +11,7 @@ router = APIRouter()
 class UsuarioCreate(BaseModel):
     nombre: str
     cedula: Optional[str] = None
+    tipo_documento: Optional[str] = "CC"
     email: Optional[str] = None
     telefono: Optional[str] = None
     rol: str  # administrador | propietario | inquilino | portero | servicios
@@ -21,6 +22,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
     cedula: Optional[str] = None
+    tipo_documento: Optional[str] = None
     email: Optional[str] = None
     telefono: Optional[str] = None
     rol: Optional[str] = None
@@ -165,9 +167,9 @@ def create_usuario(data: UsuarioCreate):
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) "
-                    "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
-                    (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash),
+                    "INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, tipo_documento, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
+                    (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash),
                 )
                 new_user = cur.fetchone()
                 # Auto-asociar al edificio del admin que lo crea
@@ -200,6 +202,8 @@ def update_usuario(usuario_id: int, data: UsuarioUpdate):
         fields.append("nombre = %s"); values.append(data.nombre)
     if data.cedula is not None:
         fields.append("cedula = %s"); values.append(data.cedula)
+    if data.tipo_documento is not None:
+        fields.append("tipo_documento = %s"); values.append(data.tipo_documento)
     if data.email is not None:
         fields.append("email = %s"); values.append(data.email)
     if data.telefono is not None:

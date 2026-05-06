@@ -28,6 +28,7 @@ def _require_backoffice(current_user: dict = Depends(get_current_user)):
 class BoUsuarioCreate(BaseModel):
     nombre: str
     cedula: Optional[str] = None
+    tipo_documento: Optional[str] = "CC"
     email: str
     telefono: Optional[str] = None
     password: str
@@ -37,6 +38,7 @@ class BoUsuarioCreate(BaseModel):
 class BoUsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
     cedula: Optional[str] = None
+    tipo_documento: Optional[str] = None
     email: Optional[str] = None
     telefono: Optional[str] = None
 
@@ -207,10 +209,10 @@ def create_bo_usuario(data: BoUsuarioCreate, _: dict = Depends(_require_backoffi
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash)
-                       VALUES (%s,%s,%s,%s,%s,%s)
-                       RETURNING id, nombre, cedula, email, telefono, rol, activo, created_at""",
-                    (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash),
+                    """INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s)
+                       RETURNING id, nombre, cedula, tipo_documento, email, telefono, rol, activo, created_at""",
+                    (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash),
                 )
                 return dict(cur.fetchone())
     except Exception as e:
@@ -229,6 +231,8 @@ def update_bo_usuario(usuario_id: int, data: BoUsuarioUpdate, _: dict = Depends(
         fields.append("nombre = %s"); values.append(data.nombre)
     if data.cedula is not None:
         fields.append("cedula = %s"); values.append(data.cedula)
+    if data.tipo_documento is not None:
+        fields.append("tipo_documento = %s"); values.append(data.tipo_documento)
     if data.email is not None:
         fields.append("email = %s"); values.append(data.email)
     if data.telefono is not None:

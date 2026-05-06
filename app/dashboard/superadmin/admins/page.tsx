@@ -31,8 +31,19 @@ const ROL_LABELS: Record<string, string> = {
   servicios: "Servicios",
 };
 
+const TIPOS_DOC = [
+  { value: "CC",  label: "CC — Cédula de Ciudadanía" },
+  { value: "CE",  label: "CE — Cédula de Extranjería" },
+  { value: "TI",  label: "TI — Tarjeta de Identidad" },
+  { value: "PA",  label: "PA — Pasaporte" },
+  { value: "PEP", label: "PEP — Permiso Especial de Permanencia" },
+  { value: "PPT", label: "PPT — Permiso de Protección Temporal" },
+  { value: "NIT", label: "NIT" },
+  { value: "RC",  label: "RC — Registro Civil" },
+];
+
 const emptyForm = {
-  nombre: "", email: "", password: "", cedula: "", telefono: "",
+  nombre: "", email: "", password: "", tipo_documento: "CC", cedula: "", telefono: "",
   rol: "administrador",
   eps: "", aseguradora_riesgo: "", proveedor_id: "",
   edificio_ids: [] as number[],
@@ -62,7 +73,7 @@ export default function AdminsPage() {
 
   // Edit modal (personal data + edificios)
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
-  const [editPersonal, setEditPersonal] = useState({ nombre: "", cedula: "", telefono: "", eps: "", aseguradora_riesgo: "" });
+  const [editPersonal, setEditPersonal] = useState({ nombre: "", tipo_documento: "CC", cedula: "", telefono: "", eps: "", aseguradora_riesgo: "" });
   const [editEdificios, setEditEdificios] = useState<number[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
@@ -107,6 +118,7 @@ export default function AdminsPage() {
     setEditingAdmin(admin);
     setEditPersonal({
       nombre: admin.nombre,
+      tipo_documento: (admin as any).tipo_documento ?? "CC",
       cedula: admin.cedula ?? "",
       telefono: admin.telefono ?? "",
       eps: admin.eps ?? "",
@@ -123,6 +135,7 @@ export default function AdminsPage() {
       // Update personal data
       const personalPayload: any = {};
       if (editPersonal.nombre !== editingAdmin.nombre) personalPayload.nombre = editPersonal.nombre;
+      if (editPersonal.tipo_documento !== ((editingAdmin as any).tipo_documento ?? "CC")) personalPayload.tipo_documento = editPersonal.tipo_documento;
       if (editPersonal.cedula !== (editingAdmin.cedula ?? "")) personalPayload.cedula = editPersonal.cedula || undefined;
       if (editPersonal.telefono !== (editingAdmin.telefono ?? "")) personalPayload.telefono = editPersonal.telefono || undefined;
       if (editPersonal.eps !== (editingAdmin.eps ?? "")) personalPayload.eps = editPersonal.eps || undefined;
@@ -270,7 +283,14 @@ export default function AdminsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de documento</label>
+              <select value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })}
+                className={INPUT}>
+                {TIPOS_DOC.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Número de documento</label>
               <input value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })}
                 placeholder="79.123.456" className={INPUT} />
             </div>
@@ -402,7 +422,15 @@ export default function AdminsPage() {
                     onChange={(e) => setEditPersonal({ ...editPersonal, nombre: e.target.value })} className={INPUT} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de documento</label>
+                  <select value={editPersonal.tipo_documento}
+                    onChange={(e) => setEditPersonal({ ...editPersonal, tipo_documento: e.target.value })}
+                    className={INPUT}>
+                    {TIPOS_DOC.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Número de documento</label>
                   <input value={editPersonal.cedula}
                     onChange={(e) => setEditPersonal({ ...editPersonal, cedula: e.target.value })}
                     placeholder="79.123.456" className={INPUT} />

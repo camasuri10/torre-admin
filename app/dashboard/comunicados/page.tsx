@@ -494,26 +494,24 @@ export default function ComunicadosPage() {
                           </table>
                         </div>
                         {/* Gráfico envíos por canal — parte inferior izquierda */}
-                        <div className="flex justify-start">
-                          <div className="w-72">
-                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Envíos por canal</p>
-                            <ResponsiveContainer width="100%" height={100}>
-                              <BarChart
-                                data={["sistema", "email", "whatsapp"].map((canal) => ({
-                                  canal: canal === "sistema" ? "Plataforma" : canal === "email" ? "Email" : "WhatsApp",
-                                  total: auditData.filter((e) => e.canal === canal).length,
-                                  leidos: auditData.filter((e) => e.canal === canal && e.leido).length,
-                                }))}
-                                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-                              >
-                                <XAxis dataKey="canal" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                                <Tooltip wrapperStyle={{ fontSize: 11 }} />
-                                <Bar dataKey="total" name="Enviados" fill="#2e86c1" radius={[3, 3, 0, 0]} />
-                                <Bar dataKey="leidos" name="Leídos" fill="#1e8449" radius={[3, 3, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
+                        <div className="w-full max-w-sm">
+                          <p className="text-xs font-semibold text-gray-500 mb-2">Ampliar información</p>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <BarChart
+                              data={["sistema", "email", "whatsapp"].map((canal) => ({
+                                canal: canal === "sistema" ? "Plataforma" : canal === "email" ? "Email" : "WhatsApp",
+                                total: auditData.filter((e) => e.canal === canal).length,
+                                leidos: auditData.filter((e) => e.canal === canal && e.leido).length,
+                              }))}
+                              margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                            >
+                              <XAxis dataKey="canal" tick={{ fontSize: 11 }} />
+                              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                              <Tooltip wrapperStyle={{ fontSize: 12 }} />
+                              <Bar dataKey="total" name="Enviados" fill="#2e86c1" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="leidos" name="Leídos" fill="#1e8449" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
                         </div>
                       </div>
                     )}
