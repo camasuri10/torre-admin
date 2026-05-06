@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUser } from "@/lib/auth";
-import { superadminApi } from "@/lib/api";
+import { superadminApi, conjuntosApi } from "@/lib/api";
 
 interface Edificio {
   id: number;
@@ -14,26 +14,35 @@ interface Edificio {
   total_torres: number;
   pisos: number;
   modulos_activos: number;
+  conjunto_id: number | null;
+  conjunto_nombre: string | null;
+  admin_nombre: string | null;
+  nit: string | null;
+  telefono: string | null;
 }
+
+const emptyForm = { nombre: "", direccion: "", pisos: 1, conjunto_id: "", nit: "", telefono: "", create_conjunto: false };
 
 export default function EdificiosPage() {
   const router = useRouter();
-  const [edificios, setEdificios] = useState<Edificio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nombre: "", direccion: "", pisos: 1 });
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [edificios, setEdificios]   = useState<Edificio[]>([]);
+  const [conjuntos, setConjuntos]   = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm]             = useState(emptyForm);
+  const [error, setError]           = useState("");
+  const [search, setSearch]         = useState("");
 
   const [editEdificio, setEditEdificio] = useState<Edificio | null>(null);
-  const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1 });
+  const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1, conjunto_id: "", nit: "", telefono: "" });
   const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
+  const [editError, setEditError]   = useState("");
 
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
+    conjuntosApi.list().then((r: any) => setConjuntos(r?.conjuntos ?? [])).catch(() => {});
     loadEdificios();
   }, [router]);
 
@@ -51,9 +60,17 @@ export default function EdificiosPage() {
     setSaving(true);
     setError("");
     try {
-      await superadminApi.edificios.create(form);
+      await superadminApi.edificios.create({
+        nombre: form.nombre,
+        direccion: form.direccion,
+        pisos: form.pisos,
+        conjunto_id: form.conjunto_id ? parseInt(form.conjunto_id) : undefined,
+        nit: form.nit || undefined,
+        telefono: form.telefono || undefined,
+        create_conjunto: form.create_conjunto,
+      });
       setShowForm(false);
-      setForm({ nombre: "", direccion: "", pisos: 1 });
+      setForm(emptyForm);
       loadEdificios();
     } catch { setError("Error al crear el edificio"); }
     finally { setSaving(false); }
@@ -61,7 +78,14 @@ export default function EdificiosPage() {
 
   function openEdit(ed: Edificio) {
     setEditEdificio(ed);
-    setEditForm({ nombre: ed.nombre, direccion: ed.direccion, pisos: ed.pisos });
+    setEditForm({
+      nombre: ed.nombre,
+      direccion: ed.direccion,
+      pisos: ed.pisos,
+      conjunto_id: ed.conjunto_id ? String(ed.conjunto_id) : "",
+      nit: ed.nit ?? "",
+      telefono: ed.telefono ?? "",
+    });
     setEditError("");
   }
 
@@ -71,7 +95,14 @@ export default function EdificiosPage() {
     setEditSaving(true);
     setEditError("");
     try {
-      await superadminApi.edificios.update(editEdificio.id, editForm);
+      await superadminApi.edificios.update(editEdificio.id, {
+        nombre: editForm.nombre,
+        direccion: editForm.direccion,
+        pisos: editForm.pisos,
+        conjunto_id: editForm.conjunto_id ? parseInt(editForm.conjunto_id) : null,
+        nit: editForm.nit || undefined,
+        telefono: editForm.telefono || undefined,
+      });
       setEditEdificio(null);
       loadEdificios();
     } catch { setEditError("Error al guardar los cambios"); }
@@ -83,6 +114,8 @@ export default function EdificiosPage() {
     ? edificios.filter((e) => e.nombre.toLowerCase().includes(q) || e.direccion.toLowerCase().includes(q))
     : edificios;
 
+  const INPUT = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -91,7 +124,7 @@ export default function EdificiosPage() {
           <p className="text-sm text-gray-500 mt-0.5">Gestiona los edificios de la plataforma</p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => { setShowForm((v) => !v); setError(""); }}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
           + Nuevo edificio
@@ -115,28 +148,55 @@ export default function EdificiosPage() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear nuevo edificio</h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
-              <input
-                value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                required placeholder="Torres del Norte"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+              <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                placeholder="Torres del Norte" className={INPUT} />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
-              <input
-                value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-                required placeholder="Cra 15 #85-32, Bogotá"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
+              <input required value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                placeholder="Cra 15 #85-32, Bogotá" className={INPUT} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-              <input
-                type="number" min={1} value={form.pisos}
-                onChange={(e) => setForm({ ...form, pisos: parseInt(e.target.value) || 1 })}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <input type="number" min={1} value={form.pisos}
+                onChange={(e) => setForm({ ...form, pisos: parseInt(e.target.value) || 1 })} className={INPUT} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
+              <input value={form.nit} onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                placeholder="900.000.000-0" className={INPUT} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+              <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                placeholder="601 000 0000" className={INPUT} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto al que pertenece</label>
+              <select
+                value={form.conjunto_id}
+                onChange={(e) => setForm({ ...form, conjunto_id: e.target.value, create_conjunto: false })}
+                disabled={form.create_conjunto}
+                className={`${INPUT} disabled:bg-gray-50 disabled:text-gray-400`}
+              >
+                <option value="">— Sin conjunto</option>
+                {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.create_conjunto}
+                  onChange={(e) => setForm({ ...form, create_conjunto: e.target.checked, conjunto_id: "" })}
+                  className="accent-primary"
+                />
+                <span className="text-sm text-gray-700">Este edificio es su propio conjunto (crear conjunto automáticamente)</span>
+              </label>
+              {form.create_conjunto && (
+                <p className="text-xs text-blue-600 mt-1 ml-5">Se creará un conjunto con el mismo nombre y datos del edificio.</p>
+              )}
             </div>
             {error && <p className="sm:col-span-2 text-red-600 text-xs">{error}</p>}
             <div className="sm:col-span-2 flex gap-3">
@@ -144,7 +204,7 @@ export default function EdificiosPage() {
                 className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
                 {saving ? "Guardando…" : "Crear edificio"}
               </button>
-              <button type="button" onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => { setShowForm(false); setError(""); }}
                 className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
                 Cancelar
               </button>
@@ -175,6 +235,21 @@ export default function EdificiosPage() {
               </div>
               <h3 className="font-semibold text-gray-900 text-sm">{e.nombre}</h3>
               <p className="text-xs text-gray-400 mt-0.5">{e.direccion}</p>
+              {/* Conjunto y admin */}
+              <div className="mt-2 space-y-0.5">
+                {e.conjunto_nombre && (
+                  <p className="text-xs text-sky-600 font-medium">🏘️ {e.conjunto_nombre}</p>
+                )}
+                {e.admin_nombre && (
+                  <p className="text-xs text-green-600">👤 {e.admin_nombre}</p>
+                )}
+                {e.nit && (
+                  <p className="text-xs text-gray-400">NIT: {e.nit}</p>
+                )}
+                {e.telefono && (
+                  <p className="text-xs text-gray-400">📞 {e.telefono}</p>
+                )}
+              </div>
               <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
                 {e.total_torres > 0 && <span>🏗️ {e.total_torres} torre{e.total_torres !== 1 ? "s" : ""}</span>}
                 <span>🏠 {e.total_unidades ?? 0} unidades</span>
@@ -201,35 +276,48 @@ export default function EdificiosPage() {
       {/* Edit building modal */}
       {editEdificio && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Editar edificio</h3>
               <button onClick={() => setEditEdificio(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
-            <form onSubmit={handleEditSave} className="space-y-4">
+            <form onSubmit={handleEditSave} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
-                <input
-                  required value={editForm.nombre}
-                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                <input required value={editForm.nombre}
+                  onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={INPUT} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Dirección</label>
-                <input
-                  required value={editForm.direccion}
-                  onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
+                <input required value={editForm.direccion}
+                  onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })} className={INPUT} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
+                  <input type="number" min={1} value={editForm.pisos}
+                    onChange={(e) => setEditForm({ ...editForm, pisos: parseInt(e.target.value) || 1 })} className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
+                  <input value={editForm.nit}
+                    onChange={(e) => setEditForm({ ...editForm, nit: e.target.value })}
+                    placeholder="900.000.000-0" className={INPUT} />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-                <input
-                  type="number" min={1} value={editForm.pisos}
-                  onChange={(e) => setEditForm({ ...editForm, pisos: parseInt(e.target.value) || 1 })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                <input value={editForm.telefono}
+                  onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                  placeholder="601 000 0000" className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
+                <select value={editForm.conjunto_id}
+                  onChange={(e) => setEditForm({ ...editForm, conjunto_id: e.target.value })} className={INPUT}>
+                  <option value="">— Sin conjunto</option>
+                  {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
               </div>
               {editError && <p className="text-red-600 text-xs">{editError}</p>}
               <div className="flex gap-3 pt-2">

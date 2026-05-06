@@ -262,7 +262,13 @@ export default function EdificioGestionPage() {
       {/* ── Módulos tab ──────────────────────────────────────────────────────── */}
       {tab === "modulos" && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Módulos disponibles</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Módulos disponibles</h3>
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+            <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+            <p className="text-xs text-amber-700">
+              <strong>Nota:</strong> Activar módulos adicionales puede incrementar el costo del plan. Consulta con el equipo de ventas si tienes dudas sobre el precio de cada módulo.
+            </p>
+          </div>
           <div className="space-y-3">
             {modulos.map((m) => (
               <label key={m.clave}

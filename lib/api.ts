@@ -51,6 +51,11 @@ export const superadminApi = {
     const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
     return request<any>(`/api/superadmin/stats${q}`);
   },
+  cuotasDetalle: (estado: "pendiente" | "vencido", conjunto_id?: number) => {
+    const params = new URLSearchParams({ estado });
+    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
+    return request<any>(`/api/superadmin/stats/cuotas-detalle?${params}`);
+  },
   analytics: (edificio_id?: number) => {
     const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);
@@ -69,12 +74,14 @@ export const superadminApi = {
   admins: {
     list: () => request<any>("/api/superadmin/admins"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
       request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },
   staff: {
     list: () => request<any>("/api/superadmin/staff"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
       request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },

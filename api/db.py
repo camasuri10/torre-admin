@@ -66,8 +66,12 @@ CREATE TABLE IF NOT EXISTS edificios (
     direccion       TEXT NOT NULL,
     pisos           INTEGER NOT NULL DEFAULT 1,
     conjunto_id     INTEGER REFERENCES conjuntos(id),
+    nit             TEXT,
+    telefono        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE edificios ADD COLUMN IF NOT EXISTS nit TEXT;
+ALTER TABLE edificios ADD COLUMN IF NOT EXISTS telefono TEXT;
 
 -- Torres (bloques físicos dentro de un edificio; todo edificio tiene al menos 1)
 CREATE TABLE IF NOT EXISTS torres (

@@ -14,6 +14,7 @@ const EMPTY_CONTRATO = {
   fecha_inicio: "",
   fecha_fin: "",
   condiciones: "",
+  archivo_url: "",
   edificio_id: "",
   conjunto_id: "",
 };
@@ -182,6 +183,7 @@ export default function ProveedoresPage() {
         fecha_inicio: contratoForm.fecha_inicio || undefined,
         fecha_fin: contratoForm.fecha_fin || undefined,
         condiciones: contratoForm.condiciones || undefined,
+        archivo_url: contratoForm.archivo_url || undefined,
         edificio_id: contratoForm.edificio_id ? parseInt(contratoForm.edificio_id) : undefined,
         conjunto_id: contratoForm.conjunto_id ? parseInt(contratoForm.conjunto_id) : undefined,
       });
@@ -372,6 +374,12 @@ export default function ProveedoresPage() {
                                 {c.fecha_inicio ?? "?"} → {c.fecha_fin ?? "sin vencimiento"}
                               </div>
                             )}
+                            {c.archivo_url && (
+                              <a href={c.archivo_url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-primary hover:underline font-medium">
+                                📎 Ver documento
+                              </a>
+                            )}
                           </div>
                           {canManage && (
                             <button onClick={() => handleDeleteContrato(p.id, c.id)}
@@ -453,6 +461,13 @@ export default function ProveedoresPage() {
                           <textarea value={contratoForm.condiciones} onChange={(e) => setContratoForm({ ...contratoForm, condiciones: e.target.value })}
                             rows={2} placeholder="Condiciones del contrato…" className={INPUT} />
                         </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">URL del documento / contrato</label>
+                          <input type="url" value={contratoForm.archivo_url}
+                            onChange={(e) => setContratoForm({ ...contratoForm, archivo_url: e.target.value })}
+                            placeholder="https://drive.google.com/… o enlace al contrato" className={INPUT} />
+                          <p className="text-xs text-gray-400 mt-0.5">Pega el enlace al contrato en Google Drive, Dropbox u otro servicio.</p>
+                        </div>
                       </div>
                       {contratoError && <p className="text-red-600 text-xs">{contratoError}</p>}
                       <div className="flex gap-2">
@@ -493,9 +508,9 @@ export default function ProveedoresPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Contacto</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de contacto</label>
                   <input value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })}
-                    placeholder="Nombre del contacto" className={INPUT} />
+                    placeholder="Ej: Carlos Martínez" className={INPUT} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>

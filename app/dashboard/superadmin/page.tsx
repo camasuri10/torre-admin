@@ -18,6 +18,11 @@ export default function SuperAdminPage() {
   const [conjuntoId, setConjuntoId] = useState<number | undefined>(undefined);
   const [loading, setLoading]     = useState(true);
 
+  // Cuotas detail modal
+  const [detailEstado, setDetailEstado] = useState<"pendiente" | "vencido" | null>(null);
+  const [detailCuotas, setDetailCuotas] = useState<any[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
@@ -32,6 +37,17 @@ export default function SuperAdminPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [conjuntoId]);
+
+  async function openDetalle(estado: "pendiente" | "vencido") {
+    setDetailEstado(estado);
+    setDetailLoading(true);
+    setDetailCuotas([]);
+    try {
+      const data = await superadminApi.cuotasDetalle(estado, conjuntoId);
+      setDetailCuotas(data?.cuotas ?? []);
+    } catch { /* ignore */ }
+    finally { setDetailLoading(false); }
+  }
 
   const statCards = [
     { label: "Conjuntos",        value: stats?.total_conjuntos ?? 0, icon: "🏘️", href: "/dashboard/superadmin/conjuntos", color: "bg-sky-50 border-sky-100" },
@@ -50,6 +66,8 @@ export default function SuperAdminPage() {
       icon: "⏳",
       color: "bg-yellow-50 border-yellow-200 text-yellow-700",
       valueColor: "text-yellow-800",
+      clickable: true,
+      estado: "pendiente" as const,
     },
     {
       label: "Cuotas vencidas",
@@ -58,6 +76,18 @@ export default function SuperAdminPage() {
       icon: "🚨",
       color: "bg-red-50 border-red-200 text-red-700",
       valueColor: "text-red-700",
+      clickable: true,
+      estado: "vencido" as const,
+    },
+    {
+      label: "Recaudo del mes",
+      value: stats?.recaudo_mes != null ? fmt(stats.recaudo_mes) : "—",
+      sub: null,
+      icon: "💰",
+      color: "bg-green-50 border-green-200 text-green-700",
+      valueColor: "text-green-700",
+      clickable: false,
+      estado: null,
     },
     {
       label: "Mantenimientos activos",
@@ -66,6 +96,8 @@ export default function SuperAdminPage() {
       icon: "🔧",
       color: "bg-orange-50 border-orange-200 text-orange-700",
       valueColor: "text-orange-700",
+      clickable: false,
+      estado: null,
     },
     {
       label: "Reservas hoy",
@@ -74,14 +106,18 @@ export default function SuperAdminPage() {
       icon: "📅",
       color: "bg-blue-50 border-blue-200 text-blue-700",
       valueColor: "text-blue-700",
+      clickable: false,
+      estado: null,
     },
     {
       label: "Ocupación",
       value: `${stats?.ocupacion_pct != null ? Number(stats.ocupacion_pct).toFixed(1) : "—"}%`,
       sub: null,
       icon: "🏠",
-      color: "bg-green-50 border-green-200 text-green-700",
-      valueColor: "text-green-700",
+      color: "bg-purple-50 border-purple-200 text-purple-700",
+      valueColor: "text-purple-700",
+      clickable: false,
+      estado: null,
     },
   ];
 
@@ -117,19 +153,31 @@ export default function SuperAdminPage() {
       {/* KPIs operacionales */}
       <div>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Indicadores operacionales</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          {kpis.map((k) => (
-            <div key={k.label} className={`border rounded-2xl p-4 ${k.color}`}>
-              <div className="text-xl mb-1">{k.icon}</div>
-              <div className={`text-2xl font-bold ${k.valueColor}`}>
-                {loading ? "—" : k.value}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          {kpis.map((k) => {
+            const inner = (
+              <div className={`border rounded-2xl p-4 h-full ${k.color} ${k.clickable && !loading ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}>
+                <div className="text-xl mb-1">{k.icon}</div>
+                <div className={`text-2xl font-bold ${k.valueColor}`}>
+                  {loading ? "—" : k.value}
+                </div>
+                <div className="text-xs font-medium mt-0.5 opacity-80">{k.label}</div>
+                {k.sub && !loading && (
+                  <div className="text-xs opacity-70 mt-1 font-mono">{k.sub}</div>
+                )}
+                {k.clickable && !loading && (
+                  <div className="text-xs mt-1 opacity-60 underline">Ver detalle →</div>
+                )}
               </div>
-              <div className="text-xs font-medium mt-0.5 opacity-80">{k.label}</div>
-              {k.sub && !loading && (
-                <div className="text-xs opacity-70 mt-1 font-mono">{k.sub}</div>
-              )}
-            </div>
-          ))}
+            );
+            return k.clickable && !loading ? (
+              <button key={k.label} className="text-left h-full" onClick={() => openDetalle(k.estado!)}>
+                {inner}
+              </button>
+            ) : (
+              <div key={k.label}>{inner}</div>
+            );
+          })}
         </div>
       </div>
 
@@ -201,6 +249,61 @@ export default function SuperAdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Cuotas detail modal */}
+      {detailEstado && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  {detailEstado === "pendiente" ? "⏳ Cuotas pendientes" : "🚨 Cuotas vencidas"}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Detalle de quien debe y el mes correspondiente</p>
+              </div>
+              <button onClick={() => setDetailEstado(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="overflow-auto flex-1 p-5">
+              {detailLoading ? (
+                <p className="text-center text-gray-400 py-8">Cargando…</p>
+              ) : detailCuotas.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No hay cuotas {detailEstado === "pendiente" ? "pendientes" : "vencidas"} en este momento.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-left">
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Residente</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Unidad</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Edificio</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Mes</th>
+                      <th className="pb-2 font-semibold text-gray-500 text-xs uppercase tracking-wide text-right">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {detailCuotas.map((c: any) => (
+                      <tr key={c.id} className="hover:bg-gray-50">
+                        <td className="py-2.5 pr-4 text-gray-800 font-medium">{c.residente_nombre}</td>
+                        <td className="py-2.5 pr-4 text-gray-600">
+                          {c.torre_nombre ? `${c.torre_nombre} - ` : ""}{c.unidad_numero}
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-500 hidden sm:table-cell">{c.edificio_nombre}</td>
+                        <td className="py-2.5 pr-4 text-gray-600">{c.mes}</td>
+                        <td className="py-2.5 text-right font-mono font-semibold text-red-600">{fmt(c.monto)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setDetailEstado(null)}
+                className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

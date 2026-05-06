@@ -25,6 +25,9 @@ class EdificioCreate(BaseModel):
     direccion: str
     pisos: int = 1
     conjunto_id: Optional[int] = None
+    nit: Optional[str] = None
+    telefono: Optional[str] = None
+    create_conjunto: bool = False  # auto-create a conjunto with the same name
 
 
 class EdificioUpdate(BaseModel):
@@ -32,6 +35,8 @@ class EdificioUpdate(BaseModel):
     direccion: Optional[str] = None
     pisos: Optional[int] = None
     conjunto_id: Optional[int] = None
+    nit: Optional[str] = None
+    telefono: Optional[str] = None
 
 
 class ModuloToggle(BaseModel):
@@ -60,6 +65,14 @@ class AdminCreate(BaseModel):
 class AdminEdificiosUpdate(BaseModel):
     edificio_ids: list[int] = []
     conjunto_ids: list[int] = []
+
+
+class AdminUpdate(BaseModel):
+    nombre: Optional[str] = None
+    cedula: Optional[str] = None
+    telefono: Optional[str] = None
+    eps: Optional[str] = None
+    aseguradora_riesgo: Optional[str] = None
 
 
 # ── Stats con KPIs operacionales ──────────────────────────────────────────────
@@ -162,6 +175,18 @@ def get_stats(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)
             unidades_ocupadas = cur.fetchone()["total"]
             ocupacion_pct = round((unidades_ocupadas / total_unidades) * 100, 1)
 
+            # Recaudo del mes (cuotas pagadas en el mes actual)
+            cur.execute("""
+                SELECT COALESCE(SUM(c.monto), 0) AS monto
+                FROM cuotas c
+                JOIN unidades uni ON uni.id = c.unidad_id
+                JOIN torres t ON t.id = uni.torre_id
+                WHERE c.estado = 'pagado'
+                AND DATE_TRUNC('month', COALESCE(c.fecha_pago, c.created_at)) = DATE_TRUNC('month', CURRENT_DATE)
+                AND t.edificio_id = ANY(%s)
+            """, (list(eid_list),))
+            recaudo_mes = float(cur.fetchone()["monto"])
+
     return {
         "total_edificios": total_edificios,
         "total_conjuntos": total_conjuntos,
@@ -177,6 +202,7 @@ def get_stats(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)
         "mantenimientos_activos": mantenimientos_activos,
         "reservas_hoy": reservas_hoy,
         "ocupacion_pct": ocupacion_pct,
+        "recaudo_mes": recaudo_mes,
     }
 
 
@@ -188,11 +214,18 @@ def list_edificios(conjunto_id: Optional[int] = None, sa=Depends(_require_supera
         with conn.cursor() as cur:
             query = """
                 SELECT e.id, e.nombre, e.direccion, e.pisos,
+                       e.nit, e.telefono,
                        e.conjunto_id, e.created_at,
                        c.nombre AS conjunto_nombre,
                        COUNT(DISTINCT t.id) AS total_torres,
                        COUNT(DISTINCT u.id) AS total_unidades,
-                       COUNT(CASE WHEN em.activo = TRUE THEN 1 END) AS modulos_activos
+                       COUNT(CASE WHEN em.activo = TRUE THEN 1 END) AS modulos_activos,
+                       (
+                           SELECT usr.nombre FROM usuarios usr
+                           JOIN usuario_edificios ue2 ON ue2.usuario_id = usr.id
+                           WHERE ue2.edificio_id = e.id AND ue2.activo = TRUE AND usr.rol = 'administrador'
+                           LIMIT 1
+                       ) AS admin_nombre
                 FROM edificios e
                 LEFT JOIN conjuntos c ON c.id = e.conjunto_id
                 LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
@@ -213,9 +246,19 @@ def list_edificios(conjunto_id: Optional[int] = None, sa=Depends(_require_supera
 def create_edificio(body: EdificioCreate, sa=Depends(_require_superadmin)):
     with get_db() as conn:
         with conn.cursor() as cur:
+            conjunto_id = body.conjunto_id
+
+            # Auto-create a conjunto with the same name if requested
+            if body.create_conjunto and not conjunto_id:
+                cur.execute(
+                    "INSERT INTO conjuntos (nombre, nit, telefono, direccion) VALUES (%s,%s,%s,%s) RETURNING id",
+                    (body.nombre, body.nit, body.telefono, body.direccion),
+                )
+                conjunto_id = cur.fetchone()["id"]
+
             cur.execute(
-                "INSERT INTO edificios (nombre, direccion, pisos, conjunto_id) VALUES (%s,%s,%s,%s) RETURNING id",
-                (body.nombre, body.direccion, body.pisos, body.conjunto_id),
+                "INSERT INTO edificios (nombre, direccion, pisos, conjunto_id, nit, telefono) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                (body.nombre, body.direccion, body.pisos, conjunto_id, body.nit, body.telefono),
             )
             edificio_id = cur.fetchone()["id"]
 
@@ -384,6 +427,24 @@ def create_admin(body: AdminCreate, sa=Depends(_require_superadmin)):
     return {"id": user_id, "message": f"{body.rol.capitalize()} creado"}
 
 
+@router.put("/admins/{admin_id}")
+def update_admin(admin_id: int, body: AdminUpdate, sa=Depends(_require_superadmin)):
+    fields, values = [], []
+    for field, val in body.model_dump(exclude_none=True).items():
+        fields.append(f"{field} = %s")
+        values.append(val)
+    if not fields:
+        raise HTTPException(status_code=400, detail="Sin campos a actualizar")
+    values.append(admin_id)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE usuarios SET {', '.join(fields)} WHERE id = %s AND rol IN ('administrador','portero','servicios')",
+                values,
+            )
+    return {"message": "Datos del usuario actualizados"}
+
+
 @router.put("/admins/{admin_id}/edificios")
 def update_admin_edificios(admin_id: int, body: AdminEdificiosUpdate, sa=Depends(_require_superadmin)):
     with get_db() as conn:
@@ -414,6 +475,44 @@ def update_admin_edificios(admin_id: int, body: AdminEdificiosUpdate, sa=Depends
                 """, (admin_id, cid))
 
     return {"message": "Asignaciones del usuario actualizadas"}
+
+
+# ── Cuotas detalle (for SA panel drill-down) ─────────────────────────────────
+
+@router.get("/stats/cuotas-detalle")
+def get_cuotas_detalle(
+    estado: str = "pendiente",
+    conjunto_id: Optional[int] = None,
+    sa=Depends(_require_superadmin),
+):
+    """Lista cuotas por estado con residente, unidad y edificio para drill-down en el SA panel."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            params: list = [estado]
+            where_eid = ""
+            if conjunto_id:
+                cur.execute("SELECT id FROM edificios WHERE conjunto_id = %s", (conjunto_id,))
+                eid_list = [r["id"] for r in cur.fetchall()]
+                if eid_list:
+                    where_eid = "AND t.edificio_id = ANY(%s)"
+                    params.append(eid_list)
+
+            cur.execute(f"""
+                SELECT c.id, c.mes, c.monto, c.estado, c.fecha_vencimiento,
+                       uni.numero AS unidad_numero, t.nombre AS torre_nombre,
+                       e.nombre AS edificio_nombre,
+                       COALESCE(usr.nombre, 'Sin residente') AS residente_nombre
+                FROM cuotas c
+                JOIN unidades uni ON uni.id = c.unidad_id
+                JOIN torres t ON t.id = uni.torre_id
+                JOIN edificios e ON e.id = t.edificio_id
+                LEFT JOIN ocupaciones ocp ON ocp.unidad_id = uni.id AND ocp.activo = TRUE
+                LEFT JOIN usuarios usr ON usr.id = ocp.usuario_id
+                WHERE c.estado = %s {where_eid}
+                ORDER BY e.nombre, t.nombre, uni.numero
+                LIMIT 300
+            """, params)
+            return {"cuotas": [dict(r) for r in cur.fetchall()]}
 
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
