@@ -28,6 +28,13 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Backoffice",
+    items: [
+      { href: "/dashboard/backoffice",          label: "Dashboard Global",   icon: "🌐", exact: true,  roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/usuarios", label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
+    ],
+  },
+  {
     label: "Super Admin",
     items: [
       { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
@@ -65,7 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Mi Cuenta",
     items: [
-      { href: "/dashboard/perfil", label: "Mi Perfil", icon: "👤", exact: false, roles: ["superadmin","administrador","propietario","inquilino","portero","servicios"] },
+      { href: "/dashboard/perfil", label: "Mi Perfil", icon: "👤", exact: false, roles: ["superadmin","administrador","propietario","inquilino","portero","servicios","backoffice"] },
     ],
   },
 ];
@@ -79,6 +86,7 @@ const ROL_LABELS: Record<string, string> = {
   inquilino:     "Inquilino",
   portero:       "Portero / Seguridad",
   servicios:     "Servicios Generales",
+  backoffice:    "Backoffice",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -98,8 +106,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!u) { router.push("/login"); return; }
     setUser(u);
 
-    // Load active modules for this building (skip for superadmin — they see all)
-    if (u.rol !== "superadmin" && u.edificio_id) {
+    // Load active modules for this building (skip for superadmin/backoffice — they see all)
+    if (u.rol !== "superadmin" && u.rol !== "backoffice" && u.edificio_id) {
       api.edificios.getModulos(u.edificio_id)
         .then((data) => {
           const claves = data.modulos
@@ -154,11 +162,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const edificioNombre = user?.edificio_id
     ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
-    : user?.rol === "superadmin" ? "Todos los edificios" : "—";
+    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los edificios" : "—";
 
   const isSuperAdmin = user?.rol === "superadmin";
-  // SA always can switch (they need the "Todos" option); others need >1 building
-  const canSwitch = isSuperAdmin || edificios.length > 1;
+  const isBackoffice = user?.rol === "backoffice";
+  // SA and Backoffice always can switch (they need the "Todos" option); others need >1 building
+  const canSwitch = isSuperAdmin || isBackoffice || edificios.length > 1;
 
   function handleNavClick() {
     setSidebarOpen(false);
@@ -183,7 +192,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const data = await authApi.seleccionarTodos();
       setToken(data.access_token);
-      window.location.href = "/dashboard/superadmin";
+      window.location.href = user?.rol === "backoffice" ? "/dashboard/backoffice" : "/dashboard/superadmin";
     } catch {
       setSwitching(false);
     }
@@ -245,7 +254,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {showSwitcher && (
             <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
-              {isSuperAdmin && (
+              {(isSuperAdmin || isBackoffice) && (
                 <button
                   onClick={handleSwitchToTodos}
                   className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors border-b border-gray-100 ${

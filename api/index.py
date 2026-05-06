@@ -17,7 +17,7 @@ from routers import (
     auth, edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
-    conjuntos, vehiculos, mascotas, proveedores,
+    conjuntos, vehiculos, mascotas, proveedores, backoffice,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -77,6 +77,7 @@ app.include_router(conjuntos.router,      prefix="/api/conjuntos",       tags=["
 app.include_router(vehiculos.router,      prefix="/api/vehiculos",       tags=["Vehículos"])
 app.include_router(mascotas.router,       prefix="/api/mascotas",        tags=["Mascotas"])
 app.include_router(proveedores.router,    prefix="/api/proveedores",     tags=["Proveedores"])
+app.include_router(backoffice.router,     prefix="/api/backoffice",      tags=["Backoffice"])
 
 
 @app.get("/api/health")
@@ -93,5 +94,41 @@ def setup():
         seed_db()
         _db_ready = True
         return {"status": "ok", "message": "DB initialized and seeded"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/migrate-v6")
+def migrate_v6():
+    """Apply v6 migrations: backoffice role, unit types, contract valor/moneda columns."""
+    from db import get_db
+    migrations = [
+        ("usuarios rol check", """
+            ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+            ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
+              CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero','servicios','backoffice'));
+        """),
+        ("unidades tipo check", """
+            ALTER TABLE unidades DROP CONSTRAINT IF EXISTS unidades_tipo_check;
+            ALTER TABLE unidades ADD CONSTRAINT unidades_tipo_check
+              CHECK (tipo IN ('apartamento','local','oficina','casa','otro','cuarto_util','parqueadero'));
+        """),
+        ("contratos valor", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS valor NUMERIC(15,2);"),
+        ("contratos moneda", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP';"),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        for stmt in sql.strip().split(";"):
+                            stmt = stmt.strip()
+                            if stmt:
+                                cur.execute(stmt)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
     except Exception as e:
         return {"status": "error", "message": str(e)}

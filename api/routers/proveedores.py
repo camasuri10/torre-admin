@@ -40,6 +40,8 @@ class ContratoCreate(BaseModel):
     fecha_fin: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
+    valor: Optional[float] = None
+    moneda: Optional[str] = "COP"
 
 
 class ContratoUpdate(BaseModel):
@@ -51,6 +53,8 @@ class ContratoUpdate(BaseModel):
     fecha_fin: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
+    valor: Optional[float] = None
+    moneda: Optional[str] = None
     activo: Optional[bool] = None
 
 
@@ -298,11 +302,11 @@ def create_contrato(
             cur.execute(
                 """INSERT INTO contratos_servicio
                    (proveedor_id, conjunto_id, edificio_id, tipo_servicio, descripcion,
-                    fecha_inicio, fecha_fin, condiciones, archivo_url)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                    fecha_inicio, fecha_fin, condiciones, archivo_url, valor, moneda)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (proveedor_id, data.conjunto_id, data.edificio_id, data.tipo_servicio,
                  data.descripcion, data.fecha_inicio, data.fecha_fin,
-                 data.condiciones, data.archivo_url),
+                 data.condiciones, data.archivo_url, data.valor, data.moneda),
             )
             return dict(cur.fetchone())
 

@@ -6,6 +6,7 @@ import { getUser, getEdificiosDisponibles } from "@/lib/auth";
 
 const EMPTY_RESIDENTE = { nombre: "", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
 const EMPTY_MASCOTA_NUEVA = { tieneMascota: false, nombre: "", especie: "perro", raza: "" };
+const EMPTY_VEHICULO_NUEVO = { tieneVehiculo: false, placa: "", tipo: "carro", marca: "", modelo: "", color: "" };
 const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro" };
 const EMPTY_MASCOTA = { nombre: "", especie: "perro", raza: "", color: "" };
 
@@ -21,9 +22,13 @@ export default function ResidentesPage() {
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [saving, setSaving]         = useState(false);
+  const [createError, setCreateError] = useState("");
   const [search, setSearch]         = useState("");
+  const [filterTipo, setFilterTipo] = useState<"" | "propietario" | "inquilino">("");
+  const [filterEstado, setFilterEstado] = useState<"activos" | "inactivos">("activos");
   const [form, setForm]             = useState(EMPTY_RESIDENTE);
   const [mascotaNueva, setMascotaNueva] = useState(EMPTY_MASCOTA_NUEVA);
+  const [vehiculoNuevo, setVehiculoNuevo] = useState(EMPTY_VEHICULO_NUEVO);
 
   // Detalle panel
   const [selected, setSelected]       = useState<any | null>(null);
@@ -61,13 +66,15 @@ export default function ResidentesPage() {
 
   const load = useCallback(async () => {
     try {
-      const data = await api.usuarios.list({ edificio_id: edificioId });
+      const params: any = { edificio_id: edificioId };
+      if (filterEstado === "inactivos") params.solo_inactivos = true;
+      const data = await api.usuarios.list(params);
       setResidentes(Array.isArray(data) ? data : []);
     } catch {
     } finally {
       setLoading(false);
     }
-  }, [edificioId]);
+  }, [edificioId, filterEstado]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -99,6 +106,7 @@ export default function ResidentesPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setCreateError("");
     try {
       const { unidad_id, tipo_ocupacion, ...userData } = form;
       // edificio_id se pasa siempre → backend inserta en usuario_edificios automáticamente
@@ -120,11 +128,25 @@ export default function ResidentesPage() {
           raza: mascotaNueva.raza || null,
         });
       }
+      if (vehiculoNuevo.tieneVehiculo && vehiculoNuevo.placa) {
+        await vehiculosApi.create({
+          usuario_id: newUser.id,
+          placa: vehiculoNuevo.placa.toUpperCase(),
+          tipo: vehiculoNuevo.tipo,
+          marca: vehiculoNuevo.marca || null,
+          modelo: vehiculoNuevo.modelo || null,
+          color: vehiculoNuevo.color || null,
+        });
+      }
       setForm(EMPTY_RESIDENTE);
       setMascotaNueva(EMPTY_MASCOTA_NUEVA);
+      setVehiculoNuevo(EMPTY_VEHICULO_NUEVO);
       setShowForm(false);
       await load();
-    } catch {
+    } catch (err: any) {
+      const msg = err.message ?? "";
+      const detail = msg.match(/"detail":"([^"]+)"/)?.[1] ?? msg;
+      setCreateError(detail || "Error al crear el residente. Intente de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -260,14 +282,16 @@ export default function ResidentesPage() {
   const propietarios = residentes.filter((r) => r.tipo_ocupacion === "propietario" || r.rol === "propietario").length;
   const inquilinos   = residentes.filter((r) => r.tipo_ocupacion === "inquilino"   || r.rol === "inquilino").length;
   const q = search.trim().toLowerCase();
-  const filtered = q
-    ? residentes.filter((r) =>
-        r.nombre.toLowerCase().includes(q) ||
-        (r.cedula ?? "").toLowerCase().includes(q) ||
-        (r.unidad_numero ?? "").toLowerCase().includes(q) ||
-        (r.email ?? "").toLowerCase().includes(q)
-      )
-    : residentes;
+  const filtered = residentes.filter((r) => {
+    if (filterTipo && (r.tipo_ocupacion ?? r.rol) !== filterTipo) return false;
+    if (q && !(
+      r.nombre.toLowerCase().includes(q) ||
+      (r.cedula ?? "").toLowerCase().includes(q) ||
+      (r.unidad_numero ?? "").toLowerCase().includes(q) ||
+      (r.email ?? "").toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
 
   const initials = (n: string) => n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
@@ -298,6 +322,12 @@ export default function ResidentesPage() {
               🏢 {edificioNombre}
             </span>
           </div>
+          {createError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm flex items-start gap-2">
+              <span className="flex-shrink-0 mt-0.5">⚠️</span>
+              <span>{createError}</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Juan Rodríguez" className={INPUT} /></div>
@@ -383,9 +413,75 @@ export default function ResidentesPage() {
               </div>
             )}
           </div>
+          {/* Vehículo */}
+          <div className="border border-gray-100 rounded-lg p-3 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={vehiculoNuevo.tieneVehiculo}
+                onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, tieneVehiculo: e.target.checked })}
+                className="rounded border-gray-300 text-primary"
+              />
+              <span className="text-sm font-medium text-gray-700">🚗 ¿Tiene vehículo?</span>
+            </label>
+            {vehiculoNuevo.tieneVehiculo && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Placa *</label>
+                  <input
+                    required={vehiculoNuevo.tieneVehiculo}
+                    value={vehiculoNuevo.placa}
+                    onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, placa: e.target.value.toUpperCase() })}
+                    placeholder="ABC123"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                  <select
+                    value={vehiculoNuevo.tipo}
+                    onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, tipo: e.target.value })}
+                    className={INPUT}
+                  >
+                    <option value="carro">🚗 Carro</option>
+                    <option value="moto">🏍️ Moto</option>
+                    <option value="bicicleta">🚲 Bicicleta</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Marca</label>
+                  <input
+                    value={vehiculoNuevo.marca}
+                    onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, marca: e.target.value })}
+                    placeholder="Toyota"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Modelo</label>
+                  <input
+                    value={vehiculoNuevo.modelo}
+                    onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, modelo: e.target.value })}
+                    placeholder="Corolla 2022"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
+                  <input
+                    value={vehiculoNuevo.color}
+                    onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, color: e.target.value })}
+                    placeholder="Blanco"
+                    className={INPUT}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-gray-400">El residente quedará asociado automáticamente a este edificio.</p>
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => { setShowForm(false); setMascotaNueva(EMPTY_MASCOTA_NUEVA); }} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
+            <button type="button" onClick={() => { setShowForm(false); setMascotaNueva(EMPTY_MASCOTA_NUEVA); setVehiculoNuevo(EMPTY_VEHICULO_NUEVO); setCreateError(""); }} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
             <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">
               {saving ? "Guardando…" : "Crear residente"}
             </button>
@@ -402,10 +498,29 @@ export default function ResidentesPage() {
               {showForm ? "✕ Cancelar" : "+ Nuevo residente"}
             </button>
           </div>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, cédula, unidad…"
-              className="w-full border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, cédula, unidad…"
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <select
+              value={filterTipo}
+              onChange={(e) => setFilterTipo(e.target.value as any)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="propietario">Propietario</option>
+              <option value="inquilino">Inquilino</option>
+            </select>
+            <select
+              value={filterEstado}
+              onChange={(e) => { setFilterEstado(e.target.value as any); setLoading(true); }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+            >
+              <option value="activos">Activos</option>
+              <option value="inactivos">Inactivos</option>
+            </select>
           </div>
         </div>
         <div className="overflow-x-auto">

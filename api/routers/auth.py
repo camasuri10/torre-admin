@@ -60,7 +60,7 @@ def _get_user_edificios(cur, user: dict) -> list:
     rol = user["rol"]
     uid = user["id"]
 
-    if rol == "superadmin":
+    if rol in ("superadmin", "backoffice"):
         cur.execute("SELECT id, nombre FROM edificios ORDER BY nombre")
         return [dict(r) for r in cur.fetchall()]
 
@@ -107,8 +107,8 @@ def login(data: LoginRequest):
 
             user = dict(user)
 
-            # Superadmin va directo al dashboard con contexto global "Todos"
-            if user["rol"] == "superadmin":
+            # Superadmin y Backoffice van directo al dashboard con contexto global "Todos"
+            if user["rol"] in ("superadmin", "backoffice"):
                 token = create_token(user, None)
                 return {
                     "access_token": token,
@@ -192,8 +192,8 @@ def seleccionar_edificio(data: BuildingSelectRequest):
 
 @router.post("/seleccionar-todos")
 def seleccionar_todos(current_user: dict = Depends(get_current_user)):
-    """Permite al SA volver al contexto global 'Todos los edificios'."""
-    if current_user.get("rol") != "superadmin":
+    """Permite al SA/Backoffice volver al contexto global 'Todos los edificios'."""
+    if current_user.get("rol") not in ("superadmin", "backoffice"):
         raise HTTPException(status_code=403, detail="Solo para superadmin")
     with get_db() as conn:
         with conn.cursor() as cur:

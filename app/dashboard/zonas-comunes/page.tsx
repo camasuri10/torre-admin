@@ -42,6 +42,7 @@ export default function ZonasComunesPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [reservaNotas, setReservaNotas] = useState("");
   const [reservandoSlot, setReservandoSlot] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ inicio: string; fin: string } | null>(null);
   const [cancelModal, setCancelModal] = useState<{ id: number; zona: string; esPropia: boolean } | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [zonaForm, setZonaForm] = useState(ZONA_FORM_EMPTY);
@@ -125,6 +126,7 @@ export default function ZonasComunesPage() {
       setSlots([]);
       setReservaNotas("");
       setReservaUnidadId(null);
+      setSelectedSlot(null);
       load();
     } catch (err: any) {
       alert("Error al reservar: " + (err?.message ?? "Intenta de nuevo"));
@@ -442,7 +444,7 @@ export default function ZonasComunesPage() {
                 {reservaZona.icono} Reservar {reservaZona.nombre}
               </h3>
               <button
-                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); setReservaUnidadId(null); }}
+                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); setReservaUnidadId(null); setSelectedSlot(null); }}
                 className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <p className="text-xs text-gray-400 mb-4">
@@ -472,7 +474,7 @@ export default function ZonasComunesPage() {
                 type="date"
                 value={reservaFecha}
                 min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => { setReservaFecha(e.target.value); cargarSlots(reservaZona, e.target.value); }}
+                onChange={(e) => { setReservaFecha(e.target.value); setSelectedSlot(null); cargarSlots(reservaZona, e.target.value); }}
                 className={INPUT}
               />
             </div>
@@ -490,24 +492,42 @@ export default function ZonasComunesPage() {
                     No hay disponibilidad para este día
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {slots.map((slot) => (
-                      <button
-                        key={slot.inicio}
-                        disabled={reservandoSlot !== null}
-                        onClick={() => handleReservarSlot(slot)}
-                        className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${
-                          reservandoSlot === slot.inicio
-                            ? "bg-primary/10 text-primary border-primary/30 cursor-wait"
-                            : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                        }`}
-                      >
-                        {slot.inicio}
-                        <span className="block text-[10px] opacity-70">{slot.fin}</span>
-                        {reservandoSlot === slot.inicio && <span className="block text-[10px]">reservando…</span>}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {slots.map((slot) => {
+                        const isSelected = selectedSlot?.inicio === slot.inicio;
+                        return (
+                          <button
+                            key={slot.inicio}
+                            disabled={reservandoSlot !== null}
+                            onClick={() => setSelectedSlot(isSelected ? null : slot)}
+                            className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${
+                              isSelected
+                                ? "bg-primary text-white border-primary shadow-sm"
+                                : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            }`}
+                          >
+                            {slot.inicio}
+                            <span className="block text-[10px] opacity-80">{slot.fin}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedSlot && (
+                      <div className="mt-3 flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+                        <span className="text-sm text-primary font-medium">
+                          Seleccionado: {selectedSlot.inicio} – {selectedSlot.fin}
+                        </span>
+                        <button
+                          onClick={() => handleReservarSlot(selectedSlot)}
+                          disabled={reservandoSlot !== null}
+                          className="px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                        >
+                          {reservandoSlot ? "Reservando…" : "Confirmar reserva"}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

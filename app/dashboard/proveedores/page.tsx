@@ -15,6 +15,8 @@ const EMPTY_CONTRATO = {
   fecha_fin: "",
   condiciones: "",
   archivo_url: "",
+  valor: "",
+  moneda: "COP",
   edificio_id: "",
   conjunto_id: "",
 };
@@ -184,6 +186,8 @@ export default function ProveedoresPage() {
         fecha_fin: contratoForm.fecha_fin || undefined,
         condiciones: contratoForm.condiciones || undefined,
         archivo_url: contratoForm.archivo_url || undefined,
+        valor: contratoForm.valor ? parseFloat(contratoForm.valor) : undefined,
+        moneda: contratoForm.moneda || "COP",
         edificio_id: contratoForm.edificio_id ? parseInt(contratoForm.edificio_id) : undefined,
         conjunto_id: contratoForm.conjunto_id ? parseInt(contratoForm.conjunto_id) : undefined,
       });
@@ -467,6 +471,35 @@ export default function ProveedoresPage() {
                             onChange={(e) => setContratoForm({ ...contratoForm, archivo_url: e.target.value })}
                             placeholder="https://drive.google.com/… o enlace al contrato" className={INPUT} />
                           <p className="text-xs text-gray-400 mt-0.5">Pega el enlace al contrato en Google Drive, Dropbox u otro servicio.</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Valor del contrato</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={contratoForm.valor}
+                            onChange={(e) => setContratoForm({ ...contratoForm, valor: e.target.value })}
+                            placeholder="Ej: 5000000"
+                            className={INPUT}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Moneda</label>
+                          <select
+                            value={contratoForm.moneda}
+                            onChange={(e) => setContratoForm({ ...contratoForm, moneda: e.target.value })}
+                            className={INPUT}
+                          >
+                            <option value="COP">COP — Peso Colombiano</option>
+                            <option value="USD">USD — Dólar</option>
+                            <option value="EUR">EUR — Euro</option>
+                            <option value="CRC">CRC — Colón Costarricense</option>
+                            <option value="PEN">PEN — Sol Peruano</option>
+                            <option value="MXN">MXN — Peso Mexicano</option>
+                          </select>
+                        </div>
+                        <div className="col-span-2 hidden">{/* spacer */}
                         </div>
                       </div>
                       {contratoError && <p className="text-red-600 text-xs">{contratoError}</p>}

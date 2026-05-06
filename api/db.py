@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS unidades (
     numero          TEXT NOT NULL,
     piso            INTEGER,
     tipo            TEXT NOT NULL DEFAULT 'apartamento'
-                        CHECK (tipo IN ('apartamento','local','oficina','casa','otro')),
+                        CHECK (tipo IN ('apartamento','local','oficina','casa','otro','cuarto_util','parqueadero')),
     area_m2         NUMERIC(8,2),
     coeficiente     NUMERIC(6,4),
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email               TEXT UNIQUE,
     telefono            TEXT,
     rol                 TEXT NOT NULL CHECK (rol IN (
-                            'superadmin','administrador','propietario','inquilino','portero','servicios'
+                            'superadmin','administrador','propietario','inquilino','portero','servicios','backoffice'
                         )),
     password_hash       TEXT,
     activo              BOOLEAN NOT NULL DEFAULT TRUE,
@@ -228,9 +228,13 @@ CREATE TABLE IF NOT EXISTS contratos_servicio (
     fecha_fin       DATE,
     condiciones     TEXT,
     archivo_url     TEXT,
+    valor           NUMERIC(15,2),
+    moneda          TEXT DEFAULT 'COP',
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS valor NUMERIC(15,2);
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP';
 
 -- Solicitudes de mantenimiento
 CREATE TABLE IF NOT EXISTS mantenimientos (

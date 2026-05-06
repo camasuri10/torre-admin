@@ -453,6 +453,8 @@ export default function EdificioGestionPage() {
                     <option value="local">Local</option>
                     <option value="oficina">Oficina</option>
                     <option value="casa">Casa</option>
+                    <option value="cuarto_util">Cuarto Útil</option>
+                    <option value="parqueadero">Parqueadero</option>
                     <option value="otro">Otro</option>
                   </select>
                 </div>
@@ -604,6 +606,8 @@ export default function EdificioGestionPage() {
                   <option value="local">Local</option>
                   <option value="oficina">Oficina</option>
                   <option value="casa">Casa</option>
+                  <option value="cuarto_util">Cuarto Útil</option>
+                  <option value="parqueadero">Parqueadero</option>
                   <option value="otro">Otro</option>
                 </select>
               </div>

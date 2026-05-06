@@ -185,8 +185,9 @@ export const api = {
 
   // ── Usuarios ───────────────────────────────────────────────────────────────
   usuarios: {
-    list: (params?: { rol?: string; edificio_id?: number }) => {
-      const q = new URLSearchParams(params as any).toString();
+    list: (params?: { rol?: string; edificio_id?: number; tipo_ocupacion?: string; solo_inactivos?: boolean }) => {
+      const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null && v !== ""));
+      const q = new URLSearchParams(filtered as any).toString();
       return request<any[]>(`/api/usuarios/${q ? "?" + q : ""}`);
     },
     get: (id: number) => request<any>(`/api/usuarios/${id}`),
@@ -356,6 +357,18 @@ export const api = {
       request<any>(`/api/chat/${edificio_id}/marcar-leidos?usuario_id=${usuario_id}`, { method: "PATCH" }),
     noLeidos: (edificio_id: number, usuario_id: number) =>
       request<any>(`/api/chat/${edificio_id}/no-leidos?usuario_id=${usuario_id}`),
+  },
+
+  // ── Backoffice ─────────────────────────────────────────────────────────────
+  backoffice: {
+    stats: () => request<any>("/api/backoffice/stats"),
+    analytics: () => request<any>("/api/backoffice/analytics"),
+    usuarios: {
+      list: () => request<any[]>("/api/backoffice/usuarios"),
+      create: (data: any) => request<any>("/api/backoffice/usuarios", { method: "POST", body: JSON.stringify(data) }),
+      update: (id: number, data: any) => request<any>(`/api/backoffice/usuarios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+      desactivar: (id: number) => request<any>(`/api/backoffice/usuarios/${id}/desactivar`, { method: "PATCH" }),
+    },
   },
 
   // ── Reportes ───────────────────────────────────────────────────────────────

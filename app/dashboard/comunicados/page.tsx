@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { getUser } from "@/lib/auth";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -360,12 +361,9 @@ export default function ComunicadosPage() {
             return (
               <div
                 key={c.id}
-                onClick={() => noLeido && handleMarcarLeido(c.id)}
                 className={`bg-white rounded-xl border shadow-sm p-6 transition-shadow ${
-                  noLeido
-                    ? "border-blue-200 hover:shadow-md cursor-pointer"
-                    : "border-gray-100 hover:shadow-md"
-                }`}
+                  noLeido ? "border-blue-200" : "border-gray-100"
+                } hover:shadow-md`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4 flex-1 min-w-0">
@@ -438,8 +436,15 @@ export default function ComunicadosPage() {
                         </button>
                       </>
                     )}
-                    {isResidente && c.leido && (
-                      <span className="text-xs text-gray-300">✓ Leído</span>
+                    {isResidente && (
+                      c.leido
+                        ? <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">✓ Leído</span>
+                        : <button
+                            onClick={(e) => { e.stopPropagation(); handleMarcarLeido(c.id); }}
+                            className="text-xs text-white bg-primary px-3 py-1.5 rounded-full hover:bg-primary/90 transition-colors font-medium"
+                          >
+                            Marcar leído
+                          </button>
                     )}
                   </div>
                 </div>
@@ -453,39 +458,63 @@ export default function ComunicadosPage() {
                     ) : auditData.length === 0 ? (
                       <p className="text-xs text-gray-400">Sin registros de envío aún.</p>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-gray-400 border-b border-gray-100">
-                              <th className="text-left pb-1 font-medium">Residente</th>
-                              <th className="text-left pb-1 font-medium">Canal</th>
-                              <th className="text-left pb-1 font-medium">Enviado</th>
-                              <th className="text-left pb-1 font-medium">Leído</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {auditData.map((env) => (
-                              <tr key={env.id}>
-                                <td className="py-1 pr-3">
-                                  <div className="font-medium text-gray-700">{env.usuario_nombre}</div>
-                                  <div className="text-gray-400 text-[10px]">{env.usuario_email}</div>
-                                </td>
-                                <td className="py-1 pr-3">
-                                  {env.canal === "sistema" ? "📱 Plataforma" : env.canal === "email" ? "📧 Email" : "💬 WhatsApp"}
-                                </td>
-                                <td className="py-1 pr-3 text-gray-500">
-                                  {new Date(env.enviado_at).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
-                                </td>
-                                <td className="py-1">
-                                  {env.leido
-                                    ? <span className="text-green-600 font-medium">✓ Sí</span>
-                                    : <span className="text-gray-300">No</span>
-                                  }
-                                </td>
+                      <div className="space-y-4">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-gray-400 border-b border-gray-100">
+                                <th className="text-left pb-1 font-medium">Residente</th>
+                                <th className="text-left pb-1 font-medium">Canal</th>
+                                <th className="text-left pb-1 font-medium">Enviado</th>
+                                <th className="text-left pb-1 font-medium">Leído</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {auditData.map((env) => (
+                                <tr key={env.id}>
+                                  <td className="py-1 pr-3">
+                                    <div className="font-medium text-gray-700">{env.usuario_nombre}</div>
+                                    <div className="text-gray-400 text-[10px]">{env.usuario_email}</div>
+                                  </td>
+                                  <td className="py-1 pr-3">
+                                    {env.canal === "sistema" ? "📱 Plataforma" : env.canal === "email" ? "📧 Email" : "💬 WhatsApp"}
+                                  </td>
+                                  <td className="py-1 pr-3 text-gray-500">
+                                    {new Date(env.enviado_at).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                                  </td>
+                                  <td className="py-1">
+                                    {env.leido
+                                      ? <span className="text-green-600 font-medium">✓ Sí</span>
+                                      : <span className="text-gray-300">No</span>
+                                    }
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Gráfico envíos por canal — parte inferior izquierda */}
+                        <div className="flex justify-start">
+                          <div className="w-72">
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Envíos por canal</p>
+                            <ResponsiveContainer width="100%" height={100}>
+                              <BarChart
+                                data={["sistema", "email", "whatsapp"].map((canal) => ({
+                                  canal: canal === "sistema" ? "Plataforma" : canal === "email" ? "Email" : "WhatsApp",
+                                  total: auditData.filter((e) => e.canal === canal).length,
+                                  leidos: auditData.filter((e) => e.canal === canal && e.leido).length,
+                                }))}
+                                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                              >
+                                <XAxis dataKey="canal" tick={{ fontSize: 10 }} />
+                                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                                <Tooltip wrapperStyle={{ fontSize: 11 }} />
+                                <Bar dataKey="total" name="Enviados" fill="#2e86c1" radius={[3, 3, 0, 0]} />
+                                <Bar dataKey="leidos" name="Leídos" fill="#1e8449" radius={[3, 3, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

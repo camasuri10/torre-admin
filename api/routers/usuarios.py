@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+import psycopg2.errors
 from db import get_db
 from routers.auth import get_current_user
 
@@ -36,11 +37,22 @@ class OcupacionCreate(BaseModel):
 
 
 @router.get("")
-def list_usuarios(rol: Optional[str] = None, edificio_id: Optional[int] = None):
+def list_usuarios(
+    rol: Optional[str] = None,
+    edificio_id: Optional[int] = None,
+    tipo_ocupacion: Optional[str] = None,  # propietario | inquilino
+    solo_inactivos: Optional[bool] = None,  # True = solo inactivos, None = solo activos
+):
+    activo_filter = "FALSE" if solo_inactivos else "TRUE"
     with get_db() as conn:
         with conn.cursor() as cur:
             if edificio_id:
-                cur.execute("""
+                tipo_cond = ""
+                join_params: list = []
+                if tipo_ocupacion:
+                    tipo_cond = "AND o.tipo = %s"
+                    join_params = [tipo_ocupacion]
+                cur.execute(f"""
                     SELECT DISTINCT ON (u.id)
                            u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
                            u.notif_sistema, u.notif_email, u.notif_whatsapp,
@@ -48,29 +60,29 @@ def list_usuarios(rol: Optional[str] = None, edificio_id: Optional[int] = None):
                            un.numero as unidad_numero,
                            COALESCE(eu.nombre, ed.nombre) as edificio_nombre
                     FROM usuarios u
-                    LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE
+                    LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE {tipo_cond}
                     LEFT JOIN unidades un ON un.id = o.unidad_id
                     LEFT JOIN torres tor ON tor.id = un.torre_id
                     LEFT JOIN edificios eu ON eu.id = tor.edificio_id
                     LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
                     LEFT JOIN edificios ed ON ed.id = ue.edificio_id
-                    WHERE u.activo = TRUE
+                    WHERE u.activo = {activo_filter}
                       AND (
                         eu.id = %s
                         OR ue.edificio_id = %s
                       )
                     ORDER BY u.id, u.nombre
-                """, (edificio_id, edificio_id))
+                """, join_params + [edificio_id, edificio_id])
             elif rol:
                 cur.execute(
-                    "SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
-                    "FROM usuarios WHERE rol = %s AND activo = TRUE ORDER BY nombre",
+                    f"SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
+                    f"FROM usuarios WHERE rol = %s AND activo = {activo_filter} ORDER BY nombre",
                     (rol,),
                 )
             else:
                 cur.execute(
-                    "SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
-                    "FROM usuarios WHERE activo = TRUE ORDER BY nombre"
+                    f"SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
+                    f"FROM usuarios WHERE activo = {activo_filter} ORDER BY nombre"
                 )
             return cur.fetchall()
 
@@ -149,22 +161,36 @@ def create_usuario(data: UsuarioCreate):
             password_hash = CryptContext(schemes=["bcrypt"], deprecated="auto").hash(data.password)
         except ImportError:
             pass
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) "
-                "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
-                (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash),
-            )
-            new_user = cur.fetchone()
-            # Auto-asociar al edificio del admin que lo crea
-            if data.edificio_id:
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo) "
-                    "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-                    (new_user["id"], data.edificio_id),
+                    "INSERT INTO usuarios (nombre, cedula, email, telefono, rol, password_hash) "
+                    "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
+                    (data.nombre, data.cedula, data.email, data.telefono, data.rol, password_hash),
                 )
-            return new_user
+                new_user = cur.fetchone()
+                # Auto-asociar al edificio del admin que lo crea
+                if data.edificio_id:
+                    cur.execute(
+                        "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo) "
+                        "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                        (new_user["id"], data.edificio_id),
+                    )
+                return new_user
+    except Exception as e:
+        err_str = str(e)
+        if "cedula" in err_str and "unique" in err_str.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=f"La cédula {data.cedula!r} ya está registrada en el sistema. Verifique los datos o use una cédula diferente.",
+            )
+        if "email" in err_str and "unique" in err_str.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=f"El email {data.email!r} ya está registrado en el sistema.",
+            )
+        raise
 
 
 @router.put("/{usuario_id}")
