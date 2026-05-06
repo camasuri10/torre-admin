@@ -14,6 +14,20 @@ function formatCOP(amount: number) {
   }).format(amount);
 }
 
+function KpiCard({ icon, label, value, sub, color, valueColor }: {
+  icon: string; label: string; value: string | number; sub?: string | null;
+  color: string; valueColor: string;
+}) {
+  return (
+    <div className={`border rounded-2xl p-4 ${color}`}>
+      <div className="text-xl mb-1">{icon}</div>
+      <div className={`text-2xl font-bold ${valueColor}`}>{value}</div>
+      <div className="text-xs font-medium mt-0.5 opacity-80">{label}</div>
+      {sub && <div className="text-xs opacity-70 mt-1 font-mono">{sub}</div>}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const user = getUser();
@@ -75,6 +89,45 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Indicadores operacionales */}
+      <div>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Indicadores operacionales</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <KpiCard
+            icon="⏳" label="Cuotas pendientes"
+            value={loading ? "—" : (stats?.cuotas_pendientes ?? 0)}
+            sub={!loading && stats?.cuotas_pendientes_monto != null ? formatCOP(stats.cuotas_pendientes_monto) : null}
+            color="bg-yellow-50 border-yellow-200 text-yellow-700" valueColor="text-yellow-800"
+          />
+          <KpiCard
+            icon="🚨" label="Cuotas vencidas"
+            value={loading ? "—" : (stats?.morosos ?? 0)}
+            sub={!loading && stats?.cuotas_vencidas_monto != null ? formatCOP(stats.cuotas_vencidas_monto) : null}
+            color="bg-red-50 border-red-200 text-red-700" valueColor="text-red-700"
+          />
+          <KpiCard
+            icon="💰" label="Recaudo del mes"
+            value={loading ? "—" : formatCOP(stats?.recaudo_mes ?? 0)}
+            color="bg-green-50 border-green-200 text-green-700" valueColor="text-green-700"
+          />
+          <KpiCard
+            icon="🔧" label="Mantenimientos activos"
+            value={loading ? "—" : (stats?.solicitudes_pendientes ?? 0)}
+            color="bg-orange-50 border-orange-200 text-orange-700" valueColor="text-orange-700"
+          />
+          <KpiCard
+            icon="📅" label="Reservas hoy"
+            value={loading ? "—" : (stats?.reservas_hoy ?? 0)}
+            color="bg-blue-50 border-blue-200 text-blue-700" valueColor="text-blue-700"
+          />
+          <KpiCard
+            icon="🏠" label="Ocupación"
+            value={loading ? "—" : `${stats?.ocupacion_pct != null ? Number(stats.ocupacion_pct).toFixed(1) : "—"}%`}
+            color="bg-purple-50 border-purple-200 text-purple-700" valueColor="text-purple-700"
+          />
+        </div>
+      </div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         {statCards.map((card) => (

@@ -32,8 +32,27 @@ def reporte_dashboard(edificio_id: int):
                         WHERE edificio_id=%s AND estado IN ('recibido','notificado')) AS paquetes_pendientes,
                     (SELECT COUNT(*) FROM mantenimiento_alertas
                         WHERE edificio_id=%s AND estado='pendiente'
-                        AND fecha_programada <= CURRENT_DATE + 7) AS alertas_proximas
-            """, (edificio_id,) * 8)
+                        AND fecha_programada <= CURRENT_DATE + 7) AS alertas_proximas,
+                    -- Indicadores operacionales extendidos
+                    (SELECT COUNT(*) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.estado='pendiente') AS cuotas_pendientes,
+                    (SELECT COALESCE(SUM(c.monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.estado='pendiente') AS cuotas_pendientes_monto,
+                    (SELECT COALESCE(SUM(c.monto),0) FROM cuotas c JOIN unidades u ON u.id=c.unidad_id
+                        JOIN torres t ON t.id=u.torre_id
+                        WHERE t.edificio_id=%s AND c.estado='vencido') AS cuotas_vencidas_monto,
+                    (SELECT COUNT(*) FROM reservas r JOIN zonas_comunes z ON z.id=r.zona_id
+                        WHERE z.edificio_id=%s AND r.fecha=CURRENT_DATE AND r.estado != 'cancelada') AS reservas_hoy,
+                    (SELECT ROUND(
+                        100.0 * COUNT(DISTINCT o.unidad_id) /
+                        NULLIF((SELECT COUNT(*) FROM unidades u2 JOIN torres t2 ON t2.id=u2.torre_id
+                                WHERE t2.edificio_id=%s AND u2.activo=TRUE), 0), 1)
+                     FROM ocupaciones o JOIN unidades u ON u.id=o.unidad_id
+                     JOIN torres t ON t.id=u.torre_id
+                     WHERE t.edificio_id=%s AND o.activo=TRUE) AS ocupacion_pct
+            """, (edificio_id,) * 14)
             return cur.fetchone()
 
 
