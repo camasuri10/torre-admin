@@ -74,7 +74,7 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                 total_reservas = cur.fetchone()["count"]
                 cur.execute("SELECT COUNT(*) FROM comunicados")
                 total_comunicados = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM mantenimientos WHERE activo = TRUE")
+                cur.execute("SELECT COUNT(*) FROM mantenimientos WHERE estado <> 'cancelado'")
                 total_mantenimientos = cur.fetchone()["count"]
 
                 cur.execute("""
@@ -82,7 +82,7 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                         COUNT(*) FILTER (WHERE estado = 'pendiente')  AS pendientes,
                         COUNT(*) FILTER (WHERE estado = 'en_proceso') AS en_proceso,
                         COUNT(*) FILTER (WHERE estado = 'resuelto')   AS resueltos
-                    FROM mantenimientos WHERE activo = TRUE
+                    FROM mantenimientos WHERE estado <> 'cancelado'
                 """)
                 mantenimientos_estado = dict(cur.fetchone())
 
@@ -139,7 +139,7 @@ def get_analytics(_: dict = Depends(_require_backoffice)):
 
                 cur.execute("""
                     SELECT estado, COUNT(*) AS total
-                    FROM mantenimientos WHERE activo = TRUE
+                    FROM mantenimientos WHERE estado <> 'cancelado'
                     GROUP BY estado
                 """)
                 mantenimientos_por_estado = [{"estado": r["estado"], "total": int(r["total"])} for r in cur.fetchall()]
