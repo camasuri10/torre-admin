@@ -371,6 +371,28 @@ export const api = {
     },
   },
 
+  // ── Encuestas ──────────────────────────────────────────────────────────────
+  encuestas: {
+    list: (edificio_id: number) =>
+      request<any[]>(`/api/encuestas?edificio_id=${edificio_id}`),
+    get: (id: number) => request<any>(`/api/encuestas/${id}`),
+    create: (data: any) =>
+      request<any>("/api/encuestas", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      request<any>(`/api/encuestas/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      request<void>(`/api/encuestas/${id}`, { method: "DELETE" }),
+    cambiarEstado: (id: number, estado: string) =>
+      request<any>(`/api/encuestas/${id}/estado`, {
+        method: "PATCH", body: JSON.stringify({ estado }),
+      }),
+    responder: (id: number, data: any) =>
+      request<any>(`/api/encuestas/${id}/responder`, {
+        method: "POST", body: JSON.stringify(data),
+      }),
+    resultados: (id: number) => request<any>(`/api/encuestas/${id}/resultados`),
+  },
+
   // ── Reportes ───────────────────────────────────────────────────────────────
   reportes: {
     dashboard: (edificio_id: number) => request<any>(`/api/reportes/dashboard/${edificio_id}`),

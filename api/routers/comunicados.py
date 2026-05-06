@@ -17,6 +17,7 @@ class ComunicadoCreate(BaseModel):
     canales: Optional[List[str]] = ["sistema"]
     fecha_programada: Optional[str] = None
     imagen_url: Optional[str] = None
+    unidades_destino: Optional[str] = None  # None=todos, JSON array de unidad_ids
 
 
 class MarcarLeidoData(BaseModel):
@@ -115,25 +116,46 @@ def create_comunicado(data: ComunicadoCreate):
             cur.execute("""
                 INSERT INTO comunicados
                     (edificio_id, titulo, contenido, tipo, autor_id, fecha,
-                     canales, fecha_programada, imagen_url)
-                VALUES (%s,%s,%s,%s,%s,COALESCE(%s,CURRENT_DATE),%s,%s,%s)
+                     canales, fecha_programada, imagen_url, unidades_destino)
+                VALUES (%s,%s,%s,%s,%s,COALESCE(%s,CURRENT_DATE),%s,%s,%s,%s)
                 RETURNING *
             """, (
                 data.edificio_id, data.titulo, data.contenido, data.tipo,
                 data.autor_id, data.fecha,
                 canales_json, data.fecha_programada, data.imagen_url,
+                data.unidades_destino,
             ))
             comunicado = cur.fetchone()
 
-            # Registrar envíos por cada residente del edificio para auditoría
+            # Registrar envíos para auditoría, filtrando por unidades_destino si se indicó
             if data.edificio_id:
-                cur.execute("""
-                    SELECT DISTINCT u.id FROM usuarios u
-                    JOIN ocupaciones o ON o.usuario_id = u.id
-                    JOIN unidades un ON un.id = o.unidad_id
-                    JOIN torres t ON t.id = un.torre_id
-                    WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
-                """, (data.edificio_id,))
+                if data.unidades_destino:
+                    try:
+                        unidad_ids = json.loads(data.unidades_destino)
+                    except (json.JSONDecodeError, TypeError):
+                        unidad_ids = []
+                    if unidad_ids:
+                        cur.execute("""
+                            SELECT DISTINCT u.id FROM usuarios u
+                            JOIN ocupaciones o ON o.usuario_id = u.id
+                            WHERE o.unidad_id = ANY(%s) AND o.activo = TRUE AND u.activo = TRUE
+                        """, (unidad_ids,))
+                    else:
+                        cur.execute("""
+                            SELECT DISTINCT u.id FROM usuarios u
+                            JOIN ocupaciones o ON o.usuario_id = u.id
+                            JOIN unidades un ON un.id = o.unidad_id
+                            JOIN torres t ON t.id = un.torre_id
+                            WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
+                        """, (data.edificio_id,))
+                else:
+                    cur.execute("""
+                        SELECT DISTINCT u.id FROM usuarios u
+                        JOIN ocupaciones o ON o.usuario_id = u.id
+                        JOIN unidades un ON un.id = o.unidad_id
+                        JOIN torres t ON t.id = un.torre_id
+                        WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
+                    """, (data.edificio_id,))
             else:
                 cur.execute("SELECT id FROM usuarios WHERE activo = TRUE")
             usuarios = cur.fetchall()

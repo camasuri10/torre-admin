@@ -17,7 +17,7 @@ from routers import (
     auth, edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
-    conjuntos, vehiculos, mascotas, proveedores, backoffice,
+    conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -78,6 +78,7 @@ app.include_router(vehiculos.router,      prefix="/api/vehiculos",       tags=["
 app.include_router(mascotas.router,       prefix="/api/mascotas",        tags=["Mascotas"])
 app.include_router(proveedores.router,    prefix="/api/proveedores",     tags=["Proveedores"])
 app.include_router(backoffice.router,     prefix="/api/backoffice",      tags=["Backoffice"])
+app.include_router(encuestas.router,      prefix="/api/encuestas",        tags=["Encuestas"])
 
 
 @app.get("/api/health")
@@ -94,6 +95,84 @@ def setup():
         seed_db()
         _db_ready = True
         return {"status": "ok", "message": "DB initialized and seeded"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/migrate-v7")
+def migrate_v7():
+    """Apply v7 migrations: encuestas tables + unidades_destino en comunicados."""
+    from db import get_db
+    migrations = [
+        ("comunicados unidades_destino",
+         "ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT DEFAULT NULL;"),
+        ("encuestas table", """
+            CREATE TABLE IF NOT EXISTS encuestas (
+                id SERIAL PRIMARY KEY,
+                edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                titulo TEXT NOT NULL, descripcion TEXT,
+                estado TEXT NOT NULL DEFAULT 'borrador'
+                    CHECK (estado IN ('borrador','activa','cerrada')),
+                anonima BOOLEAN NOT NULL DEFAULT FALSE,
+                unidades_destino TEXT DEFAULT NULL,
+                fecha_inicio TIMESTAMPTZ, fecha_cierre TIMESTAMPTZ,
+                autor_id INTEGER REFERENCES usuarios(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("encuesta_preguntas table", """
+            CREATE TABLE IF NOT EXISTS encuesta_preguntas (
+                id SERIAL PRIMARY KEY,
+                encuesta_id INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+                orden INTEGER NOT NULL DEFAULT 1, texto TEXT NOT NULL,
+                tipo TEXT NOT NULL CHECK (tipo IN ('unica','multiple','escala','texto')),
+                requerida BOOLEAN NOT NULL DEFAULT TRUE, escala_max INTEGER NOT NULL DEFAULT 5
+            );
+        """),
+        ("encuesta_opciones table", """
+            CREATE TABLE IF NOT EXISTS encuesta_opciones (
+                id SERIAL PRIMARY KEY,
+                pregunta_id INTEGER NOT NULL REFERENCES encuesta_preguntas(id) ON DELETE CASCADE,
+                orden INTEGER NOT NULL DEFAULT 1, texto TEXT NOT NULL
+            );
+        """),
+        ("encuesta_sesiones table", """
+            CREATE TABLE IF NOT EXISTS encuesta_sesiones (
+                id SERIAL PRIMARY KEY,
+                encuesta_id INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                unidad_id INTEGER REFERENCES unidades(id),
+                respondida_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(encuesta_id, usuario_id)
+            );
+        """),
+        ("encuesta_respuestas table", """
+            CREATE TABLE IF NOT EXISTS encuesta_respuestas (
+                id SERIAL PRIMARY KEY,
+                sesion_id INTEGER NOT NULL REFERENCES encuesta_sesiones(id) ON DELETE CASCADE,
+                pregunta_id INTEGER NOT NULL REFERENCES encuesta_preguntas(id),
+                opcion_id INTEGER REFERENCES encuesta_opciones(id),
+                texto_libre TEXT, valor_escala INTEGER
+            );
+        """),
+        ("encuestas indices", """
+            CREATE INDEX IF NOT EXISTS idx_encuestas_edificio  ON encuestas(edificio_id);
+            CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
+            CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
+            CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
+        """),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        cur.execute(sql)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

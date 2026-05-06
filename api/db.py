@@ -494,6 +494,57 @@ CREATE TABLE IF NOT EXISTS modulos_uso (
     fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Encuestas
+CREATE TABLE IF NOT EXISTS encuestas (
+    id                SERIAL PRIMARY KEY,
+    edificio_id       INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    titulo            TEXT NOT NULL,
+    descripcion       TEXT,
+    estado            TEXT NOT NULL DEFAULT 'borrador'
+                          CHECK (estado IN ('borrador','activa','cerrada')),
+    anonima           BOOLEAN NOT NULL DEFAULT FALSE,
+    unidades_destino  TEXT DEFAULT NULL,
+    fecha_inicio      TIMESTAMPTZ,
+    fecha_cierre      TIMESTAMPTZ,
+    autor_id          INTEGER REFERENCES usuarios(id),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS encuesta_preguntas (
+    id          SERIAL PRIMARY KEY,
+    encuesta_id INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+    orden       INTEGER NOT NULL DEFAULT 1,
+    texto       TEXT NOT NULL,
+    tipo        TEXT NOT NULL CHECK (tipo IN ('unica','multiple','escala','texto')),
+    requerida   BOOLEAN NOT NULL DEFAULT TRUE,
+    escala_max  INTEGER NOT NULL DEFAULT 5
+);
+
+CREATE TABLE IF NOT EXISTS encuesta_opciones (
+    id          SERIAL PRIMARY KEY,
+    pregunta_id INTEGER NOT NULL REFERENCES encuesta_preguntas(id) ON DELETE CASCADE,
+    orden       INTEGER NOT NULL DEFAULT 1,
+    texto       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS encuesta_sesiones (
+    id            SERIAL PRIMARY KEY,
+    encuesta_id   INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+    usuario_id    INTEGER REFERENCES usuarios(id),
+    unidad_id     INTEGER REFERENCES unidades(id),
+    respondida_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(encuesta_id, usuario_id)
+);
+
+CREATE TABLE IF NOT EXISTS encuesta_respuestas (
+    id           SERIAL PRIMARY KEY,
+    sesion_id    INTEGER NOT NULL REFERENCES encuesta_sesiones(id) ON DELETE CASCADE,
+    pregunta_id  INTEGER NOT NULL REFERENCES encuesta_preguntas(id),
+    opcion_id    INTEGER REFERENCES encuesta_opciones(id),
+    texto_libre  TEXT,
+    valor_escala INTEGER
+);
+
 -- ─── Índices ────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_torres_edificio         ON torres(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_torre          ON unidades(torre_id);
@@ -522,6 +573,10 @@ CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos       ON usuario_conjuntos(usua
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio    ON modulos_uso(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha       ON modulos_uso(fecha);
 CREATE INDEX IF NOT EXISTS idx_edificios_conjunto      ON edificios(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_encuestas_edificio      ON encuestas(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas      ON encuesta_preguntas(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones       ON encuesta_sesiones(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas     ON encuesta_respuestas(sesion_id);
 """
 
 
@@ -677,6 +732,60 @@ CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios
 
 -- v4.0 — Capacidad por hora en zonas comunes
 ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS capacidad_hora INTEGER;
+
+-- v7.0 — Destinatarios selectivos en comunicados
+ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT DEFAULT NULL;
+
+-- v7.0 — Encuestas
+CREATE TABLE IF NOT EXISTS encuestas (
+    id                SERIAL PRIMARY KEY,
+    edificio_id       INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    titulo            TEXT NOT NULL,
+    descripcion       TEXT,
+    estado            TEXT NOT NULL DEFAULT 'borrador'
+                          CHECK (estado IN ('borrador','activa','cerrada')),
+    anonima           BOOLEAN NOT NULL DEFAULT FALSE,
+    unidades_destino  TEXT DEFAULT NULL,
+    fecha_inicio      TIMESTAMPTZ,
+    fecha_cierre      TIMESTAMPTZ,
+    autor_id          INTEGER REFERENCES usuarios(id),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS encuesta_preguntas (
+    id          SERIAL PRIMARY KEY,
+    encuesta_id INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+    orden       INTEGER NOT NULL DEFAULT 1,
+    texto       TEXT NOT NULL,
+    tipo        TEXT NOT NULL CHECK (tipo IN ('unica','multiple','escala','texto')),
+    requerida   BOOLEAN NOT NULL DEFAULT TRUE,
+    escala_max  INTEGER NOT NULL DEFAULT 5
+);
+CREATE TABLE IF NOT EXISTS encuesta_opciones (
+    id          SERIAL PRIMARY KEY,
+    pregunta_id INTEGER NOT NULL REFERENCES encuesta_preguntas(id) ON DELETE CASCADE,
+    orden       INTEGER NOT NULL DEFAULT 1,
+    texto       TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS encuesta_sesiones (
+    id            SERIAL PRIMARY KEY,
+    encuesta_id   INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
+    usuario_id    INTEGER REFERENCES usuarios(id),
+    unidad_id     INTEGER REFERENCES unidades(id),
+    respondida_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(encuesta_id, usuario_id)
+);
+CREATE TABLE IF NOT EXISTS encuesta_respuestas (
+    id           SERIAL PRIMARY KEY,
+    sesion_id    INTEGER NOT NULL REFERENCES encuesta_sesiones(id) ON DELETE CASCADE,
+    pregunta_id  INTEGER NOT NULL REFERENCES encuesta_preguntas(id),
+    opcion_id    INTEGER REFERENCES encuesta_opciones(id),
+    texto_libre  TEXT,
+    valor_escala INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_encuestas_edificio  ON encuestas(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
 """
 
 
