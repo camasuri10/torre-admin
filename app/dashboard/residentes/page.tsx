@@ -571,165 +571,247 @@ export default function ResidentesPage() {
       {/* Detail panel */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-lg bg-white h-full shadow-2xl overflow-y-auto flex flex-col">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <span className="text-primary font-bold">{initials(selected.nombre)}</span>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelected(null)} />
+          <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col">
+
+            {/* Hero header */}
+            {(() => {
+              const tipo = selected.tipo_ocupacion ?? selected.rol;
+              const isPropietario = tipo === "propietario";
+              return (
+                <div className={`flex-shrink-0 px-6 pt-6 pb-5 ${isPropietario ? "bg-gradient-to-br from-blue-600 to-blue-800" : "bg-gradient-to-br from-purple-600 to-purple-800"}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <span className="text-white font-bold text-xl">{initials(selected.nombre)}</span>
+                      </div>
+                      <div>
+                        <h2 className="text-white font-bold text-lg leading-tight">{selected.nombre}</h2>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white capitalize">
+                            {isPropietario ? "🏠 Propietario" : "🔑 Inquilino"}
+                          </span>
+                          {selected.unidad_numero && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white">
+                              Apto {selected.unidad_numero}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => setSelected(null)} className="text-white/70 hover:text-white transition-colors p-1 mt-0.5">✕</button>
+                  </div>
+                  {/* Quick info pills */}
+                  <div className="grid grid-cols-2 gap-2 text-xs text-white/80">
+                    {selected.email && (
+                      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-2 truncate">
+                        <span>📧</span><span className="truncate">{selected.email}</span>
+                      </div>
+                    )}
+                    {selected.telefono && (
+                      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-2">
+                        <span>📱</span><span>{selected.telefono}</span>
+                      </div>
+                    )}
+                    {selected.cedula && (
+                      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-2">
+                        <span>🪪</span><span>{selected.cedula}</span>
+                      </div>
+                    )}
+                    {selected.edificio_nombre && (
+                      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-2 truncate">
+                        <span>🏢</span><span className="truncate">{selected.edificio_nombre}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold text-gray-900">{selected.nombre}</div>
-                  <div className="text-sm text-gray-500">{selected.unidad_numero ?? "Sin unidad"}</div>
-                </div>
-              </div>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-xl p-1">✕</button>
-            </div>
+              );
+            })()}
 
             {/* Tabs */}
-            <div className="flex border-b border-gray-100 flex-shrink-0">
+            <div className="flex border-b border-gray-100 flex-shrink-0 bg-white">
               {(["info", "vehiculos", "mascotas"] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setDetailTab(t)}
-                  className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${
-                    detailTab === t ? "border-b-2 border-primary text-primary" : "text-gray-500 hover:text-gray-800"
-                  }`}
-                >
+                <button key={t} onClick={() => setDetailTab(t)}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    detailTab === t ? "border-b-2 border-primary text-primary" : "text-gray-500 hover:text-gray-700"
+                  }`}>
                   {t === "info" ? "📋 Info" : t === "vehiculos" ? "🚗 Vehículos" : "🐾 Mascotas"}
+                  {t === "vehiculos" && detailData && (detailData.vehiculos?.length ?? 0) > 0 && (
+                    <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{detailData.vehiculos.length}</span>
+                  )}
+                  {t === "mascotas" && detailData && (detailData.mascotas?.length ?? 0) > 0 && (
+                    <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{detailData.mascotas.length}</span>
+                  )}
                 </button>
               ))}
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 px-6 py-5 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-gray-50">
               {detailLoading ? (
-                <div className="text-center text-gray-400 py-10">Cargando…</div>
+                <div className="flex items-center justify-center h-40">
+                  <div className="w-6 h-6 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
               ) : !detailData ? (
-                <div className="text-center text-gray-400 py-10">Error al cargar</div>
+                <div className="text-center text-gray-400 py-16">Error al cargar</div>
               ) : detailTab === "info" ? (
-                <dl className="space-y-4">
-                  {/* Datos personales con edición inline */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Datos personales</span>
-                    {!editingInfo && (
-                      <button onClick={startEditInfo} className="text-xs text-primary font-medium hover:underline">✏️ Editar</button>
-                    )}
-                  </div>
-                  {editingInfo ? (
-                    <form onSubmit={handleEditInfo} className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
-                      <div className="grid grid-cols-1 gap-3">
-                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
-                          <input required value={editInfoForm.nombre} onChange={(e) => setEditInfoForm({ ...editInfoForm, nombre: e.target.value })} className={INPUT} /></div>
-                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
-                          <input value={editInfoForm.cedula} onChange={(e) => setEditInfoForm({ ...editInfoForm, cedula: e.target.value })} className={INPUT} /></div>
-                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                          <input type="email" value={editInfoForm.email} onChange={(e) => setEditInfoForm({ ...editInfoForm, email: e.target.value })} className={INPUT} /></div>
-                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-                          <input value={editInfoForm.telefono} onChange={(e) => setEditInfoForm({ ...editInfoForm, telefono: e.target.value })} className={INPUT} /></div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <button type="button" onClick={() => setEditingInfo(false)} className="text-xs text-gray-500 px-3 py-1.5">Cancelar</button>
-                        <button type="submit" disabled={savingEditInfo} className="bg-primary text-white text-xs px-4 py-1.5 rounded-lg disabled:opacity-60">
-                          {savingEditInfo ? "Guardando…" : "Guardar cambios"}
+                <div className="p-5 space-y-4">
+
+                  {/* Datos personales */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Datos personales</span>
+                      {!editingInfo && (
+                        <button onClick={startEditInfo} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                          ✏️ Editar
                         </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      {[
-                        ["Nombre", detailData.nombre],
-                        ["Cédula", detailData.cedula ?? "—"],
-                        ["Email", detailData.email ?? "—"],
-                        ["Teléfono", detailData.telefono ?? "—"],
-                        ["Rol", detailData.rol],
-                      ].map(([label, val]) => (
-                        <div key={label}>
-                          <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</dt>
-                          <dd className="mt-1 text-sm text-gray-900">{val}</dd>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                  <div>
-                    <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Unidades</dt>
-                    <div className="space-y-1.5">
-                      {(detailData.ocupaciones ?? []).length === 0 ? (
-                        <p className="text-sm text-gray-400">Sin unidades asignadas</p>
-                      ) : (detailData.ocupaciones ?? []).map((o: any) => (
-                        <div key={o.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm text-gray-900">{o.unidad_numero}</span>
-                            {o.edificio_nombre && <span className="text-xs text-gray-500">{o.edificio_nombre}</span>}
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${o.tipo === "propietario" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{o.tipo}</span>
-                          </div>
-                          <button onClick={() => handleRemoveOcupacion(o.id)} className="text-red-400 hover:text-red-600 text-xs ml-2 flex-shrink-0">✕</button>
-                        </div>
-                      ))}
+                      )}
                     </div>
-                    {showAssignUnit ? (
-                      <form onSubmit={handleAssignAdditionalUnit} className="mt-3 bg-gray-50 rounded-lg p-3 space-y-2 border border-gray-200">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-                            <select required value={assignUnitForm.unidad_id} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
-                              <option value="">Seleccionar…</option>
-                              {unidades.map((u: any) => <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
-                            <select value={assignUnitForm.tipo} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, tipo: e.target.value })} className={INPUT}>
-                              <option value="propietario">Propietario</option>
-                              <option value="inquilino">Inquilino</option>
-                            </select>
-                          </div>
+                    {editingInfo ? (
+                      <form onSubmit={handleEditInfo} className="p-4 space-y-3">
+                        <div className="grid grid-cols-1 gap-3">
+                          <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
+                            <input required value={editInfoForm.nombre} onChange={(e) => setEditInfoForm({ ...editInfoForm, nombre: e.target.value })} className={INPUT} /></div>
+                          <div><label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+                            <input value={editInfoForm.cedula} onChange={(e) => setEditInfoForm({ ...editInfoForm, cedula: e.target.value })} className={INPUT} /></div>
+                          <div><label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input type="email" value={editInfoForm.email} onChange={(e) => setEditInfoForm({ ...editInfoForm, email: e.target.value })} className={INPUT} /></div>
+                          <div><label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                            <input value={editInfoForm.telefono} onChange={(e) => setEditInfoForm({ ...editInfoForm, telefono: e.target.value })} className={INPUT} /></div>
                         </div>
-                        <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => setShowAssignUnit(false)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
-                          <button type="submit" disabled={savingAssignUnit} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
-                            {savingAssignUnit ? "…" : "Asignar"}
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button type="button" onClick={() => setEditingInfo(false)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
+                          <button type="submit" disabled={savingEditInfo} className="bg-primary text-white text-xs px-4 py-1.5 rounded-lg disabled:opacity-60">
+                            {savingEditInfo ? "Guardando…" : "Guardar cambios"}
                           </button>
                         </div>
                       </form>
                     ) : (
-                      <button onClick={() => setShowAssignUnit(true)} className="mt-2 text-sm text-primary font-medium hover:underline">+ Asignar unidad</button>
+                      <div className="divide-y divide-gray-50">
+                        {[
+                          { label: "Nombre", value: detailData.nombre, icon: "👤" },
+                          { label: "Cédula", value: detailData.cedula ?? "—", icon: "🪪" },
+                          { label: "Email", value: detailData.email ?? "—", icon: "📧" },
+                          { label: "Teléfono", value: detailData.telefono ?? "—", icon: "📱" },
+                        ].map(({ label, value, icon }) => (
+                          <div key={label} className="flex items-center gap-3 px-4 py-3">
+                            <span className="text-base w-6 flex-shrink-0">{icon}</span>
+                            <div className="min-w-0">
+                              <div className="text-xs text-gray-400">{label}</div>
+                              <div className="text-sm font-medium text-gray-900 truncate">{value}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <div className="pt-3 border-t border-gray-100">
-                    <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notificaciones</dt>
-                    <div className="space-y-1 text-sm">
-                      <div className={`flex items-center gap-2 ${detailData.notif_sistema ? "text-green-700" : "text-gray-400"}`}>
-                        <span>{detailData.notif_sistema ? "✓" : "✗"}</span> Sistema
-                      </div>
-                      <div className={`flex items-center gap-2 ${detailData.notif_email ? "text-green-700" : "text-gray-400"}`}>
-                        <span>{detailData.notif_email ? "✓" : "✗"}</span> Email
-                      </div>
-                      <div className={`flex items-center gap-2 ${detailData.notif_whatsapp ? "text-green-700" : "text-gray-400"}`}>
-                        <span>{detailData.notif_whatsapp ? "✓" : "✗"}</span> WhatsApp
-                      </div>
+
+                  {/* Unidades */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidades asignadas</span>
+                      <button onClick={() => setShowAssignUnit((v) => !v)} className="text-xs text-primary font-medium hover:underline">
+                        {showAssignUnit ? "Cancelar" : "+ Asignar"}
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      {showAssignUnit && (
+                        <form onSubmit={handleAssignAdditionalUnit} className="bg-blue-50 rounded-xl p-3 space-y-2 border border-blue-100 mb-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
+                              <select required value={assignUnitForm.unidad_id} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
+                                <option value="">Seleccionar…</option>
+                                {unidades.map((u: any) => <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                              <select value={assignUnitForm.tipo} onChange={(e) => setAssignUnitForm({ ...assignUnitForm, tipo: e.target.value })} className={INPUT}>
+                                <option value="propietario">Propietario</option>
+                                <option value="inquilino">Inquilino</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setShowAssignUnit(false)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                            <button type="submit" disabled={savingAssignUnit} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
+                              {savingAssignUnit ? "…" : "Asignar"}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                      {(detailData.ocupaciones ?? []).length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-3">Sin unidades asignadas</p>
+                      ) : (detailData.ocupaciones ?? []).map((o: any) => (
+                        <div key={o.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <span className="text-primary text-sm font-bold">🏠</span>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900 text-sm">Apto {o.unidad_numero}</div>
+                              {o.edificio_nombre && <div className="text-xs text-gray-500">{o.edificio_nombre}</div>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${o.tipo === "propietario" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+                              {o.tipo}
+                            </span>
+                            <button onClick={() => handleRemoveOcupacion(o.id)} className="text-gray-300 hover:text-red-500 transition-colors text-sm">✕</button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </dl>
+
+                  {/* Notificaciones */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-50">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notificaciones activas</span>
+                    </div>
+                    <div className="flex gap-2 p-4">
+                      {[
+                        { key: "notif_sistema", label: "Sistema", icon: "🔔" },
+                        { key: "notif_email", label: "Email", icon: "📧" },
+                        { key: "notif_whatsapp", label: "WhatsApp", icon: "💬" },
+                      ].map(({ key, label, icon }) => {
+                        const active = detailData[key];
+                        return (
+                          <div key={key} className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border text-center ${active ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-100"}`}>
+                            <span className="text-lg">{icon}</span>
+                            <span className={`text-xs font-medium ${active ? "text-green-700" : "text-gray-400"}`}>{label}</span>
+                            <span className={`text-xs ${active ? "text-green-600" : "text-gray-300"}`}>{active ? "✓ Activo" : "Inactivo"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
               ) : detailTab === "vehiculos" ? (
-                <div className="space-y-4">
+                <div className="p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">{detailData.vehiculos?.length ?? 0} vehículo(s)</span>
-                    <button onClick={() => setShowVForm((v) => !v)} className="text-sm text-primary font-medium hover:underline">
-                      {showVForm ? "Cancelar" : "+ Agregar"}
+                    <span className="text-sm font-semibold text-gray-700">
+                      {detailData.vehiculos?.length ?? 0} vehículo{(detailData.vehiculos?.length ?? 0) !== 1 ? "s" : ""} registrado{(detailData.vehiculos?.length ?? 0) !== 1 ? "s" : ""}
+                    </span>
+                    <button onClick={() => setShowVForm((v) => !v)}
+                      className="text-sm text-primary font-medium bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors">
+                      {showVForm ? "✕ Cancelar" : "+ Agregar"}
                     </button>
                   </div>
+
                   {showVForm && (
-                    <form onSubmit={handleAddVehiculo} className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
+                    <form onSubmit={handleAddVehiculo} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Nuevo vehículo</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Placa *</label>
                           <input required value={vForm.placa} onChange={(e) => setVForm({ ...vForm, placa: e.target.value.toUpperCase() })} placeholder="ABC123" className={INPUT} /></div>
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
                           <select value={vForm.tipo} onChange={(e) => setVForm({ ...vForm, tipo: e.target.value })} className={INPUT}>
-                            <option value="carro">Carro</option>
-                            <option value="moto">Moto</option>
-                            <option value="bicicleta">Bicicleta</option>
+                            <option value="carro">🚗 Carro</option>
+                            <option value="moto">🏍️ Moto</option>
+                            <option value="bicicleta">🚲 Bicicleta</option>
                             <option value="otro">Otro</option>
                           </select></div>
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Marca</label>
@@ -740,28 +822,31 @@ export default function ResidentesPage() {
                           <input value={vForm.color} onChange={(e) => setVForm({ ...vForm, color: e.target.value })} placeholder="Blanco" className={INPUT} /></div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button type="button" onClick={() => setShowVForm(false)} className="text-xs text-gray-500 px-3 py-1.5">Cancelar</button>
+                        <button type="button" onClick={() => setShowVForm(false)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
                         <button type="submit" disabled={savingV} className="bg-primary text-white text-xs px-4 py-1.5 rounded-lg disabled:opacity-60">
-                          {savingV ? "Guardando…" : "Guardar"}
+                          {savingV ? "Guardando…" : "Guardar vehículo"}
                         </button>
                       </div>
                     </form>
                   )}
-                  <div className="space-y-2">
+
+                  <div className="space-y-3">
                     {(detailData.vehiculos ?? []).length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-4">Sin vehículos registrados</p>
-                    ) : (detailData.vehiculos ?? []).map((v: any) => (
-                      editVehiculo?.id === v.id ? (
-                        <form key={v.id} onSubmit={handleEditVehiculo} className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200 space-y-2">
+                      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                        <div className="text-4xl mb-2">🚗</div>
+                        <p className="text-sm text-gray-400">Sin vehículos registrados</p>
+                      </div>
+                    ) : (detailData.vehiculos ?? []).map((v: any) => {
+                      const tipoIcon: Record<string, string> = { carro: "🚗", moto: "🏍️", bicicleta: "🚲", otro: "🚙" };
+                      return editVehiculo?.id === v.id ? (
+                        <form key={v.id} onSubmit={handleEditVehiculo} className="bg-white rounded-2xl border border-primary/30 shadow-sm p-4 space-y-3">
                           <div className="grid grid-cols-2 gap-2">
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Placa</label>
                               <input required value={editVehiculo.placa} onChange={(e) => setEditVehiculo({ ...editVehiculo, placa: e.target.value.toUpperCase() })} className={INPUT} /></div>
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Tipo</label>
                               <select value={editVehiculo.tipo} onChange={(e) => setEditVehiculo({ ...editVehiculo, tipo: e.target.value })} className={INPUT}>
-                                <option value="carro">Carro</option>
-                                <option value="moto">Moto</option>
-                                <option value="bicicleta">Bicicleta</option>
-                                <option value="otro">Otro</option>
+                                <option value="carro">Carro</option><option value="moto">Moto</option>
+                                <option value="bicicleta">Bicicleta</option><option value="otro">Otro</option>
                               </select></div>
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Marca</label>
                               <input value={editVehiculo.marca ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, marca: e.target.value })} className={INPUT} /></div>
@@ -771,48 +856,65 @@ export default function ResidentesPage() {
                               <input value={editVehiculo.color ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, color: e.target.value })} className={INPUT} /></div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setEditVehiculo(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                            <button type="button" onClick={() => setEditVehiculo(null)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
                             <button type="submit" disabled={savingEditV} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
                               {savingEditV ? "…" : "Guardar"}
                             </button>
                           </div>
                         </form>
                       ) : (
-                        <div key={v.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                          <div>
-                            <span className="font-mono font-semibold text-gray-900 text-sm">{v.placa}</span>
-                            <span className="ml-2 text-xs text-gray-500">{v.marca} {v.modelo}</span>
-                            {v.color && <span className="ml-2 text-xs text-gray-400">· {v.color}</span>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 capitalize">{v.tipo}</span>
-                            <button onClick={() => setEditVehiculo({ id: v.id, placa: v.placa, marca: v.marca, modelo: v.modelo, color: v.color, tipo: v.tipo })} className="text-blue-400 hover:text-blue-600 text-xs px-2" title="Editar">✎</button>
-                            <button onClick={() => handleDeleteVehiculo(v.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
+                        <div key={v.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                          <div className="flex items-center gap-4 px-4 py-4">
+                            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">
+                              {tipoIcon[v.tipo] ?? "🚙"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-mono font-bold text-gray-900 text-base tracking-wider bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded">
+                                  {v.placa}
+                                </span>
+                                <span className="text-xs text-gray-400 capitalize">{v.tipo}</span>
+                              </div>
+                              <div className="text-sm text-gray-600 truncate">
+                                {[v.marca, v.modelo].filter(Boolean).join(" ") || "—"}
+                                {v.color && <span className="text-gray-400"> · {v.color}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button onClick={() => setEditVehiculo({ id: v.id, placa: v.placa, marca: v.marca, modelo: v.modelo, color: v.color, tipo: v.tipo })}
+                                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">✎</button>
+                              <button onClick={() => handleDeleteVehiculo(v.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">✕</button>
+                            </div>
                           </div>
                         </div>
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
+
               ) : (
-                <div className="space-y-4">
+                <div className="p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">{detailData.mascotas?.length ?? 0} mascota(s)</span>
-                    <button onClick={() => setShowMForm((v) => !v)} className="text-sm text-primary font-medium hover:underline">
-                      {showMForm ? "Cancelar" : "+ Agregar"}
+                    <span className="text-sm font-semibold text-gray-700">
+                      {detailData.mascotas?.length ?? 0} mascota{(detailData.mascotas?.length ?? 0) !== 1 ? "s" : ""} registrada{(detailData.mascotas?.length ?? 0) !== 1 ? "s" : ""}
+                    </span>
+                    <button onClick={() => setShowMForm((v) => !v)}
+                      className="text-sm text-primary font-medium bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors">
+                      {showMForm ? "✕ Cancelar" : "+ Agregar"}
                     </button>
                   </div>
+
                   {showMForm && (
-                    <form onSubmit={handleAddMascota} className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
+                    <form onSubmit={handleAddMascota} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Nueva mascota</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                           <input required value={mForm.nombre} onChange={(e) => setMForm({ ...mForm, nombre: e.target.value })} placeholder="Firulais" className={INPUT} /></div>
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Especie</label>
                           <select value={mForm.especie} onChange={(e) => setMForm({ ...mForm, especie: e.target.value })} className={INPUT}>
-                            <option value="perro">Perro</option>
-                            <option value="gato">Gato</option>
-                            <option value="ave">Ave</option>
-                            <option value="otro">Otro</option>
+                            <option value="perro">🐕 Perro</option><option value="gato">🐈 Gato</option>
+                            <option value="ave">🐦 Ave</option><option value="otro">Otro</option>
                           </select></div>
                         <div><label className="block text-xs font-medium text-gray-600 mb-1">Raza</label>
                           <input value={mForm.raza} onChange={(e) => setMForm({ ...mForm, raza: e.target.value })} placeholder="Labrador" className={INPUT} /></div>
@@ -820,28 +922,32 @@ export default function ResidentesPage() {
                           <input value={mForm.color} onChange={(e) => setMForm({ ...mForm, color: e.target.value })} placeholder="Dorado" className={INPUT} /></div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button type="button" onClick={() => setShowMForm(false)} className="text-xs text-gray-500 px-3 py-1.5">Cancelar</button>
+                        <button type="button" onClick={() => setShowMForm(false)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
                         <button type="submit" disabled={savingM} className="bg-primary text-white text-xs px-4 py-1.5 rounded-lg disabled:opacity-60">
-                          {savingM ? "Guardando…" : "Guardar"}
+                          {savingM ? "Guardando…" : "Guardar mascota"}
                         </button>
                       </div>
                     </form>
                   )}
-                  <div className="space-y-2">
+
+                  <div className="space-y-3">
                     {(detailData.mascotas ?? []).length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-4">Sin mascotas registradas</p>
-                    ) : (detailData.mascotas ?? []).map((m: any) => (
-                      editMascota?.id === m.id ? (
-                        <form key={m.id} onSubmit={handleEditMascota} className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200 space-y-2">
+                      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                        <div className="text-4xl mb-2">🐾</div>
+                        <p className="text-sm text-gray-400">Sin mascotas registradas</p>
+                      </div>
+                    ) : (detailData.mascotas ?? []).map((m: any) => {
+                      const especieIcon: Record<string, string> = { perro: "🐕", gato: "🐈", ave: "🐦", otro: "🐾" };
+                      const especieBg: Record<string, string> = { perro: "bg-amber-50", gato: "bg-orange-50", ave: "bg-sky-50", otro: "bg-green-50" };
+                      return editMascota?.id === m.id ? (
+                        <form key={m.id} onSubmit={handleEditMascota} className="bg-white rounded-2xl border border-primary/30 shadow-sm p-4 space-y-3">
                           <div className="grid grid-cols-2 gap-2">
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Nombre</label>
                               <input required value={editMascota.nombre} onChange={(e) => setEditMascota({ ...editMascota, nombre: e.target.value })} className={INPUT} /></div>
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Especie</label>
                               <select value={editMascota.especie} onChange={(e) => setEditMascota({ ...editMascota, especie: e.target.value })} className={INPUT}>
-                                <option value="perro">Perro</option>
-                                <option value="gato">Gato</option>
-                                <option value="ave">Ave</option>
-                                <option value="otro">Otro</option>
+                                <option value="perro">Perro</option><option value="gato">Gato</option>
+                                <option value="ave">Ave</option><option value="otro">Otro</option>
                               </select></div>
                             <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Raza</label>
                               <input value={editMascota.raza ?? ""} onChange={(e) => setEditMascota({ ...editMascota, raza: e.target.value })} className={INPUT} /></div>
@@ -849,26 +955,35 @@ export default function ResidentesPage() {
                               <input value={editMascota.color ?? ""} onChange={(e) => setEditMascota({ ...editMascota, color: e.target.value })} className={INPUT} /></div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setEditMascota(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                            <button type="button" onClick={() => setEditMascota(null)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
                             <button type="submit" disabled={savingEditM} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
                               {savingEditM ? "…" : "Guardar"}
                             </button>
                           </div>
                         </form>
                       ) : (
-                        <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                          <div>
-                            <span className="font-medium text-gray-900 text-sm">{m.nombre}</span>
-                            <span className="ml-2 text-xs text-gray-500 capitalize">{m.especie}</span>
-                            {m.raza && <span className="ml-1 text-xs text-gray-400">· {m.raza}</span>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setEditMascota({ id: m.id, nombre: m.nombre, especie: m.especie, raza: m.raza, color: m.color })} className="text-blue-400 hover:text-blue-600 text-xs px-2" title="Editar">✎</button>
-                            <button onClick={() => handleDeleteMascota(m.id)} className="text-red-400 hover:text-red-600 text-xs px-2">✕</button>
+                        <div key={m.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                          <div className="flex items-center gap-4 px-4 py-4">
+                            <div className={`w-12 h-12 ${especieBg[m.especie] ?? "bg-green-50"} rounded-xl flex items-center justify-center flex-shrink-0 text-2xl`}>
+                              {especieIcon[m.especie] ?? "🐾"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-gray-900 text-base">{m.nombre}</div>
+                              <div className="text-sm text-gray-500 capitalize">
+                                {m.especie}{m.raza ? ` · ${m.raza}` : ""}
+                                {m.color ? <span className="text-gray-400"> · {m.color}</span> : null}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button onClick={() => setEditMascota({ id: m.id, nombre: m.nombre, especie: m.especie, raza: m.raza, color: m.color })}
+                                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">✎</button>
+                              <button onClick={() => handleDeleteMascota(m.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">✕</button>
+                            </div>
                           </div>
                         </div>
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

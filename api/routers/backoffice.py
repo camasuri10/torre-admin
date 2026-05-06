@@ -1,10 +1,18 @@
 """Backoffice — gestión de plataforma: usuarios SA/BO y reportería global."""
+from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from passlib.context import CryptContext
 from db import get_db
 from routers.auth import get_current_user
+
+def _safe(v):
+    """Convert Decimal → float for JSON serialization."""
+    return float(v) if isinstance(v, Decimal) else v
+
+def _safe_row(row: dict) -> dict:
+    return {k: _safe(v) for k, v in row.items()}
 
 router = APIRouter()
 
@@ -35,153 +43,146 @@ class BoUsuarioUpdate(BaseModel):
 
 @router.get("/stats")
 def get_stats(_: dict = Depends(_require_backoffice)):
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            # Conjuntos y Edificios
-            cur.execute("SELECT COUNT(*) FROM conjuntos")
-            total_conjuntos = cur.fetchone()["count"]
-            cur.execute("SELECT COUNT(*) FROM edificios")
-            total_edificios = cur.fetchone()["count"]
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM conjuntos")
+                total_conjuntos = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM edificios")
+                total_edificios = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM edificio_modulos WHERE activo = TRUE")
+                total_modulos_activos = cur.fetchone()["count"]
 
-            # Módulos activados (total activaciones)
-            cur.execute("SELECT COUNT(*) FROM edificio_modulos WHERE activo = TRUE")
-            total_modulos_activos = cur.fetchone()["count"]
+                cur.execute("SELECT rol, COUNT(*) AS total FROM usuarios WHERE activo = TRUE GROUP BY rol")
+                usuarios_por_rol = {r["rol"]: int(r["total"]) for r in cur.fetchall()}
 
-            # Usuarios por rol
-            cur.execute("""
-                SELECT rol, COUNT(*) as total
-                FROM usuarios WHERE activo = TRUE
-                GROUP BY rol ORDER BY rol
-            """)
-            usuarios_por_rol = {r["rol"]: r["total"] for r in cur.fetchall()}
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
+                        COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
+                        COUNT(*) FILTER (WHERE estado = 'vencido')   AS vencidas,
+                        COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'pagado')    AS FLOAT), 0) AS monto_pagado,
+                        COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'pendiente') AS FLOAT), 0) AS monto_pendiente,
+                        COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'vencido')   AS FLOAT), 0) AS monto_vencido
+                    FROM cuotas
+                """)
+                cuotas = dict(cur.fetchone())
 
-            # Cuotas
-            cur.execute("""
-                SELECT
-                    COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
-                    COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
-                    COUNT(*) FILTER (WHERE estado = 'vencido')   AS vencidas,
-                    COALESCE(SUM(monto) FILTER (WHERE estado = 'pagado'), 0)    AS monto_pagado,
-                    COALESCE(SUM(monto) FILTER (WHERE estado = 'pendiente'), 0) AS monto_pendiente,
-                    COALESCE(SUM(monto) FILTER (WHERE estado = 'vencido'), 0)   AS monto_vencido
-                FROM cuotas
-            """)
-            cuotas = dict(cur.fetchone())
+                cur.execute("SELECT COUNT(*) FROM reservas WHERE estado <> 'cancelada'")
+                total_reservas = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM comunicados")
+                total_comunicados = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM mantenimientos WHERE activo = TRUE")
+                total_mantenimientos = cur.fetchone()["count"]
 
-            # Actividad
-            cur.execute("SELECT COUNT(*) FROM reservas WHERE estado NOT IN ('cancelada')")
-            total_reservas = cur.fetchone()["count"]
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE estado = 'pendiente')  AS pendientes,
+                        COUNT(*) FILTER (WHERE estado = 'en_proceso') AS en_proceso,
+                        COUNT(*) FILTER (WHERE estado = 'resuelto')   AS resueltos
+                    FROM mantenimientos WHERE activo = TRUE
+                """)
+                mantenimientos_estado = dict(cur.fetchone())
 
-            cur.execute("SELECT COUNT(*) FROM comunicados")
-            total_comunicados = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM proveedores WHERE activo = TRUE")
+                total_proveedores = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM contratos_servicio WHERE activo = TRUE")
+                total_contratos = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM paquetes")
+                total_paquetes = cur.fetchone()["count"]
+                cur.execute("SELECT COUNT(*) FROM accesos")
+                total_accesos = cur.fetchone()["count"]
 
-            cur.execute("SELECT COUNT(*) FROM mantenimientos WHERE activo = TRUE")
-            total_mantenimientos = cur.fetchone()["count"]
-
-            cur.execute("""
-                SELECT
-                    COUNT(*) FILTER (WHERE estado = 'pendiente')  AS pendientes,
-                    COUNT(*) FILTER (WHERE estado = 'en_proceso') AS en_proceso,
-                    COUNT(*) FILTER (WHERE estado = 'resuelto')   AS resueltos
-                FROM mantenimientos WHERE activo = TRUE
-            """)
-            mantenimientos_estado = dict(cur.fetchone())
-
-            cur.execute("SELECT COUNT(*) FROM proveedores WHERE activo = TRUE")
-            total_proveedores = cur.fetchone()["count"]
-
-            cur.execute("SELECT COUNT(*) FROM contratos_servicio WHERE activo = TRUE")
-            total_contratos = cur.fetchone()["count"]
-
-            cur.execute("SELECT COUNT(*) FROM paquetes")
-            total_paquetes = cur.fetchone()["count"]
-
-            cur.execute("SELECT COUNT(*) FROM accesos")
-            total_accesos = cur.fetchone()["count"]
-
-            return {
-                "conjuntos": total_conjuntos,
-                "edificios": total_edificios,
-                "modulos_activos": total_modulos_activos,
-                "usuarios_por_rol": usuarios_por_rol,
-                "cuotas": cuotas,
-                "reservas": total_reservas,
-                "comunicados": total_comunicados,
-                "mantenimientos": total_mantenimientos,
-                "mantenimientos_estado": mantenimientos_estado,
-                "proveedores": total_proveedores,
-                "contratos": total_contratos,
-                "paquetes": total_paquetes,
-                "accesos": total_accesos,
-            }
+                return {
+                    "conjuntos": int(total_conjuntos),
+                    "edificios": int(total_edificios),
+                    "modulos_activos": int(total_modulos_activos),
+                    "usuarios_por_rol": usuarios_por_rol,
+                    "cuotas": cuotas,
+                    "reservas": int(total_reservas),
+                    "comunicados": int(total_comunicados),
+                    "mantenimientos": int(total_mantenimientos),
+                    "mantenimientos_estado": {k: int(v) for k, v in mantenimientos_estado.items()},
+                    "proveedores": int(total_proveedores),
+                    "contratos": int(total_contratos),
+                    "paquetes": int(total_paquetes),
+                    "accesos": int(total_accesos),
+                }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"stats error: {e}")
 
 
 @router.get("/analytics")
 def get_analytics(_: dict = Depends(_require_backoffice)):
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            # Reservas por mes (últimos 6 meses)
-            cur.execute("""
-                SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes, COUNT(*) AS total
-                FROM reservas
-                WHERE fecha >= CURRENT_DATE - INTERVAL '6 months'
-                GROUP BY mes ORDER BY mes
-            """)
-            reservas_por_mes = [dict(r) for r in cur.fetchall()]
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes, COUNT(*) AS total
+                    FROM reservas
+                    WHERE fecha >= CURRENT_DATE - INTERVAL '6 months'
+                    GROUP BY TO_CHAR(fecha, 'YYYY-MM') ORDER BY 1
+                """)
+                reservas_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-            # Comunicados por mes (últimos 6 meses)
-            cur.execute("""
-                SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS total
-                FROM comunicados
-                WHERE created_at >= NOW() - INTERVAL '6 months'
-                GROUP BY mes ORDER BY mes
-            """)
-            comunicados_por_mes = [dict(r) for r in cur.fetchall()]
+                cur.execute("""
+                    SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS total
+                    FROM comunicados
+                    WHERE created_at >= NOW() - INTERVAL '6 months'
+                    GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY 1
+                """)
+                comunicados_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-            # Mantenimientos por estado
-            cur.execute("""
-                SELECT estado, COUNT(*) AS total
-                FROM mantenimientos WHERE activo = TRUE
-                GROUP BY estado
-            """)
-            mantenimientos_por_estado = [dict(r) for r in cur.fetchall()]
+                cur.execute("""
+                    SELECT estado, COUNT(*) AS total
+                    FROM mantenimientos WHERE activo = TRUE
+                    GROUP BY estado
+                """)
+                mantenimientos_por_estado = [{"estado": r["estado"], "total": int(r["total"])} for r in cur.fetchall()]
 
-            # Comunicados por tipo
-            cur.execute("""
-                SELECT tipo, COUNT(*) AS total FROM comunicados GROUP BY tipo
-            """)
-            comunicados_por_tipo = [dict(r) for r in cur.fetchall()]
+                try:
+                    cur.execute("SELECT tipo, COUNT(*) AS total FROM comunicados GROUP BY tipo")
+                    comunicados_por_tipo = [{"tipo": r["tipo"], "total": int(r["total"])} for r in cur.fetchall()]
+                except Exception:
+                    conn.rollback()
+                    comunicados_por_tipo = []
 
-            # Cuotas por mes (últimos 6 meses)
-            cur.execute("""
-                SELECT mes,
-                    COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
-                    COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
-                    COUNT(*) FILTER (WHERE estado = 'vencido')   AS vencidas
-                FROM cuotas
-                WHERE mes >= TO_CHAR(CURRENT_DATE - INTERVAL '6 months', 'YYYY-MM')
-                GROUP BY mes ORDER BY mes
-            """)
-            cuotas_por_mes = [dict(r) for r in cur.fetchall()]
+                cur.execute("""
+                    SELECT mes,
+                        COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
+                        COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
+                        COUNT(*) FILTER (WHERE estado = 'vencido')   AS vencidas
+                    FROM cuotas
+                    WHERE mes >= TO_CHAR(CURRENT_DATE - INTERVAL '6 months', 'YYYY-MM')
+                    GROUP BY mes ORDER BY mes
+                """)
+                cuotas_por_mes = [
+                    {"mes": r["mes"], "pagadas": int(r["pagadas"]), "pendientes": int(r["pendientes"]), "vencidas": int(r["vencidas"])}
+                    for r in cur.fetchall()
+                ]
 
-            # Usuarios registrados por mes (últimos 6 meses)
-            cur.execute("""
-                SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS total
-                FROM usuarios
-                WHERE created_at >= NOW() - INTERVAL '6 months'
-                  AND activo = TRUE
-                GROUP BY mes ORDER BY mes
-            """)
-            usuarios_por_mes = [dict(r) for r in cur.fetchall()]
+                cur.execute("""
+                    SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS total
+                    FROM usuarios
+                    WHERE created_at >= NOW() - INTERVAL '6 months' AND activo = TRUE
+                    GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY 1
+                """)
+                usuarios_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-            return {
-                "reservas_por_mes": reservas_por_mes,
-                "comunicados_por_mes": comunicados_por_mes,
-                "mantenimientos_por_estado": mantenimientos_por_estado,
-                "comunicados_por_tipo": comunicados_por_tipo,
-                "cuotas_por_mes": cuotas_por_mes,
-                "usuarios_por_mes": usuarios_por_mes,
-            }
+                return {
+                    "reservas_por_mes": reservas_por_mes,
+                    "comunicados_por_mes": comunicados_por_mes,
+                    "mantenimientos_por_estado": mantenimientos_por_estado,
+                    "comunicados_por_tipo": comunicados_por_tipo,
+                    "cuotas_por_mes": cuotas_por_mes,
+                    "usuarios_por_mes": usuarios_por_mes,
+                }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"analytics error: {e}")
 
 
 @router.get("/usuarios")
