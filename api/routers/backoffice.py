@@ -52,8 +52,26 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                 total_conjuntos = cur.fetchone()["count"]
                 cur.execute("SELECT COUNT(*) FROM edificios")
                 total_edificios = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM edificio_modulos WHERE activo = TRUE")
-                total_modulos_activos = cur.fetchone()["count"]
+                cur.execute("""
+                    SELECT m.clave, m.nombre, m.icono,
+                           COALESCE(COUNT(em.edificio_id) FILTER (WHERE em.activo = TRUE), 0) AS activaciones
+                    FROM modulos m
+                    LEFT JOIN edificio_modulos em ON em.modulo_id = m.id
+                    GROUP BY m.id, m.clave, m.nombre, m.icono
+                    ORDER BY activaciones DESC, m.nombre
+                """)
+                modulos_rows = cur.fetchall()
+                modulos_detalle = [
+                    {
+                        "clave": r["clave"],
+                        "nombre": r["nombre"],
+                        "icono": r["icono"] or "",
+                        "activaciones": int(r["activaciones"]),
+                    }
+                    for r in modulos_rows
+                ]
+                total_modulos = len(modulos_detalle)
+                total_activaciones = sum(m["activaciones"] for m in modulos_detalle)
 
                 cur.execute("SELECT rol, COUNT(*) AS total FROM usuarios WHERE activo = TRUE GROUP BY rol")
                 usuarios_por_rol = {r["rol"]: int(r["total"]) for r in cur.fetchall()}
@@ -98,7 +116,9 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                 return {
                     "conjuntos": int(total_conjuntos),
                     "edificios": int(total_edificios),
-                    "modulos_activos": int(total_modulos_activos),
+                    "modulos_total": total_modulos,
+                    "modulos_activaciones": total_activaciones,
+                    "modulos_detalle": modulos_detalle,
                     "usuarios_por_rol": usuarios_por_rol,
                     "cuotas": cuotas,
                     "reservas": int(total_reservas),
@@ -173,6 +193,26 @@ def get_analytics(_: dict = Depends(_require_backoffice)):
                 """)
                 usuarios_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
+                # Módulos más usados (desde modulos_uso) y cobertura por edificio
+                try:
+                    cur.execute("""
+                        SELECT mu.modulo_clave AS clave,
+                               COALESCE(m.nombre, mu.modulo_clave) AS nombre,
+                               COALESCE(m.icono, '') AS icono,
+                               COUNT(*) AS usos
+                        FROM modulos_uso mu
+                        LEFT JOIN modulos m ON m.clave = mu.modulo_clave
+                        GROUP BY mu.modulo_clave, m.nombre, m.icono
+                        ORDER BY usos DESC
+                    """)
+                    modulos_mas_usados = [
+                        {"clave": r["clave"], "nombre": r["nombre"], "icono": r["icono"], "usos": int(r["usos"])}
+                        for r in cur.fetchall()
+                    ]
+                except Exception:
+                    conn.rollback()
+                    modulos_mas_usados = []
+
                 return {
                     "reservas_por_mes": reservas_por_mes,
                     "comunicados_por_mes": comunicados_por_mes,
@@ -180,6 +220,7 @@ def get_analytics(_: dict = Depends(_require_backoffice)):
                     "comunicados_por_tipo": comunicados_por_tipo,
                     "cuotas_por_mes": cuotas_por_mes,
                     "usuarios_por_mes": usuarios_por_mes,
+                    "modulos_mas_usados": modulos_mas_usados,
                 }
     except HTTPException:
         raise

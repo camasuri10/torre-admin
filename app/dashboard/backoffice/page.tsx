@@ -101,7 +101,7 @@ export default function BackofficeDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon="🏘️" label="Conjuntos" value={stats.conjuntos} color="blue" />
         <KpiCard icon="🏢" label="Edificios" value={stats.edificios} color="blue" />
-        <KpiCard icon="🔌" label="Módulos activos" value={stats.modulos_activos} color="green" />
+        <KpiCard icon="🔌" label="Módulos disponibles" value={stats.modulos_total ?? 0} color="green" />
         <KpiCard icon="👥" label="Total usuarios"
           value={Object.values(stats.usuarios_por_rol ?? {}).reduce((a: number, b: any) => a + b, 0)}
           color="purple" />
@@ -121,6 +121,87 @@ export default function BackofficeDashboard() {
         <KpiCard icon="⏳" label="Cuotas pendientes" value={stats.cuotas?.pendientes ?? 0} color="yellow" />
         <KpiCard icon="⚠️" label="Cuotas vencidas" value={stats.cuotas?.vencidas ?? 0} color="red" />
         <KpiCard icon="📦" label="Paquetes totales" value={stats.paquetes} color="gray" />
+      </div>
+
+      {/* Módulos del sistema */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Activación por módulo */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold text-gray-900">Activación por módulo</h3>
+            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
+              {stats.modulos_activaciones ?? 0} activaciones totales
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">Edificios con cada módulo habilitado</p>
+          <div className="space-y-2.5">
+            {(stats.modulos_detalle ?? []).map((m: any) => (
+              <div key={m.clave} className="flex items-center gap-3">
+                <span className="text-base w-5 flex-shrink-0">{m.icono}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-700 truncate">{m.nombre}</span>
+                    <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                      {m.activaciones}/{stats.edificios}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div
+                      className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: stats.edificios > 0 ? `${Math.round((m.activaciones / stats.edificios) * 100)}%` : "0%" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(stats.modulos_detalle ?? []).length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">Sin módulos configurados</p>
+            )}
+          </div>
+        </div>
+
+        {/* Módulos más usados */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold text-gray-900">Módulos más usados</h3>
+            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
+              {(analytics?.modulos_mas_usados ?? []).reduce((a: number, m: any) => a + m.usos, 0)} usos totales
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">Conteo de interacciones registradas por módulo</p>
+          {(analytics?.modulos_mas_usados ?? []).length > 0 ? (
+            <div className="space-y-2.5">
+              {(() => {
+                const maxUsos = Math.max(...(analytics?.modulos_mas_usados ?? []).map((m: any) => m.usos), 1);
+                return (analytics?.modulos_mas_usados ?? []).map((m: any) => (
+                  <div key={m.clave} className="flex items-center gap-3">
+                    <span className="text-base w-5 flex-shrink-0">{m.icono}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-700 truncate">{m.nombre}</span>
+                        <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{m.usos.toLocaleString("es-CO")}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className="bg-accent h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round((m.usos / maxUsos) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-40 text-center">
+              <span className="text-3xl mb-2">📊</span>
+              <p className="text-sm text-gray-500 font-medium">Sin datos de uso aún</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Los usos se registran a medida que los administradores interactúan con cada módulo.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Charts — Fila 1 */}
