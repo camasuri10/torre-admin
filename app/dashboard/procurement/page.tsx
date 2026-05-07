@@ -1061,7 +1061,7 @@ export default function ProcurementPage() {
       {activeTab === "kanban" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">Proyectos activos por estado — solo órdenes con clasificación "Proyecto"</div>
+            <div className="text-sm text-gray-500">Proyectos activos por estado — solo órdenes con clasificación &quot;Proyecto&quot;</div>
             <button onClick={loadKanban} className="text-xs px-3 py-1.5 border rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">↻ Actualizar</button>
           </div>
           {loadingKanban ? (
