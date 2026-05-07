@@ -306,6 +306,38 @@ def migrate_v8():
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/migrate-v10")
+def migrate_v10():
+    """Apply v10 migrations: actividad clasificacion + requiere_cotizaciones en ordenes."""
+    from db import get_db
+    migrations = [
+        ("ordenes requiere_cotizaciones",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_cotizaciones BOOLEAN NOT NULL DEFAULT FALSE;"),
+        ("ordenes clasificacion constraint drop",
+         "ALTER TABLE ordenes_compra DROP CONSTRAINT IF EXISTS ordenes_compra_clasificacion_check;"),
+        ("ordenes clasificacion constraint add", """
+            ALTER TABLE ordenes_compra ADD CONSTRAINT ordenes_compra_clasificacion_check
+              CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo','actividad'));
+        """),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        for stmt in sql.strip().split(";"):
+                            stmt = stmt.strip()
+                            if stmt:
+                                cur.execute(stmt)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/api/migrate-v9")
 def migrate_v9():
     """Apply v9 migrations: empleados, documentos, tareas, comentarios, pagos, ordenes nuevas columnas."""

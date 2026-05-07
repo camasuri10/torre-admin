@@ -51,6 +51,7 @@ type EvidenciaForm = { tipo: string; url: string; descripcion: string };
 const CLASIFICACIONES = [
   { value: "", label: "Seleccionar tipo…" },
   { value: "proyecto", label: "Proyecto" },
+  { value: "actividad", label: "Actividad" },
   { value: "mantenimiento_preventivo", label: "Mantenimiento Preventivo" },
   { value: "mantenimiento_correctivo", label: "Mantenimiento Correctivo" },
 ];
@@ -150,6 +151,12 @@ export default function ProcurementPage() {
   const [asambleaDecisionForm, setAsambleaDecisionForm] = useState({ decision: "aprobada", acta_url: "", cotizacion_url: "", comentario: "" });
   const [savingAsamblea, setSavingAsamblea] = useState(false);
   const [togglingAsamblea, setTogglingAsamblea] = useState(false);
+
+  // Cotizaciones directas en orden
+  const [togglingCots, setTogglingCots] = useState(false);
+  const [showCotDirectaForm, setShowCotDirectaForm] = useState(false);
+  const [cotDirectaForm, setCotDirectaForm] = useState<any>({ proveedor_id: "", numero_cotizacion: "", monto: 0, condiciones_pago: "", tiempo_entrega: "", vigencia: "", observaciones: "" });
+  const [savingCotDirecta, setSavingCotDirecta] = useState(false);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -506,7 +513,7 @@ export default function ProcurementPage() {
             cotizaciones: "📊 Cotizaciones & RFQ",
             flujos: "⚙️ Flujos",
             asamblea: "🏛️ Asamblea",
-            kanban: "📌 Proyectos",
+            kanban: "📌 Tablero",
           };
           return (
             <button
@@ -714,8 +721,8 @@ export default function ProcurementPage() {
                   </div>
                 )}
 
-                {/* Aprobación Asamblea */}
-                {isAdmin && (
+                {/* Aprobación Asamblea — solo para proyectos, no actividades */}
+                {isAdmin && selectedOrden.clasificacion !== "actividad" && (
                   <div className="px-4 py-3 border-t">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-xs font-semibold text-gray-500 uppercase">Aprobación Asamblea</div>
@@ -768,6 +775,134 @@ export default function ProcurementPage() {
                       </div>
                     ) : (
                       <div className="text-xs text-gray-400">No requiere aprobación de asamblea</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Cotizaciones directas — solo para proyectos y mantenimientos */}
+                {isAdmin && ["proyecto", "mantenimiento_preventivo", "mantenimiento_correctivo"].includes(selectedOrden.clasificacion) && (
+                  <div className="px-4 py-3 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-semibold text-gray-500 uppercase">Cotizaciones</div>
+                      <button
+                        onClick={async () => {
+                          setTogglingCots(true);
+                          try {
+                            const updated = await api.procurement.ordenes.cotizacionesToggle(selectedOrden.id, !selectedOrden.requiere_cotizaciones);
+                            setSelectedOrden(updated);
+                            setShowCotDirectaForm(false);
+                          } finally { setTogglingCots(false); }
+                        }}
+                        disabled={togglingCots}
+                        className={`text-xs px-2 py-0.5 rounded-full font-semibold transition-colors disabled:opacity-50 ${
+                          selectedOrden.requiere_cotizaciones ? "bg-blue-100 text-blue-700 hover:bg-blue-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                      >
+                        {selectedOrden.requiere_cotizaciones ? "Activado" : "Desactivado"}
+                      </button>
+                    </div>
+                    {selectedOrden.requiere_cotizaciones && (
+                      <div className="space-y-2">
+                        {(selectedOrden.cotizaciones ?? []).length === 0 && !showCotDirectaForm && (
+                          <div className="text-xs text-gray-400 text-center py-2">Sin cotizaciones registradas.</div>
+                        )}
+                        {(selectedOrden.cotizaciones ?? []).map((c: any) => (
+                          <div key={c.id} className={`bg-gray-50 rounded-lg px-3 py-2 flex items-start justify-between gap-2 border ${c.estado === "ganadora" ? "border-green-300 bg-green-50" : "border-gray-100"}`}>
+                            <div className="text-xs space-y-0.5">
+                              <div className="font-medium text-gray-900 flex items-center gap-1">
+                                {c.proveedor_nombre}
+                                {c.estado === "ganadora" && <span className="text-green-600 text-xs">★ Ganadora</span>}
+                              </div>
+                              <div className="text-primary font-semibold">{fmt(c.monto)}</div>
+                              {c.numero_cotizacion && <div className="text-gray-400">N°: {c.numero_cotizacion}</div>}
+                              {c.condiciones_pago && <div className="text-gray-400">{c.condiciones_pago}</div>}
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              {c.estado !== "ganadora" && (
+                                <button
+                                  onClick={async () => {
+                                    await api.procurement.cotizaciones.marcarGanadora(c.id);
+                                    const updated = await api.procurement.ordenes.get(selectedOrden.id);
+                                    setSelectedOrden(updated);
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                >★</button>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  if (!confirm("¿Eliminar esta cotización?")) return;
+                                  await api.procurement.ordenes.deleteCotizacion(c.id);
+                                  const updated = await api.procurement.ordenes.get(selectedOrden.id);
+                                  setSelectedOrden(updated);
+                                }}
+                                className="text-gray-400 hover:text-red-500 text-xs"
+                              >✕</button>
+                            </div>
+                          </div>
+                        ))}
+                        {showCotDirectaForm ? (
+                          <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Proveedor *</label>
+                                <select value={cotDirectaForm.proveedor_id} onChange={(e) => setCotDirectaForm((f: any) => ({ ...f, proveedor_id: e.target.value }))}
+                                  className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+                                  <option value="">Seleccionar…</option>
+                                  {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">N° Cotización</label>
+                                <input value={cotDirectaForm.numero_cotizacion} onChange={(e) => setCotDirectaForm((f: any) => ({ ...f, numero_cotizacion: e.target.value }))}
+                                  className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Monto *</label>
+                                <input type="number" min="0" value={cotDirectaForm.monto} onChange={(e) => setCotDirectaForm((f: any) => ({ ...f, monto: e.target.value }))}
+                                  className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Condiciones pago</label>
+                                <input value={cotDirectaForm.condiciones_pago} onChange={(e) => setCotDirectaForm((f: any) => ({ ...f, condiciones_pago: e.target.value }))}
+                                  className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary" placeholder="30 días…" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Tiempo entrega</label>
+                                <input value={cotDirectaForm.tiempo_entrega} onChange={(e) => setCotDirectaForm((f: any) => ({ ...f, tiempo_entrega: e.target.value }))}
+                                  className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary" placeholder="5 días…" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (!cotDirectaForm.proveedor_id || !cotDirectaForm.monto) return;
+                                  setSavingCotDirecta(true);
+                                  try {
+                                    await api.procurement.ordenes.createCotizacion(selectedOrden.id, {
+                                      ...cotDirectaForm,
+                                      proveedor_id: parseInt(cotDirectaForm.proveedor_id),
+                                      monto: parseFloat(cotDirectaForm.monto),
+                                    });
+                                    const updated = await api.procurement.ordenes.get(selectedOrden.id);
+                                    setSelectedOrden(updated);
+                                    setShowCotDirectaForm(false);
+                                    setCotDirectaForm({ proveedor_id: "", numero_cotizacion: "", monto: 0, condiciones_pago: "", tiempo_entrega: "", vigencia: "", observaciones: "" });
+                                  } finally { setSavingCotDirecta(false); }
+                                }}
+                                disabled={savingCotDirecta || !cotDirectaForm.proveedor_id || !cotDirectaForm.monto}
+                                className="text-xs px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {savingCotDirecta ? "…" : "Guardar"}
+                              </button>
+                              <button onClick={() => setShowCotDirectaForm(false)} className="text-xs px-3 py-1 border rounded-lg hover:bg-gray-50">Cancelar</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setShowCotDirectaForm(true)} className="text-xs text-primary font-medium hover:underline">
+                            + Registrar cotización
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1061,7 +1196,7 @@ export default function ProcurementPage() {
       {activeTab === "kanban" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">Proyectos activos por estado — solo órdenes con clasificación &quot;Proyecto&quot;</div>
+            <div className="text-sm text-gray-500">Proyectos y Actividades visualizados por estado de avance</div>
             <button onClick={loadKanban} className="text-xs px-3 py-1.5 border rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">↻ Actualizar</button>
           </div>
           {loadingKanban ? (
@@ -1078,7 +1213,7 @@ export default function ProcurementPage() {
                     </div>
                     <div className="p-2 space-y-2 flex-1 min-h-[120px]">
                       {cards.length === 0 ? (
-                        <div className="text-xs text-gray-400 text-center py-6">Sin proyectos</div>
+                        <div className="text-xs text-gray-400 text-center py-6">Sin elementos</div>
                       ) : cards.map((card) => (
                         <div
                           key={card.id}
@@ -1087,9 +1222,14 @@ export default function ProcurementPage() {
                         >
                           <div className="flex items-start justify-between gap-1 mb-1">
                             <span className="font-mono text-xs text-gray-400">{card.numero_orden}</span>
-                            {card.requiere_asamblea && card.asamblea_estado !== "aprobada" && (
-                              <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚖️ Asamblea</span>
-                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${card.clasificacion === "actividad" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                                {card.clasificacion === "actividad" ? "🟢 Actividad" : "🔷 Proyecto"}
+                              </span>
+                              {card.requiere_asamblea && card.asamblea_estado !== "aprobada" && (
+                                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">⚖️ Asamblea</span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-sm font-semibold text-gray-900 leading-tight mb-1 line-clamp-2">{card.titulo}</div>
                           {card.proveedor_nombre && (
@@ -1165,6 +1305,7 @@ export default function ProcurementPage() {
                     {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
+                {oClasificacion !== "actividad" && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Monto Estimado (COP)</label>
                   <input
@@ -1174,6 +1315,7 @@ export default function ProcurementPage() {
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Fecha de Necesidad</label>
                   <input
@@ -1242,7 +1384,7 @@ export default function ProcurementPage() {
               </div>
 
               {/* Items */}
-              <div>
+              {oClasificacion !== "actividad" && (<div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-gray-700">Items de línea</label>
                   <button onClick={() => setOItems((its) => [...its, mkItem()])} className="text-xs text-primary hover:text-primary/80 font-medium">
@@ -1317,7 +1459,7 @@ export default function ProcurementPage() {
                     </tfoot>
                   </table>
                 </div>
-              </div>
+              </div>)}
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3">
               <button onClick={() => setShowOrdenModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>

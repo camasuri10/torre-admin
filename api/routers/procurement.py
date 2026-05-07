@@ -114,7 +114,7 @@ class EvidenciaIn(BaseModel):
 class OrdenCreate(BaseModel):
     titulo: str
     tipo_orden: str
-    clasificacion: Optional[str] = None  # proyecto | mantenimiento_preventivo | mantenimiento_correctivo
+    clasificacion: Optional[str] = None  # proyecto | mantenimiento_preventivo | mantenimiento_correctivo | actividad
     proveedor_id: Optional[int] = None
     descripcion: Optional[str] = None
     justificacion: Optional[str] = None
@@ -124,6 +124,7 @@ class OrdenCreate(BaseModel):
     edificio_id: int
     items: list[ItemIn] = []
     evidencias: list[EvidenciaIn] = []
+    requiere_cotizaciones: bool = False
 
 
 class OrdenUpdate(BaseModel):
@@ -138,6 +139,7 @@ class OrdenUpdate(BaseModel):
     fecha_necesidad: Optional[str] = None
     items: Optional[list[ItemIn]] = None
     evidencias: Optional[list[EvidenciaIn]] = None
+    requiere_cotizaciones: Optional[bool] = None
 
 
 class EstadoAction(BaseModel):
@@ -169,6 +171,18 @@ class SolicitudCreate(BaseModel):
 
 class AsambleaToggle(BaseModel):
     requiere: bool
+
+class CotizacionesToggle(BaseModel):
+    requiere: bool
+
+class CotizacionDirecta(BaseModel):
+    proveedor_id: int
+    numero_cotizacion: Optional[str] = None
+    monto: float
+    condiciones_pago: Optional[str] = None
+    tiempo_entrega: Optional[str] = None
+    vigencia: Optional[str] = None
+    observaciones: Optional[str] = None
 
 
 class AsambleaDecision(BaseModel):
@@ -287,12 +301,13 @@ def create_orden(data: OrdenCreate, current_user: dict = Depends(_require_procur
                 INSERT INTO ordenes_compra
                     (numero_orden, titulo, tipo_orden, clasificacion, proveedor_id,
                      descripcion, justificacion, cantidad, monto_estimado,
-                     fecha_necesidad, edificio_id, solicitante_id, evidencias)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING id
+                     fecha_necesidad, edificio_id, solicitante_id, evidencias, requiere_cotizaciones)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s) RETURNING id
             """, (
                 numero, data.titulo, data.tipo_orden, data.clasificacion, data.proveedor_id,
                 data.descripcion, data.justificacion, data.cantidad, data.monto_estimado,
                 data.fecha_necesidad, data.edificio_id, solicitante_id, evidencias_json,
+                data.requiere_cotizaciones,
             ))
             orden_id = cur.fetchone()["id"]
 
@@ -339,6 +354,8 @@ def update_orden(orden_id: int, data: OrdenUpdate, _: dict = Depends(_require_pr
             if data.evidencias is not None:
                 fields.append("evidencias=%s::jsonb")
                 values.append(json.dumps([e.model_dump() for e in data.evidencias]))
+            if data.requiere_cotizaciones is not None:
+                fields.append("requiere_cotizaciones=%s"); values.append(data.requiere_cotizaciones)
 
             if fields:
                 fields.append("updated_at=NOW()")
@@ -742,7 +759,7 @@ def list_asamblea(
 
 @router.get("/kanban")
 def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
-    """Retorna órdenes clasificadas como 'proyecto' agrupadas por estado para el tablero Kanban."""
+    """Retorna órdenes clasificadas como 'proyecto' o 'actividad' agrupadas por estado para el tablero."""
     COLUMNAS = [
         "borrador",
         "pendiente_aprobacion",
@@ -762,7 +779,7 @@ def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_pro
                 FROM ordenes_compra o
                 LEFT JOIN proveedores p ON p.id = o.proveedor_id
                 JOIN edificios e ON e.id = o.edificio_id
-                WHERE o.clasificacion = 'proyecto'
+                WHERE o.clasificacion IN ('proyecto', 'actividad')
             """
             params: list = []
             if edificio_id:
@@ -783,3 +800,62 @@ def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_pro
             "datos": columnas,
             "total": len(ordenes),
         }
+
+
+# ─── Cotizaciones directas por orden ─────────────────────────────────────────
+
+@router.patch("/ordenes/{orden_id}/cotizaciones/toggle")
+def toggle_cotizaciones(
+    orden_id: int, data: CotizacionesToggle, _: dict = Depends(_require_procurement)
+):
+    """Activa o desactiva el módulo de cotizaciones directas para una orden."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM ordenes_compra WHERE id=%s", (orden_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Orden no encontrada")
+            cur.execute(
+                "UPDATE ordenes_compra SET requiere_cotizaciones=%s, updated_at=NOW() WHERE id=%s",
+                (data.requiere, orden_id),
+            )
+            return _fetch_orden_detail(cur, orden_id)
+
+
+@router.post("/ordenes/{orden_id}/cotizaciones")
+def create_cotizacion_directa(
+    orden_id: int, data: CotizacionDirecta, _: dict = Depends(_require_procurement)
+):
+    """Crea una cotización directamente vinculada a una orden (sin solicitud de cotización)."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM ordenes_compra WHERE id=%s", (orden_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Orden no encontrada")
+            cur.execute("""
+                INSERT INTO cotizaciones
+                    (orden_id, proveedor_id, numero_cotizacion, monto,
+                     condiciones_pago, tiempo_entrega, vigencia, observaciones)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+            """, (
+                orden_id, data.proveedor_id, data.numero_cotizacion, data.monto,
+                data.condiciones_pago, data.tiempo_entrega,
+                data.vigencia or None, data.observaciones,
+            ))
+            cot_id = cur.fetchone()["id"]
+            cur.execute("""
+                SELECT c.*, p.nombre AS proveedor_nombre
+                FROM cotizaciones c JOIN proveedores p ON p.id = c.proveedor_id
+                WHERE c.id = %s
+            """, (cot_id,))
+            return _safe_row(dict(cur.fetchone()))
+
+
+@router.delete("/cotizaciones/{cot_id}")
+def delete_cotizacion(cot_id: int, _: dict = Depends(_require_procurement)):
+    """Elimina una cotización por su ID."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM cotizaciones WHERE id=%s RETURNING id", (cot_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Cotización no encontrada")
+            return {"ok": True}

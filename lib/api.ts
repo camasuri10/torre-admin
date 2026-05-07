@@ -440,6 +440,18 @@ export const api = {
             body: JSON.stringify(data),
           }),
       },
+      cotizacionesToggle: (id: number, requiere: boolean) =>
+        request<any>(`/api/procurement/ordenes/${id}/cotizaciones/toggle`, {
+          method: "PATCH",
+          body: JSON.stringify({ requiere }),
+        }),
+      createCotizacion: (id: number, data: any) =>
+        request<any>(`/api/procurement/ordenes/${id}/cotizaciones`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+      deleteCotizacion: (cot_id: number) =>
+        request<any>(`/api/procurement/cotizaciones/${cot_id}`, { method: "DELETE" }),
     },
     asamblea: {
       list: (edificio_id?: number) => {
