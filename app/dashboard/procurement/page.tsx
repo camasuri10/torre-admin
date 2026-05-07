@@ -239,7 +239,7 @@ export default function ProcurementPage() {
     setLoadingKanban(true);
     try {
       const data = await api.procurement.kanban(eid);
-      setKanbanData(data?.ordenes ?? {});
+      setKanbanData(data?.datos ?? {});
     } finally {
       setLoadingKanban(false);
     }
