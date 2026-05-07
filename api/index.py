@@ -18,7 +18,7 @@ from routers import (
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
     conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
-    procurement,
+    procurement, contratos,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -81,6 +81,7 @@ app.include_router(proveedores.router,    prefix="/api/proveedores",     tags=["
 app.include_router(backoffice.router,     prefix="/api/backoffice",      tags=["Backoffice"])
 app.include_router(encuestas.router,      prefix="/api/encuestas",        tags=["Encuestas"])
 app.include_router(procurement.router,    prefix="/api/procurement",      tags=["Procurement"])
+app.include_router(contratos.router,      prefix="/api/contratos",         tags=["Contratos"])
 
 
 @app.get("/api/health")
@@ -297,6 +298,96 @@ def migrate_v8():
                 for name, sql in migrations:
                     try:
                         cur.execute(sql)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/migrate-v9")
+def migrate_v9():
+    """Apply v9 migrations: empleados, documentos, tareas, comentarios, pagos, ordenes nuevas columnas."""
+    from db import get_db
+    migrations = [
+        ("proveedor_empleados table", """
+            CREATE TABLE IF NOT EXISTS proveedor_empleados (
+                id SERIAL PRIMARY KEY,
+                proveedor_id INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
+                nombre TEXT NOT NULL, cedula TEXT, cargo TEXT,
+                fecha_ingreso DATE, activo BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("empleado_documentos table", """
+            CREATE TABLE IF NOT EXISTS empleado_documentos (
+                id SERIAL PRIMARY KEY,
+                empleado_id INTEGER NOT NULL REFERENCES proveedor_empleados(id) ON DELETE CASCADE,
+                tipo TEXT NOT NULL CHECK (tipo IN ('salud','pension','arl','otro')),
+                url_documento TEXT NOT NULL, fecha_vencimiento DATE, descripcion TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("contrato_tareas table", """
+            CREATE TABLE IF NOT EXISTS contrato_tareas (
+                id SERIAL PRIMARY KEY,
+                contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+                titulo TEXT NOT NULL, descripcion TEXT, fecha_programada DATE, fecha_completada DATE,
+                estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','en_progreso','completada','vencida')),
+                tipo TEXT NOT NULL DEFAULT 'personalizado' CHECK (tipo IN ('predefinido','personalizado')),
+                orden INTEGER DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("contrato_comentarios table", """
+            CREATE TABLE IF NOT EXISTS contrato_comentarios (
+                id SERIAL PRIMARY KEY,
+                contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+                tarea_id INTEGER REFERENCES contrato_tareas(id) ON DELETE SET NULL,
+                comentario TEXT NOT NULL, autor_id INTEGER REFERENCES usuarios(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("contrato_pagos table", """
+            CREATE TABLE IF NOT EXISTS contrato_pagos (
+                id SERIAL PRIMARY KEY,
+                contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+                tipo_pago TEXT NOT NULL CHECK (tipo_pago IN ('anticipo','finiquito','parcial')),
+                monto NUMERIC(15,2) NOT NULL, fecha_pago DATE NOT NULL,
+                descripcion TEXT, url_comprobante TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("ordenes clasificacion", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS clasificacion TEXT CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo'));"),
+        ("ordenes cantidad", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS cantidad NUMERIC(10,2);"),
+        ("ordenes justificacion", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS justificacion TEXT;"),
+        ("ordenes evidencias", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS evidencias JSONB DEFAULT '[]';"),
+        ("ordenes requiere_asamblea", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_asamblea BOOLEAN NOT NULL DEFAULT FALSE;"),
+        ("ordenes asamblea_estado", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_estado TEXT CHECK (asamblea_estado IN ('pendiente','aprobada','rechazada'));"),
+        ("ordenes asamblea_acta_url", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_acta_url TEXT;"),
+        ("ordenes asamblea_cotizacion_url", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_cotizacion_url TEXT;"),
+        ("ordenes asamblea_fecha", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_fecha TIMESTAMPTZ;"),
+        ("ordenes asamblea_comentario", "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_comentario TEXT;"),
+        ("contratos fecha_auditoria", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;"),
+        ("contratos orden_compra_id", "ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);"),
+        ("solicitudes num_cotizaciones", "ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;"),
+        ("v9 indices", """
+            CREATE INDEX IF NOT EXISTS idx_prov_empleados ON proveedor_empleados(proveedor_id);
+            CREATE INDEX IF NOT EXISTS idx_empleado_docs ON empleado_documentos(empleado_id);
+            CREATE INDEX IF NOT EXISTS idx_contrato_tareas ON contrato_tareas(contrato_id);
+            CREATE INDEX IF NOT EXISTS idx_contrato_pagos ON contrato_pagos(contrato_id);
+        """),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        for stmt in sql.strip().split(";"):
+                            stmt = stmt.strip()
+                            if stmt:
+                                cur.execute(stmt)
                         results.append({"migration": name, "status": "ok"})
                     except Exception as e:
                         results.append({"migration": name, "status": "error", "detail": str(e)})

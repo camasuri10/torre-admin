@@ -635,6 +635,67 @@ CREATE TABLE IF NOT EXISTS orden_aprobaciones (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Empleados de proveedores (contratistas con personal en sitio)
+CREATE TABLE IF NOT EXISTS proveedor_empleados (
+    id            SERIAL PRIMARY KEY,
+    proveedor_id  INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
+    nombre        TEXT NOT NULL,
+    cedula        TEXT,
+    cargo         TEXT,
+    fecha_ingreso DATE,
+    activo        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Documentos de seguridad social por empleado (salud, pensión, ARL)
+CREATE TABLE IF NOT EXISTS empleado_documentos (
+    id                SERIAL PRIMARY KEY,
+    empleado_id       INTEGER NOT NULL REFERENCES proveedor_empleados(id) ON DELETE CASCADE,
+    tipo              TEXT NOT NULL CHECK (tipo IN ('salud','pension','arl','otro')),
+    url_documento     TEXT NOT NULL,
+    fecha_vencimiento DATE,
+    descripcion       TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tareas/hitos de la línea de tiempo de gestión de contratos
+CREATE TABLE IF NOT EXISTS contrato_tareas (
+    id               SERIAL PRIMARY KEY,
+    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    titulo           TEXT NOT NULL,
+    descripcion      TEXT,
+    fecha_programada DATE,
+    fecha_completada DATE,
+    estado           TEXT NOT NULL DEFAULT 'pendiente'
+                         CHECK (estado IN ('pendiente','en_progreso','completada','vencida')),
+    tipo             TEXT NOT NULL DEFAULT 'personalizado'
+                         CHECK (tipo IN ('predefinido','personalizado')),
+    orden            INTEGER DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Comentarios de avance por tarea o por contrato
+CREATE TABLE IF NOT EXISTS contrato_comentarios (
+    id          SERIAL PRIMARY KEY,
+    contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    tarea_id    INTEGER REFERENCES contrato_tareas(id) ON DELETE SET NULL,
+    comentario  TEXT NOT NULL,
+    autor_id    INTEGER REFERENCES usuarios(id),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Registro de pagos del contrato (comprobantes adjuntos como URL)
+CREATE TABLE IF NOT EXISTS contrato_pagos (
+    id               SERIAL PRIMARY KEY,
+    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    tipo_pago        TEXT NOT NULL CHECK (tipo_pago IN ('anticipo','finiquito','parcial')),
+    monto            NUMERIC(15,2) NOT NULL,
+    fecha_pago       DATE NOT NULL,
+    descripcion      TEXT,
+    url_comprobante  TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ─── Índices ────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_torres_edificio         ON torres(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_torre          ON unidades(torre_id);
@@ -943,8 +1004,90 @@ CREATE INDEX IF NOT EXISTS idx_orden_items          ON orden_items(orden_id);
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol     ON cotizaciones(solicitud_id);
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden   ON cotizaciones(orden_id);
 CREATE INDEX IF NOT EXISTS idx_orden_aprob          ON orden_aprobaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_flujos_edificio      ON flujos_aprobacion(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio ON solicitudes_cotizacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_flujos_edificio          ON flujos_aprobacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio     ON solicitudes_cotizacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_prov_empleados_proveedor ON proveedor_empleados(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_empleado_docs_empleado   ON empleado_documentos(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_tareas          ON contrato_tareas(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_comentarios     ON contrato_comentarios(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_pagos           ON contrato_pagos(contrato_id);
+
+-- v9.0 — Procurement completo: clasificacion, asamblea, gestión contratos, empleados
+CREATE TABLE IF NOT EXISTS proveedor_empleados (
+    id            SERIAL PRIMARY KEY,
+    proveedor_id  INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
+    nombre        TEXT NOT NULL,
+    cedula        TEXT,
+    cargo         TEXT,
+    fecha_ingreso DATE,
+    activo        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS empleado_documentos (
+    id                SERIAL PRIMARY KEY,
+    empleado_id       INTEGER NOT NULL REFERENCES proveedor_empleados(id) ON DELETE CASCADE,
+    tipo              TEXT NOT NULL CHECK (tipo IN ('salud','pension','arl','otro')),
+    url_documento     TEXT NOT NULL,
+    fecha_vencimiento DATE,
+    descripcion       TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS contrato_tareas (
+    id               SERIAL PRIMARY KEY,
+    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    titulo           TEXT NOT NULL,
+    descripcion      TEXT,
+    fecha_programada DATE,
+    fecha_completada DATE,
+    estado           TEXT NOT NULL DEFAULT 'pendiente'
+                         CHECK (estado IN ('pendiente','en_progreso','completada','vencida')),
+    tipo             TEXT NOT NULL DEFAULT 'personalizado'
+                         CHECK (tipo IN ('predefinido','personalizado')),
+    orden            INTEGER DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS contrato_comentarios (
+    id          SERIAL PRIMARY KEY,
+    contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    tarea_id    INTEGER REFERENCES contrato_tareas(id) ON DELETE SET NULL,
+    comentario  TEXT NOT NULL,
+    autor_id    INTEGER REFERENCES usuarios(id),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS contrato_pagos (
+    id               SERIAL PRIMARY KEY,
+    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
+    tipo_pago        TEXT NOT NULL CHECK (tipo_pago IN ('anticipo','finiquito','parcial')),
+    monto            NUMERIC(15,2) NOT NULL,
+    fecha_pago       DATE NOT NULL,
+    descripcion      TEXT,
+    url_comprobante  TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_prov_empleados_prv ON proveedor_empleados(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_empleado_docs      ON empleado_documentos(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_ct_tareas          ON contrato_tareas(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_ct_comentarios     ON contrato_comentarios(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_ct_pagos           ON contrato_pagos(contrato_id);
+
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS clasificacion TEXT
+    CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo'));
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS cantidad NUMERIC(10,2);
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS justificacion TEXT;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS evidencias JSONB DEFAULT '[]';
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_asamblea BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_estado TEXT
+    CHECK (asamblea_estado IN ('pendiente','aprobada','rechazada'));
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_acta_url TEXT;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_cotizacion_url TEXT;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_fecha TIMESTAMPTZ;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_comentario TEXT;
+CREATE INDEX IF NOT EXISTS idx_ordenes_clasificacion ON ordenes_compra(clasificacion);
+
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);
+
+ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;
 """
 
 

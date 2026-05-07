@@ -141,6 +141,22 @@ export const proveedoresApi = {
     delete: (contrato_id: number) =>
       request<void>(`/api/proveedores/contratos/${contrato_id}`, { method: "DELETE" }),
   },
+  empleados: {
+    list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/empleados`),
+    create: (proveedor_id: number, data: any) =>
+      request<any>(`/api/proveedores/${proveedor_id}/empleados`, { method: "POST", body: JSON.stringify(data) }),
+    update: (empleado_id: number, data: any) =>
+      request<any>(`/api/proveedores/empleados/${empleado_id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (empleado_id: number) =>
+      request<void>(`/api/proveedores/empleados/${empleado_id}`, { method: "DELETE" }),
+    documentos: {
+      list: (empleado_id: number) => request<any>(`/api/proveedores/empleados/${empleado_id}/documentos`),
+      create: (empleado_id: number, data: any) =>
+        request<any>(`/api/proveedores/empleados/${empleado_id}/documentos`, { method: "POST", body: JSON.stringify(data) }),
+      delete: (doc_id: number) =>
+        request<void>(`/api/proveedores/empleados/documentos/${doc_id}`, { method: "DELETE" }),
+    },
+  },
   edificios: {
     list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/edificios`),
     add: (proveedor_id: number, data: { edificio_id?: number; conjunto_id?: number }) =>
@@ -412,6 +428,28 @@ export const api = {
           method: "PATCH",
           body: JSON.stringify({ accion, comentario }),
         }),
+      asamblea: {
+        toggle: (id: number, requiere: boolean) =>
+          request<any>(`/api/procurement/ordenes/${id}/asamblea`, {
+            method: "PATCH",
+            body: JSON.stringify({ requiere }),
+          }),
+        decision: (id: number, data: { decision: string; acta_url?: string; cotizacion_url?: string; comentario?: string }) =>
+          request<any>(`/api/procurement/ordenes/${id}/asamblea/decision`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+          }),
+      },
+    },
+    asamblea: {
+      list: (edificio_id?: number) => {
+        const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+        return request<any[]>(`/api/procurement/asamblea${q}`);
+      },
+    },
+    kanban: (edificio_id?: number) => {
+      const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+      return request<any>(`/api/procurement/kanban${q}`);
     },
     aprobaciones: {
       pendientes: () => request<any[]>("/api/procurement/aprobaciones/pendientes"),
@@ -441,6 +479,50 @@ export const api = {
         request<any>("/api/procurement/flujos", { method: "POST", body: JSON.stringify(data) }),
       delete: (id: number) =>
         request<void>(`/api/procurement/flujos/${id}`, { method: "DELETE" }),
+    },
+  },
+
+  // ── Contratos — Timeline, Pagos, PDF ──────────────────────────────────────
+  contratos: {
+    tareas: {
+      list: (contrato_id: number) => request<any[]>(`/api/contratos/${contrato_id}/tareas`),
+      create: (contrato_id: number, data: any) =>
+        request<any>(`/api/contratos/${contrato_id}/tareas`, { method: "POST", body: JSON.stringify(data) }),
+      seedPredefinidos: (contrato_id: number) =>
+        request<any>(`/api/contratos/${contrato_id}/tareas/predefinidos`, { method: "POST", body: "{}" }),
+      update: (tarea_id: number, data: any) =>
+        request<any>(`/api/contratos/tareas/${tarea_id}`, { method: "PUT", body: JSON.stringify(data) }),
+      delete: (tarea_id: number) =>
+        request<void>(`/api/contratos/tareas/${tarea_id}`, { method: "DELETE" }),
+    },
+    comentarios: {
+      list: (contrato_id: number) => request<any[]>(`/api/contratos/${contrato_id}/comentarios`),
+      create: (contrato_id: number, data: { comentario: string; tarea_id?: number }) =>
+        request<any>(`/api/contratos/${contrato_id}/comentarios`, { method: "POST", body: JSON.stringify(data) }),
+      delete: (cmt_id: number) =>
+        request<void>(`/api/contratos/comentarios/${cmt_id}`, { method: "DELETE" }),
+    },
+    pagos: {
+      list: (contrato_id: number) => request<any[]>(`/api/contratos/${contrato_id}/pagos`),
+      create: (contrato_id: number, data: any) =>
+        request<any>(`/api/contratos/${contrato_id}/pagos`, { method: "POST", body: JSON.stringify(data) }),
+      delete: (pago_id: number) =>
+        request<void>(`/api/contratos/pagos/${pago_id}`, { method: "DELETE" }),
+    },
+    pdf: async (contrato_id: number) => {
+      const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+      const token = typeof window !== "undefined" ? localStorage.getItem("torre_auth_token") : null;
+      const res = await fetch(`${BASE}/api/contratos/${contrato_id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Error al generar PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contrato_${contrato_id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     },
   },
 

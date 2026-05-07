@@ -105,25 +105,39 @@ class ItemIn(BaseModel):
     precio_unitario: float = 0
 
 
+class EvidenciaIn(BaseModel):
+    tipo: str  # foto | video | documento
+    url: str
+    descripcion: Optional[str] = None
+
+
 class OrdenCreate(BaseModel):
     titulo: str
     tipo_orden: str
+    clasificacion: Optional[str] = None  # proyecto | mantenimiento_preventivo | mantenimiento_correctivo
     proveedor_id: Optional[int] = None
     descripcion: Optional[str] = None
+    justificacion: Optional[str] = None
+    cantidad: Optional[float] = None
     monto_estimado: float = 0
     fecha_necesidad: Optional[str] = None
     edificio_id: int
     items: list[ItemIn] = []
+    evidencias: list[EvidenciaIn] = []
 
 
 class OrdenUpdate(BaseModel):
     titulo: Optional[str] = None
     tipo_orden: Optional[str] = None
+    clasificacion: Optional[str] = None
     proveedor_id: Optional[int] = None
     descripcion: Optional[str] = None
+    justificacion: Optional[str] = None
+    cantidad: Optional[float] = None
     monto_estimado: Optional[float] = None
     fecha_necesidad: Optional[str] = None
     items: Optional[list[ItemIn]] = None
+    evidencias: Optional[list[EvidenciaIn]] = None
 
 
 class EstadoAction(BaseModel):
@@ -150,6 +164,18 @@ class SolicitudCreate(BaseModel):
     fecha_limite: Optional[str] = None
     criterios_evaluacion: Optional[str] = None
     edificio_id: int
+    num_cotizaciones_requeridas: int = 1  # 1 o 3
+
+
+class AsambleaToggle(BaseModel):
+    requiere: bool
+
+
+class AsambleaDecision(BaseModel):
+    decision: str  # aprobada | rechazada
+    acta_url: Optional[str] = None
+    cotizacion_url: Optional[str] = None
+    comentario: Optional[str] = None
 
 
 class FlujoCreate(BaseModel):
@@ -255,14 +281,18 @@ def create_orden(data: OrdenCreate, current_user: dict = Depends(_require_procur
     with get_db() as conn:
         with conn.cursor() as cur:
             numero = _gen_numero_orden(cur, data.edificio_id)
+            import json
+            evidencias_json = json.dumps([e.model_dump() for e in data.evidencias]) if data.evidencias else "[]"
             cur.execute("""
                 INSERT INTO ordenes_compra
-                    (numero_orden, titulo, tipo_orden, proveedor_id, descripcion,
-                     monto_estimado, fecha_necesidad, edificio_id, solicitante_id)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                    (numero_orden, titulo, tipo_orden, clasificacion, proveedor_id,
+                     descripcion, justificacion, cantidad, monto_estimado,
+                     fecha_necesidad, edificio_id, solicitante_id, evidencias)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING id
             """, (
-                numero, data.titulo, data.tipo_orden, data.proveedor_id, data.descripcion,
-                data.monto_estimado, data.fecha_necesidad, data.edificio_id, solicitante_id,
+                numero, data.titulo, data.tipo_orden, data.clasificacion, data.proveedor_id,
+                data.descripcion, data.justificacion, data.cantidad, data.monto_estimado,
+                data.fecha_necesidad, data.edificio_id, solicitante_id, evidencias_json,
             ))
             orden_id = cur.fetchone()["id"]
 
@@ -286,19 +316,29 @@ def update_orden(orden_id: int, data: OrdenUpdate, _: dict = Depends(_require_pr
             if row["estado"] not in ("borrador", "rechazada"):
                 raise HTTPException(status_code=400, detail="Solo se pueden editar órdenes en borrador o rechazadas")
 
+            import json
             fields, values = [], []
             if data.titulo is not None:
                 fields.append("titulo=%s"); values.append(data.titulo)
             if data.tipo_orden is not None:
                 fields.append("tipo_orden=%s"); values.append(data.tipo_orden)
+            if data.clasificacion is not None:
+                fields.append("clasificacion=%s"); values.append(data.clasificacion)
             if data.proveedor_id is not None:
                 fields.append("proveedor_id=%s"); values.append(data.proveedor_id)
             if data.descripcion is not None:
                 fields.append("descripcion=%s"); values.append(data.descripcion)
+            if data.justificacion is not None:
+                fields.append("justificacion=%s"); values.append(data.justificacion)
+            if data.cantidad is not None:
+                fields.append("cantidad=%s"); values.append(data.cantidad)
             if data.monto_estimado is not None:
                 fields.append("monto_estimado=%s"); values.append(data.monto_estimado)
             if data.fecha_necesidad is not None:
                 fields.append("fecha_necesidad=%s"); values.append(data.fecha_necesidad)
+            if data.evidencias is not None:
+                fields.append("evidencias=%s::jsonb")
+                values.append(json.dumps([e.model_dump() for e in data.evidencias]))
 
             if fields:
                 fields.append("updated_at=NOW()")
@@ -553,11 +593,13 @@ def create_solicitud(data: SolicitudCreate, current_user: dict = Depends(_requir
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO solicitudes_cotizacion
-                    (titulo, tipo, descripcion, fecha_limite, criterios_evaluacion, edificio_id, created_by)
-                VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    (titulo, tipo, descripcion, fecha_limite, criterios_evaluacion,
+                     edificio_id, created_by, num_cotizaciones_requeridas)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (
                 data.titulo, data.tipo, data.descripcion, data.fecha_limite,
                 data.criterios_evaluacion, data.edificio_id, uid,
+                data.num_cotizaciones_requeridas,
             ))
             return dict(cur.fetchone())
 
@@ -608,3 +650,136 @@ def delete_flujo(flujo_id: int, _: dict = Depends(_require_superadmin)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM flujos_aprobacion WHERE id=%s", (flujo_id,))
+
+
+# ─── Asamblea ─────────────────────────────────────────────────────────────────
+
+@router.patch("/ordenes/{orden_id}/asamblea")
+def toggle_asamblea(
+    orden_id: int, data: AsambleaToggle, current_user: dict = Depends(_require_procurement)
+):
+    """Activa o desactiva el requerimiento de aprobación de asamblea en una orden."""
+    if current_user.get("rol") not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden activar asamblea")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM ordenes_compra WHERE id=%s", (orden_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+            if data.requiere:
+                cur.execute("""
+                    UPDATE ordenes_compra
+                    SET requiere_asamblea=TRUE, asamblea_estado='pendiente', updated_at=NOW()
+                    WHERE id=%s
+                """, (orden_id,))
+            else:
+                cur.execute("""
+                    UPDATE ordenes_compra
+                    SET requiere_asamblea=FALSE, asamblea_estado=NULL,
+                        asamblea_acta_url=NULL, asamblea_cotizacion_url=NULL,
+                        asamblea_fecha=NULL, asamblea_comentario=NULL, updated_at=NOW()
+                    WHERE id=%s
+                """, (orden_id,))
+            return _fetch_orden_detail(cur, orden_id)
+
+
+@router.patch("/ordenes/{orden_id}/asamblea/decision")
+def decidir_asamblea(
+    orden_id: int, data: AsambleaDecision, current_user: dict = Depends(_require_procurement)
+):
+    """Registra la decisión de la asamblea (aprobada/rechazada) con documentos adjuntos."""
+    if current_user.get("rol") not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden registrar decisión de asamblea")
+    if data.decision not in ("aprobada", "rechazada"):
+        raise HTTPException(status_code=400, detail="decision debe ser 'aprobada' o 'rechazada'")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, requiere_asamblea FROM ordenes_compra WHERE id=%s", (orden_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Orden no encontrada")
+            if not row["requiere_asamblea"]:
+                raise HTTPException(status_code=400, detail="Esta orden no tiene asamblea activada")
+
+            cur.execute("""
+                UPDATE ordenes_compra
+                SET asamblea_estado=%s,
+                    asamblea_acta_url=%s,
+                    asamblea_cotizacion_url=%s,
+                    asamblea_fecha=NOW(),
+                    asamblea_comentario=%s,
+                    updated_at=NOW()
+                WHERE id=%s
+            """, (
+                data.decision, data.acta_url, data.cotizacion_url,
+                data.comentario, orden_id,
+            ))
+            return _fetch_orden_detail(cur, orden_id)
+
+
+@router.get("/asamblea")
+def list_asamblea(
+    edificio_id: Optional[int] = None, current_user: dict = Depends(_require_procurement)
+):
+    """Lista todas las órdenes que requieren o han pasado por aprobación de asamblea."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            query = _ORDEN_SELECT + " WHERE o.requiere_asamblea = TRUE"
+            params: list = []
+            if edificio_id:
+                query += " AND o.edificio_id = %s"
+                params.append(edificio_id)
+            query += " ORDER BY o.created_at DESC"
+            cur.execute(query, params)
+            return [_safe_row(dict(r)) for r in cur.fetchall()]
+
+
+# ─── Kanban ───────────────────────────────────────────────────────────────────
+
+@router.get("/kanban")
+def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
+    """Retorna órdenes clasificadas como 'proyecto' agrupadas por estado para el tablero Kanban."""
+    COLUMNAS = [
+        "borrador",
+        "pendiente_aprobacion",
+        "aprobada",
+        "en_ejecucion",
+        "completada",
+        "cancelada",
+    ]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            query = """
+                SELECT o.id, o.numero_orden, o.titulo, o.estado, o.clasificacion,
+                       o.monto_estimado, o.fecha_necesidad, o.created_at,
+                       o.requiere_asamblea, o.asamblea_estado,
+                       p.nombre AS proveedor_nombre,
+                       e.nombre AS edificio_nombre
+                FROM ordenes_compra o
+                LEFT JOIN proveedores p ON p.id = o.proveedor_id
+                JOIN edificios e ON e.id = o.edificio_id
+                WHERE o.clasificacion = 'proyecto'
+            """
+            params: list = []
+            if edificio_id:
+                query += " AND o.edificio_id = %s"
+                params.append(edificio_id)
+            query += " ORDER BY o.created_at DESC"
+            cur.execute(query, params)
+            ordenes = [_safe_row(dict(r)) for r in cur.fetchall()]
+
+        columnas = {col: [] for col in COLUMNAS}
+        for o in ordenes:
+            estado = o["estado"]
+            if estado in columnas:
+                columnas[estado].append(o)
+
+        return {
+            "columnas": COLUMNAS,
+            "datos": columnas,
+            "total": len(ordenes),
+        }

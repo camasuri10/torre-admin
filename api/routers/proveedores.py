@@ -38,10 +38,13 @@ class ContratoCreate(BaseModel):
     descripcion: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
+    fecha_auditoria: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
     valor: Optional[float] = None
     moneda: Optional[str] = "COP"
+    num_cotizaciones_requeridas: Optional[int] = None
+    orden_compra_id: Optional[int] = None
 
 
 class ContratoUpdate(BaseModel):
@@ -51,11 +54,36 @@ class ContratoUpdate(BaseModel):
     descripcion: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
+    fecha_auditoria: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
     valor: Optional[float] = None
     moneda: Optional[str] = None
+    num_cotizaciones_requeridas: Optional[int] = None
+    orden_compra_id: Optional[int] = None
     activo: Optional[bool] = None
+
+
+class EmpleadoCreate(BaseModel):
+    nombre: str
+    cedula: Optional[str] = None
+    cargo: Optional[str] = None
+    fecha_ingreso: Optional[str] = None
+
+
+class EmpleadoUpdate(BaseModel):
+    nombre: Optional[str] = None
+    cedula: Optional[str] = None
+    cargo: Optional[str] = None
+    fecha_ingreso: Optional[str] = None
+    activo: Optional[bool] = None
+
+
+class DocumentoCreate(BaseModel):
+    tipo: str  # salud | pension | arl | otro
+    url_documento: str
+    fecha_vencimiento: Optional[str] = None
+    descripcion: Optional[str] = None
 
 
 def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
@@ -302,11 +330,13 @@ def create_contrato(
             cur.execute(
                 """INSERT INTO contratos_servicio
                    (proveedor_id, conjunto_id, edificio_id, tipo_servicio, descripcion,
-                    fecha_inicio, fecha_fin, condiciones, archivo_url, valor, moneda)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                    fecha_inicio, fecha_fin, fecha_auditoria, condiciones, archivo_url,
+                    valor, moneda, orden_compra_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (proveedor_id, data.conjunto_id, data.edificio_id, data.tipo_servicio,
-                 data.descripcion, data.fecha_inicio, data.fecha_fin,
-                 data.condiciones, data.archivo_url, data.valor, data.moneda),
+                 data.descripcion, data.fecha_inicio, data.fecha_fin, data.fecha_auditoria,
+                 data.condiciones, data.archivo_url, data.valor, data.moneda,
+                 data.orden_compra_id),
             )
             return dict(cur.fetchone())
 
@@ -443,3 +473,109 @@ def remove_proveedor_edificio(
                 "UPDATE proveedor_edificios SET activo = FALSE WHERE id = %s AND proveedor_id = %s",
                 (pe_id, proveedor_id),
             )
+
+
+# ── Empleados del Proveedor ───────────────────────────────────────────────────
+
+def _require_admin(current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+    return current_user
+
+
+@router.get("/{proveedor_id}/empleados")
+def list_empleados(proveedor_id: int, current_user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM proveedor_empleados WHERE proveedor_id=%s AND activo=TRUE ORDER BY nombre",
+                (proveedor_id,)
+            )
+            return {"empleados": [dict(r) for r in cur.fetchall()]}
+
+
+@router.post("/{proveedor_id}/empleados", status_code=201)
+def create_empleado(
+    proveedor_id: int, data: EmpleadoCreate, current_user: dict = Depends(_require_admin)
+):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM proveedores WHERE id=%s AND activo=TRUE", (proveedor_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+            cur.execute(
+                """INSERT INTO proveedor_empleados (proveedor_id, nombre, cedula, cargo, fecha_ingreso)
+                   VALUES (%s,%s,%s,%s,%s) RETURNING *""",
+                (proveedor_id, data.nombre, data.cedula, data.cargo, data.fecha_ingreso)
+            )
+            return dict(cur.fetchone())
+
+
+@router.put("/empleados/{empleado_id}")
+def update_empleado(
+    empleado_id: int, data: EmpleadoUpdate, current_user: dict = Depends(_require_admin)
+):
+    fields, values = [], []
+    for field, val in data.model_dump(exclude_none=True).items():
+        fields.append(f"{field} = %s")
+        values.append(val)
+    if not fields:
+        raise HTTPException(status_code=400, detail="Sin campos a actualizar")
+    values.append(empleado_id)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE proveedor_empleados SET {', '.join(fields)} WHERE id=%s RETURNING *",
+                values,
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Empleado no encontrado")
+            return dict(row)
+
+
+@router.delete("/empleados/{empleado_id}", status_code=204)
+def delete_empleado(empleado_id: int, current_user: dict = Depends(_require_admin)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE proveedor_empleados SET activo=FALSE WHERE id=%s", (empleado_id,))
+
+
+# ── Documentos por Empleado ───────────────────────────────────────────────────
+
+@router.get("/empleados/{empleado_id}/documentos")
+def list_documentos_empleado(empleado_id: int, current_user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM empleado_documentos WHERE empleado_id=%s ORDER BY tipo, created_at DESC",
+                (empleado_id,)
+            )
+            return {"documentos": [dict(r) for r in cur.fetchall()]}
+
+
+@router.post("/empleados/{empleado_id}/documentos", status_code=201)
+def create_documento_empleado(
+    empleado_id: int, data: DocumentoCreate, current_user: dict = Depends(_require_admin)
+):
+    if data.tipo not in ("salud", "pension", "arl", "otro"):
+        raise HTTPException(status_code=400, detail="tipo inválido: usa salud, pension, arl u otro")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM proveedor_empleados WHERE id=%s AND activo=TRUE", (empleado_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Empleado no encontrado")
+            cur.execute(
+                """INSERT INTO empleado_documentos
+                   (empleado_id, tipo, url_documento, fecha_vencimiento, descripcion)
+                   VALUES (%s,%s,%s,%s,%s) RETURNING *""",
+                (empleado_id, data.tipo, data.url_documento, data.fecha_vencimiento, data.descripcion)
+            )
+            return dict(cur.fetchone())
+
+
+@router.delete("/empleados/documentos/{doc_id}", status_code=204)
+def delete_documento_empleado(doc_id: int, current_user: dict = Depends(_require_admin)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM empleado_documentos WHERE id=%s", (doc_id,))
