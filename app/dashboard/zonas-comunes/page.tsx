@@ -11,6 +11,12 @@ const ESTADO_BADGE: Record<string, string> = {
   no_usada: "bg-orange-100 text-orange-700",
 };
 
+const ENTREGA_BADGE: Record<string, string> = {
+  pendiente: "bg-amber-100 text-amber-700",
+  inventario_adjunto: "bg-blue-100 text-blue-700",
+  completada: "bg-green-100 text-green-700",
+};
+
 const ICONOS_ZONA = ["🏊", "🎾", "🏋️", "🌳", "🎮", "🎲", "🎉", "🔥", "🍽️", "🛋️"];
 
 const ZONA_FORM_EMPTY = {
@@ -18,7 +24,14 @@ const ZONA_FORM_EMPTY = {
   horario_inicio: "06:00", horario_fin: "22:00",
   duracion_min_horas: 1, duracion_max_horas: 4,
   anticipacion_min_dias: 1, anticipacion_max_dias: 30,
+  requiere_inventario: false, costo_arriendo: "" as string | number, costo_deposito: "" as string | number,
 };
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 export default function ZonasComunesPage() {
   const user = getUser();
@@ -28,6 +41,7 @@ export default function ZonasComunesPage() {
 
   const [zonas, setZonas] = useState<any[]>([]);
   const [unidades, setUnidades] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
   const [reservas, setReservas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"zonas" | "reservas">("zonas");
@@ -38,6 +52,7 @@ export default function ZonasComunesPage() {
   const [reservaZona, setReservaZona] = useState<any | null>(null);
   const [reservaFecha, setReservaFecha] = useState("");
   const [reservaUnidadId, setReservaUnidadId] = useState<number | null>(null);
+  const [reservaSelectedUserId, setReservaSelectedUserId] = useState<number | null>(null);
   const [slots, setSlots] = useState<{ inicio: string; fin: string; libre: boolean }[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [reservaNotas, setReservaNotas] = useState("");
@@ -50,6 +65,8 @@ export default function ZonasComunesPage() {
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [incluirInactivas, setIncluirInactivas] = useState(false);
+  const [showEntregaModal, setShowEntregaModal] = useState(false);
+  const [entregaReserva, setEntregaReserva] = useState<any | null>(null);
 
   function timeToMin(t: string) {
     const [h, m] = String(t).slice(0, 5).split(":").map(Number);
@@ -88,10 +105,8 @@ export default function ZonasComunesPage() {
         config?.duracion_min_horas ?? zona.duracion_min_horas,
       );
       const capacidadHora: number | null = config?.capacidad_hora ?? zona.capacidad_hora ?? null;
-      // Solo incluir slots que estén libres (ocultar los ocupados en lugar de mostrarlos disabled)
       const libres = raw.filter((s) => {
         if (!slotLibre(s.inicio, s.fin, ocupados)) return false;
-        // Si hay capacidad_hora, verificar que no se haya alcanzado
         if (capacidadHora) {
           const count = (conteo_hora ?? {})[s.inicio.slice(0, 5)] ?? 0;
           if (count >= capacidadHora) return false;
@@ -110,9 +125,11 @@ export default function ZonasComunesPage() {
     if (!reservaZona || !reservaFecha) return;
     setReservandoSlot(slot.inicio);
     try {
+      const targetUserId = isAdmin && reservaSelectedUserId ? reservaSelectedUserId : usuarioId;
       const reserva = await api.zonas.reservas.create({
         zona_id: reservaZona.id,
-        usuario_id: usuarioId,
+        usuario_id: targetUserId,
+        registrado_por_id: isAdmin && reservaSelectedUserId ? usuarioId : undefined,
         unidad_id: reservaUnidadId || null,
         fecha: reservaFecha,
         hora_inicio: slot.inicio,
@@ -126,6 +143,7 @@ export default function ZonasComunesPage() {
       setSlots([]);
       setReservaNotas("");
       setReservaUnidadId(null);
+      setReservaSelectedUserId(null);
       setSelectedSlot(null);
       load();
     } catch (err: any) {
@@ -138,14 +156,16 @@ export default function ZonasComunesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [z, r, uns] = await Promise.all([
+      const [z, r, uns, usrs] = await Promise.all([
         api.zonas.list(edificioId, incluirInactivas),
         api.zonas.reservas.list({ edificio_id: edificioId }),
         api.edificios.unidades(edificioId),
+        api.usuarios.list({ edificio_id: edificioId }),
       ]);
       setZonas(z);
       setReservas(r);
-      setUnidades(uns);
+      setUnidades(Array.isArray(uns) ? uns : []);
+      setUsuarios(Array.isArray(usrs) ? usrs : []);
     } catch {
       // ignore
     } finally {
@@ -155,22 +175,26 @@ export default function ZonasComunesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-
   const handleUpdateConfig = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setSaving(true);
     const cap = fd.get("capacidad_hora");
+    const costoArriendo = fd.get("costo_arriendo");
+    const costoDeposito = fd.get("costo_deposito");
     try {
       await api.zonas.updateConfig(selectedZona.id, {
-        duracion_min_horas:  Number(fd.get("duracion_min_horas")),
-        duracion_max_horas:  Number(fd.get("duracion_max_horas")),
+        duracion_min_horas:    Number(fd.get("duracion_min_horas")),
+        duracion_max_horas:    Number(fd.get("duracion_max_horas")),
         anticipacion_min_dias: Number(fd.get("anticipacion_min_dias")),
         anticipacion_max_dias: Number(fd.get("anticipacion_max_dias")),
-        horario_inicio:      fd.get("horario_inicio"),
-        horario_fin:         fd.get("horario_fin"),
-        activo:              fd.get("activo") === "true",
-        capacidad_hora:      cap ? Number(cap) : null,
+        horario_inicio:        fd.get("horario_inicio"),
+        horario_fin:           fd.get("horario_fin"),
+        activo:                fd.get("activo") === "true",
+        capacidad_hora:        cap ? Number(cap) : null,
+        requiere_inventario:   fd.get("requiere_inventario") === "true",
+        costo_arriendo:        costoArriendo ? Number(costoArriendo) : null,
+        costo_deposito:        costoDeposito ? Number(costoDeposito) : null,
       });
       setShowConfigForm(false);
       load();
@@ -183,7 +207,12 @@ export default function ZonasComunesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.zonas.create({ ...zonaForm, edificio_id: edificioId });
+      await api.zonas.create({
+        ...zonaForm,
+        edificio_id: edificioId,
+        costo_arriendo: zonaForm.costo_arriendo !== "" ? Number(zonaForm.costo_arriendo) : null,
+        costo_deposito: zonaForm.costo_deposito !== "" ? Number(zonaForm.costo_deposito) : null,
+      });
       setShowZonaForm(false);
       setZonaForm(ZONA_FORM_EMPTY);
       load();
@@ -216,6 +245,25 @@ export default function ZonasComunesPage() {
     }
   };
 
+  const handleEntrega = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!entregaReserva) return;
+    setSaving(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      await api.zonas.reservas.entrega(entregaReserva.id, {
+        inventario_url:   (fd.get("inventario_url") as string) || undefined,
+        deposito_devuelto: fd.get("deposito_devuelto") === "si",
+        estado_entrega:    "completada",
+      });
+      setShowEntregaModal(false);
+      setEntregaReserva(null);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const disponibles = zonas.filter((z) => z.disponible && z.activo !== false).length;
   const confirmadas = reservas.filter((r) => r.estado === "confirmada").length;
   const pendientes = reservas.filter((r) => r.estado === "pendiente").length;
@@ -231,6 +279,11 @@ export default function ZonasComunesPage() {
     : reservas;
 
   const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  // Compute date constraints for reservation form
+  const today = new Date();
+  const minReservaDate = reservaZona ? addDays(today, reservaZona.anticipacion_min_dias ?? 1) : addDays(today, 1);
+  const maxReservaDate = reservaZona ? addDays(today, reservaZona.anticipacion_max_dias ?? 30) : addDays(today, 30);
 
   return (
     <div className="space-y-6">
@@ -299,7 +352,8 @@ export default function ZonasComunesPage() {
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{zona.icono}</span>
+                      {/* Icono más grande */}
+                      <span className="text-4xl">{zona.icono}</span>
                       <div>
                         <h3 className="font-semibold text-gray-900">{zona.nombre}</h3>
                         <p className="text-xs text-gray-400">{zona.edificio_nombre}</p>
@@ -313,21 +367,38 @@ export default function ZonasComunesPage() {
                           {zona.disponible ? "Disponible" : "No disponible"}
                         </span>
                       )}
+                      {zona.requiere_inventario && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">📋 Inventario</span>
+                      )}
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-4 leading-relaxed">{zona.descripcion}</p>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4">
+                  {zona.descripcion && (
+                    <p className="text-sm text-gray-500 mb-4 leading-relaxed">{zona.descripcion}</p>
+                  )}
+                  {/* Info grid — incluyendo anticipación */}
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
                     <div>👥 Capacidad: <strong>{zona.capacidad}</strong></div>
                     <div>⏱️ Min: <strong>{zona.duracion_min_horas}h</strong></div>
                     <div>🕐 Horario: <strong>{String(zona.horario_inicio).slice(0,5)}–{String(zona.horario_fin).slice(0,5)}</strong></div>
                     <div>⏱️ Máx: <strong>{zona.duracion_max_horas}h</strong></div>
+                    <div className="col-span-2">📅 Anticipación: <strong>{zona.anticipacion_min_dias}–{zona.anticipacion_max_dias} días</strong></div>
                   </div>
+                  {/* Costos */}
+                  {(zona.costo_arriendo || zona.costo_deposito) && (
+                    <div className="flex gap-3 text-xs text-gray-600 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+                      {zona.costo_arriendo && (
+                        <span>💰 Arriendo: <strong>${Number(zona.costo_arriendo).toLocaleString("es-CO")}</strong></span>
+                      )}
+                      {zona.costo_deposito && (
+                        <span>🔒 Depósito: <strong>${Number(zona.costo_deposito).toLocaleString("es-CO")}</strong></span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
                         setReservaZona(zona);
                         setShowReservaForm(true);
-                        // Pre-cargar unidad del usuario si es residente con ocupación
                         if (!isAdmin && unidades.length > 0) {
                           setReservaUnidadId(unidades[0]?.id ?? null);
                         }
@@ -339,9 +410,9 @@ export default function ZonasComunesPage() {
                     {isAdmin && (
                       <button
                         onClick={() => { setSelectedZona(zona); setShowConfigForm(true); }}
-                        className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors"
-                        title="Configurar">
-                        ⚙️
+                        className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors font-medium"
+                        title="Editar zona">
+                        ✏️ Editar
                       </button>
                     )}
                   </div>
@@ -371,7 +442,7 @@ export default function ZonasComunesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {["Zona", "Residente / Apto", "Registrado por", "Fecha", "Horario", "Estado", "Acciones"].map((h) => (
+                    {["Zona / Costo", "Residente / Apto", "Registrado por", "Fecha", "Horario", "Estado", "Acciones"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -386,7 +457,12 @@ export default function ZonasComunesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span>{r.zona_icono}</span>
-                          <span className="font-medium">{r.zona_nombre}</span>
+                          <div>
+                            <span className="font-medium">{r.zona_nombre}</span>
+                            {r.costo_arriendo && (
+                              <div className="text-xs text-gray-400">💰 ${Number(r.costo_arriendo).toLocaleString("es-CO")}</div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -407,9 +483,14 @@ export default function ZonasComunesPage() {
                         {r.cancelada_por && (
                           <div className="text-xs text-gray-400 mt-0.5">por {r.cancelada_por}</div>
                         )}
+                        {r.estado_entrega && (
+                          <span className={`mt-1 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ENTREGA_BADGE[r.estado_entrega] ?? ""}`}>
+                            {r.estado_entrega === "completada" ? "✅ Entregada" : r.estado_entrega === "inventario_adjunto" ? "📋 Inv. adjunto" : "⏳ Entrega pend."}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1.5">
+                        <div className="flex gap-1.5 flex-wrap">
                           {isAdmin && r.estado === "pendiente" && (
                             <button onClick={() => handleConfirmar(r.id)}
                               className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded hover:bg-green-200 font-medium">
@@ -422,6 +503,14 @@ export default function ZonasComunesPage() {
                               onClick={() => setCancelModal({ id: r.id, zona: r.zona_nombre, esPropia: r.usuario_id === usuarioId && !isAdmin })}
                               className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 font-medium">
                               Cancelar
+                            </button>
+                          )}
+                          {/* Entrega inventario: solo para confirmadas con requiere_inventario y no completadas */}
+                          {isAdmin && r.requiere_inventario && r.estado === "confirmada" && r.estado_entrega !== "completada" && (
+                            <button
+                              onClick={() => { setEntregaReserva(r); setShowEntregaModal(true); }}
+                              className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded hover:bg-purple-200 font-medium">
+                              📋 Entrega
                             </button>
                           )}
                         </div>
@@ -444,13 +533,55 @@ export default function ZonasComunesPage() {
                 {reservaZona.icono} Reservar {reservaZona.nombre}
               </h3>
               <button
-                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); setReservaUnidadId(null); setSelectedSlot(null); }}
+                onClick={() => { setShowReservaForm(false); setReservaZona(null); setReservaFecha(""); setSlots([]); setReservaNotas(""); setReservaUnidadId(null); setReservaSelectedUserId(null); setSelectedSlot(null); }}
                 className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 mb-1">
               Horario: {String(reservaZona.horario_inicio).slice(0,5)}–{String(reservaZona.horario_fin).slice(0,5)} ·
               Bloque: {reservaZona.duracion_min_horas}h
             </p>
+            <p className="text-xs text-gray-400 mb-4">
+              📅 Reserva con {reservaZona.anticipacion_min_dias}–{reservaZona.anticipacion_max_dias} días de anticipación
+            </p>
+
+            {/* Costos de la zona */}
+            {(reservaZona.costo_arriendo || reservaZona.costo_deposito) && (
+              <div className="mb-4 flex gap-4 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+                {reservaZona.costo_arriendo && (
+                  <span>💰 Arriendo: <strong>${Number(reservaZona.costo_arriendo).toLocaleString("es-CO")}</strong></span>
+                )}
+                {reservaZona.costo_deposito && (
+                  <span>🔒 Depósito: <strong>${Number(reservaZona.costo_deposito).toLocaleString("es-CO")}</strong></span>
+                )}
+              </div>
+            )}
+
+            {/* Residente (admin selecciona, residentes ven el suyo) */}
+            {isAdmin ? (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Residente</label>
+                <select
+                  value={reservaSelectedUserId ?? ""}
+                  onChange={(e) => {
+                    const uid = e.target.value ? Number(e.target.value) : null;
+                    setReservaSelectedUserId(uid);
+                    // Autoselect unit based on resident's unidad if available
+                    if (uid) {
+                      const u = usuarios.find((usr: any) => usr.id === uid);
+                      if (u?.unidad_id) setReservaUnidadId(u.unidad_id);
+                    }
+                  }}
+                  className={INPUT}
+                >
+                  <option value="">— Seleccionar residente —</option>
+                  {usuarios.filter((u: any) => ["propietario", "inquilino"].includes(u.rol ?? "")).map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nombre}{u.unidad_numero ? ` — Apto ${u.unidad_numero}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             {/* Unidad */}
             <div className="mb-4">
@@ -461,22 +592,26 @@ export default function ZonasComunesPage() {
                 className={INPUT}
               >
                 <option value="">— Sin unidad —</option>
-                {unidades.map((u) => (
+                {unidades.map((u: any) => (
                   <option key={u.id} value={u.id}>{u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}</option>
                 ))}
               </select>
             </div>
 
-            {/* Fecha */}
+            {/* Fecha — con restricción de anticipación */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Selecciona una fecha</label>
               <input
                 type="date"
                 value={reservaFecha}
-                min={new Date().toISOString().slice(0, 10)}
+                min={minReservaDate}
+                max={maxReservaDate}
                 onChange={(e) => { setReservaFecha(e.target.value); setSelectedSlot(null); cargarSlots(reservaZona, e.target.value); }}
                 className={INPUT}
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Fechas disponibles: {new Date(minReservaDate).toLocaleDateString("es-CO")} al {new Date(maxReservaDate).toLocaleDateString("es-CO")}
+              </p>
             </div>
 
             {/* Slots */}
@@ -485,8 +620,6 @@ export default function ZonasComunesPage() {
                 <p className="text-sm font-medium text-gray-700 mb-2">Horarios disponibles</p>
                 {slotsLoading ? (
                   <div className="text-center py-6 text-gray-400 text-sm">Verificando disponibilidad…</div>
-                ) : slots.length === 0 ? (
-                  <div className="text-center py-6 text-gray-400 text-sm">No se encontraron horarios.</div>
                 ) : slots.length === 0 ? (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center text-red-600 text-sm font-medium">
                     No hay disponibilidad para este día
@@ -579,11 +712,56 @@ export default function ZonasComunesPage() {
         </div>
       )}
 
-      {/* Config form modal */}
-      {showConfigForm && selectedZona && (
+      {/* Entrega inventario modal */}
+      {showEntregaModal && entregaReserva && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">⚙️ Configurar {selectedZona.nombre}</h3>
+            <h3 className="font-semibold text-gray-900 mb-1">📋 Entrega de inventario</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              <strong>{entregaReserva.zona_nombre}</strong> — {entregaReserva.usuario_nombre} · {entregaReserva.fecha}
+            </p>
+            <form onSubmit={handleEntrega} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">URL del inventario firmado</label>
+                <input name="inventario_url" type="url" placeholder="https://drive.google.com/…"
+                  defaultValue={entregaReserva.inventario_url ?? ""} className={INPUT} />
+                <p className="text-xs text-gray-400 mt-1">Link al documento de inventario firmado por el residente</p>
+              </div>
+              {entregaReserva.costo_deposito && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Depósito (${Number(entregaReserva.costo_deposito).toLocaleString("es-CO")})
+                  </label>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="radio" name="deposito_devuelto" value="si" defaultChecked={entregaReserva.deposito_devuelto === true} />
+                      <span className="text-green-700 font-medium">✅ Devuelto</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="radio" name="deposito_devuelto" value="no" defaultChecked={entregaReserva.deposito_devuelto === false} />
+                      <span className="text-red-700 font-medium">❌ Retenido</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => { setShowEntregaModal(false); setEntregaReserva(null); }}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                  {saving ? "Guardando…" : "Registrar entrega"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Editar zona modal */}
+      {showConfigForm && selectedZona && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="font-semibold text-gray-900 mb-4">✏️ Editar {selectedZona.nombre}</h3>
             <form onSubmit={handleUpdateConfig} className="space-y-4">
               {/* Activo / Inactivo */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -633,9 +811,32 @@ export default function ZonasComunesPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad máxima por hora (opcional)</label>
                   <input name="capacidad_hora" type="number" min="1" placeholder="Ej: 5 reservas por hora"
                     defaultValue={selectedZona.capacidad_hora ?? ""} className={INPUT} />
-                  <p className="text-xs text-gray-400 mt-0.5">Límite de reservas simultáneas para el mismo horario</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Costo arriendo</label>
+                  <input name="costo_arriendo" type="number" step="0.01" min="0" placeholder="0.00"
+                    defaultValue={selectedZona.costo_arriendo ?? ""} className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Costo depósito</label>
+                  <input name="costo_deposito" type="number" step="0.01" min="0" placeholder="0.00"
+                    defaultValue={selectedZona.costo_deposito ?? ""} className={INPUT} />
                 </div>
               </div>
+
+              {/* Requiere inventario */}
+              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">¿Requiere inventario?</div>
+                  <div className="text-xs text-gray-400">Al finalizar se adjunta inventario firmado y se registra el depósito</div>
+                </div>
+                <select name="requiere_inventario" defaultValue={selectedZona.requiere_inventario ? "true" : "false"}
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-sm">
+                  <option value="false">No</option>
+                  <option value="true">Sí</option>
+                </select>
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <button type="button" onClick={() => setShowConfigForm(false)}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
@@ -720,7 +921,35 @@ export default function ZonasComunesPage() {
                     onChange={(e) => setZonaForm({ ...zonaForm, anticipacion_max_dias: Number(e.target.value) })}
                     className={INPUT} />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Costo arriendo</label>
+                  <input type="number" step="0.01" min="0" placeholder="0.00"
+                    value={zonaForm.costo_arriendo}
+                    onChange={(e) => setZonaForm({ ...zonaForm, costo_arriendo: e.target.value })}
+                    className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Costo depósito</label>
+                  <input type="number" step="0.01" min="0" placeholder="0.00"
+                    value={zonaForm.costo_deposito}
+                    onChange={(e) => setZonaForm({ ...zonaForm, costo_deposito: e.target.value })}
+                    className={INPUT} />
+                </div>
               </div>
+
+              {/* Requiere inventario */}
+              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">¿Requiere inventario?</div>
+                  <div className="text-xs text-gray-400">Al finalizar se adjunta inventario firmado y se registra el depósito</div>
+                </div>
+                <button type="button"
+                  onClick={() => setZonaForm({ ...zonaForm, requiere_inventario: !zonaForm.requiere_inventario })}
+                  className={`relative w-10 h-6 rounded-full transition-colors ${zonaForm.requiere_inventario ? "bg-purple-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${zonaForm.requiere_inventario ? "left-5" : "left-1"}`} />
+                </button>
+              </div>
+
               <div className="flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => { setShowZonaForm(false); setZonaForm(ZONA_FORM_EMPTY); }}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>

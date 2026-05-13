@@ -22,7 +22,10 @@ class MantenimientoCreate(BaseModel):
     periodicidad: Optional[str] = None      # diario|semanal|mensual|trimestral|anual
     proveedor_id: Optional[int] = None
     contrato_url: Optional[str] = None
+    contrato_id: Optional[int] = None
+    inventario_id: Optional[int] = None
     fecha_vencimiento: Optional[str] = None
+    fecha_proxima_ejecucion: Optional[str] = None
     presupuesto: Optional[float] = None
     torre_id: Optional[int] = None
 
@@ -40,7 +43,10 @@ class MantenimientoUpdate(BaseModel):
     periodicidad: Optional[str] = None
     proveedor_id: Optional[int] = None
     contrato_url: Optional[str] = None
+    contrato_id: Optional[int] = None
+    inventario_id: Optional[int] = None
     fecha_vencimiento: Optional[str] = None
+    fecha_proxima_ejecucion: Optional[str] = None
     presupuesto: Optional[float] = None
     torre_id: Optional[int] = None
 
@@ -53,6 +59,20 @@ class AlertaCreate(BaseModel):
     fecha_programada: str
 
 
+class InventarioCreate(BaseModel):
+    edificio_id: int
+    nombre: str
+    tipo: str   # zona | componente
+    descripcion: Optional[str] = None
+
+
+class InventarioUpdate(BaseModel):
+    nombre: Optional[str] = None
+    tipo: Optional[str] = None
+    descripcion: Optional[str] = None
+    activo: Optional[bool] = None
+
+
 _MANTENIMIENTO_SELECT = """
     SELECT m.*,
            e.nombre as edificio_nombre,
@@ -61,6 +81,8 @@ _MANTENIMIENTO_SELECT = """
            asig.nombre as asignado_nombre,
            p.nombre as proveedor_nombre,
            t.nombre as torre_nombre, t.numero as numero_torre,
+           inv.nombre as inventario_nombre, inv.tipo as inventario_tipo,
+           cs.descripcion as contrato_descripcion, cs.archivo_url as contrato_archivo_url,
            (SELECT json_agg(json_build_object('id',a.id,'tipo',a.tipo,'url',a.url,'nombre',a.nombre_archivo))
             FROM mantenimiento_archivos a WHERE a.mantenimiento_id = m.id) as archivos
     FROM mantenimientos m
@@ -70,7 +92,67 @@ _MANTENIMIENTO_SELECT = """
     LEFT JOIN usuarios asig ON asig.id = m.asignado_a
     LEFT JOIN proveedores p ON p.id = m.proveedor_id
     LEFT JOIN torres t ON t.id = m.torre_id
+    LEFT JOIN inventario_mantenimiento inv ON inv.id = m.inventario_id
+    LEFT JOIN contratos_servicio cs ON cs.id = m.contrato_id
 """
+
+
+# ── Inventario — MUST be before /{mantenimiento_id} ───────────────────────────
+
+@router.get("/inventario")
+def list_inventario(edificio_id: Optional[int] = None, tipo: Optional[str] = None, solo_activos: bool = True):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            query = "SELECT * FROM inventario_mantenimiento WHERE 1=1"
+            params = []
+            if edificio_id:
+                query += " AND edificio_id = %s"
+                params.append(edificio_id)
+            if tipo:
+                query += " AND tipo = %s"
+                params.append(tipo)
+            if solo_activos:
+                query += " AND activo = TRUE"
+            query += " ORDER BY tipo, nombre"
+            cur.execute(query, params)
+            return cur.fetchall()
+
+
+@router.post("/inventario", status_code=201)
+def create_inventario(data: InventarioCreate):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO inventario_mantenimiento (edificio_id, nombre, tipo, descripcion)
+                VALUES (%s,%s,%s,%s) RETURNING *
+            """, (data.edificio_id, data.nombre, data.tipo, data.descripcion))
+            return cur.fetchone()
+
+
+@router.patch("/inventario/{item_id}")
+def update_inventario(item_id: int, data: InventarioUpdate):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            fields, params = [], []
+            if data.nombre is not None:
+                fields.append("nombre = %s"); params.append(data.nombre)
+            if data.tipo is not None:
+                fields.append("tipo = %s"); params.append(data.tipo)
+            if data.descripcion is not None:
+                fields.append("descripcion = %s"); params.append(data.descripcion)
+            if data.activo is not None:
+                fields.append("activo = %s"); params.append(data.activo)
+            if not fields:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            params.append(item_id)
+            cur.execute(
+                f"UPDATE inventario_mantenimiento SET {', '.join(fields)} WHERE id = %s RETURNING *",
+                params,
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Elemento no encontrado")
+            return row
 
 
 # ── Alertas — MUST be defined BEFORE /{mantenimiento_id} to avoid route conflict ──
@@ -189,15 +271,35 @@ def create_mantenimiento(data: MantenimientoCreate):
                 INSERT INTO mantenimientos
                     (edificio_id, unidad_id, titulo, descripcion, categoria, prioridad,
                      solicitante_id, es_programado, periodicidad, proveedor_id,
-                     contrato_url, fecha_vencimiento, presupuesto, torre_id)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                     contrato_url, contrato_id, inventario_id,
+                     fecha_vencimiento, fecha_proxima_ejecucion, presupuesto, torre_id)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (
                 data.edificio_id, data.unidad_id, data.titulo, data.descripcion,
                 data.categoria, data.prioridad, data.solicitante_id,
                 data.es_programado, data.periodicidad, data.proveedor_id,
-                data.contrato_url, data.fecha_vencimiento, data.presupuesto, data.torre_id,
+                data.contrato_url, data.contrato_id, data.inventario_id,
+                data.fecha_vencimiento, data.fecha_proxima_ejecucion,
+                data.presupuesto, data.torre_id,
             ))
-            return cur.fetchone()
+            row = cur.fetchone()
+
+            # Auto-create 30 and 15 day alerts for scheduled trimestral/anual
+            if (data.es_programado and data.fecha_proxima_ejecucion
+                    and data.periodicidad in ("trimestral", "anual")):
+                for dias in (30, 15):
+                    cur.execute("""
+                        INSERT INTO mantenimiento_alertas (edificio_id, titulo, tipo, fecha_programada)
+                        SELECT %s, %s, 'preventivo', (%s::date - %s * INTERVAL '1 day')
+                        WHERE (%s::date - %s * INTERVAL '1 day') > CURRENT_DATE
+                    """, (
+                        data.edificio_id,
+                        f"Próx. mantenimiento en {dias} días: {data.titulo}",
+                        data.fecha_proxima_ejecucion, dias,
+                        data.fecha_proxima_ejecucion, dias,
+                    ))
+
+            return row
 
 
 @router.patch("/{mantenimiento_id}")
@@ -230,14 +332,30 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
                 fields.append("periodicidad = %s"); params.append(data.periodicidad)
             if data.proveedor_id is not None:
                 fields.append("proveedor_id = %s"); params.append(data.proveedor_id)
+            else:
+                fields.append("proveedor_id = NULL")
             if data.contrato_url is not None:
                 fields.append("contrato_url = %s"); params.append(data.contrato_url)
+            else:
+                fields.append("contrato_url = NULL")
+            if data.contrato_id is not None:
+                fields.append("contrato_id = %s"); params.append(data.contrato_id)
+            else:
+                fields.append("contrato_id = NULL")
+            if data.inventario_id is not None:
+                fields.append("inventario_id = %s"); params.append(data.inventario_id)
+            else:
+                fields.append("inventario_id = NULL")
             if data.fecha_vencimiento is not None:
                 fields.append("fecha_vencimiento = %s"); params.append(data.fecha_vencimiento)
+            else:
+                fields.append("fecha_vencimiento = NULL")
+            if data.fecha_proxima_ejecucion is not None:
+                fields.append("fecha_proxima_ejecucion = %s"); params.append(data.fecha_proxima_ejecucion)
+            else:
+                fields.append("fecha_proxima_ejecucion = NULL")
             if data.presupuesto is not None:
                 fields.append("presupuesto = %s"); params.append(data.presupuesto)
-            if data.torre_id is not None:
-                fields.append("torre_id = %s"); params.append(data.torre_id)
 
             if not fields:
                 raise HTTPException(status_code=400, detail="No hay campos para actualizar")
@@ -249,7 +367,55 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+            # Auto-create alerts if fecha_proxima_ejecucion was updated for trimestral/anual
+            if (data.fecha_proxima_ejecucion and data.es_programado
+                    and data.periodicidad in ("trimestral", "anual")):
+                for dias in (30, 15):
+                    cur.execute("""
+                        INSERT INTO mantenimiento_alertas (edificio_id, titulo, tipo, fecha_programada)
+                        SELECT %s, %s, 'preventivo', (%s::date - %s * INTERVAL '1 day')
+                        WHERE (%s::date - %s * INTERVAL '1 day') > CURRENT_DATE
+                    """, (
+                        row["edificio_id"],
+                        f"Próx. mantenimiento en {dias} días: {row['titulo']}",
+                        data.fecha_proxima_ejecucion, dias,
+                        data.fecha_proxima_ejecucion, dias,
+                    ))
+
             return row
+
+
+@router.post("/{mantenimiento_id}/clonar", status_code=201)
+def clonar_mantenimiento(mantenimiento_id: int):
+    """Clone a maintenance request resetting estado to pendiente and clearing dates."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM mantenimientos WHERE id = %s", (mantenimiento_id,))
+            original = cur.fetchone()
+            if not original:
+                raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+            cur.execute("""
+                INSERT INTO mantenimientos
+                    (edificio_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
+                     solicitante_id, es_programado, periodicidad, proveedor_id,
+                     contrato_url, contrato_id, inventario_id,
+                     fecha_vencimiento, fecha_proxima_ejecucion, presupuesto)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING *
+            """, (
+                original["edificio_id"], original["unidad_id"], original["torre_id"],
+                original["titulo"], original["descripcion"],
+                original["categoria"], original["prioridad"],
+                original["solicitante_id"],
+                original["es_programado"], original["periodicidad"],
+                original["proveedor_id"],
+                original["contrato_url"], original["contrato_id"], original["inventario_id"],
+                original["fecha_vencimiento"], original["fecha_proxima_ejecucion"],
+                original["presupuesto"],
+            ))
+            return cur.fetchone()
 
 
 @router.post("/{mantenimiento_id}/archivos", status_code=201)

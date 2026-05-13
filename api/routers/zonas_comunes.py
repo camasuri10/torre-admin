@@ -19,6 +19,9 @@ class ZonaCreate(BaseModel):
     anticipacion_max_dias: int = 30
     horario_inicio: str = "07:00"
     horario_fin: str = "22:00"
+    requiere_inventario: bool = False
+    costo_arriendo: Optional[float] = None
+    costo_deposito: Optional[float] = None
 
 
 class ZonaConfigUpdate(BaseModel):
@@ -32,6 +35,9 @@ class ZonaConfigUpdate(BaseModel):
     activo: Optional[bool] = None
     torre_id: Optional[int] = None
     capacidad_hora: Optional[int] = None
+    requiere_inventario: Optional[bool] = None
+    costo_arriendo: Optional[float] = None
+    costo_deposito: Optional[float] = None
 
 
 class ReservaCreate(BaseModel):
@@ -48,6 +54,12 @@ class ReservaCreate(BaseModel):
 class ReservaCancelar(BaseModel):
     cancelada_por: str = "admin"   # 'residente' | 'admin'
     motivo: Optional[str] = None
+
+
+class ReservaEntrega(BaseModel):
+    inventario_url: Optional[str] = None
+    deposito_devuelto: Optional[bool] = None
+    estado_entrega: Optional[str] = None  # pendiente | inventario_adjunto | completada
 
 
 @router.get("")
@@ -82,13 +94,15 @@ def create_zona(data: ZonaCreate):
                     (edificio_id, torre_id, nombre, descripcion, capacidad, icono,
                      duracion_min_horas, duracion_max_horas,
                      anticipacion_min_dias, anticipacion_max_dias,
-                     horario_inicio, horario_fin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                     horario_inicio, horario_fin,
+                     requiere_inventario, costo_arriendo, costo_deposito)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (data.edificio_id, data.torre_id, data.nombre, data.descripcion,
                   data.capacidad, data.icono,
                   data.duracion_min_horas, data.duracion_max_horas,
                   data.anticipacion_min_dias, data.anticipacion_max_dias,
-                  data.horario_inicio, data.horario_fin))
+                  data.horario_inicio, data.horario_fin,
+                  data.requiere_inventario, data.costo_arriendo, data.costo_deposito))
             return cur.fetchone()
 
 
@@ -127,6 +141,7 @@ def list_reservas(
             query = """
                 SELECT r.*,
                        z.nombre as zona_nombre, z.icono as zona_icono,
+                       z.requiere_inventario, z.costo_arriendo, z.costo_deposito,
                        u.nombre as usuario_nombre,
                        reg.nombre as registrado_por_nombre,
                        un.numero as unidad_numero,
@@ -198,12 +213,15 @@ def create_reserva(data: ReservaCreate):
                         detail=f"Se alcanzó la capacidad máxima de {zona['capacidad_hora']} reservas para este horario",
                     )
 
+            # Inicializar estado_entrega si la zona requiere inventario
+            estado_entrega = "pendiente" if zona.get("requiere_inventario") else None
+
             cur.execute("""
                 INSERT INTO reservas
-                    (zona_id, usuario_id, registrado_por_id, unidad_id, fecha, hora_inicio, hora_fin, notas)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    (zona_id, usuario_id, registrado_por_id, unidad_id, fecha, hora_inicio, hora_fin, notas, estado_entrega)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (data.zona_id, data.usuario_id, data.registrado_por_id,
-                  data.unidad_id, data.fecha, data.hora_inicio, hora_fin, data.notas))
+                  data.unidad_id, data.fecha, data.hora_inicio, hora_fin, data.notas, estado_entrega))
             return cur.fetchone()
 
 
@@ -241,6 +259,31 @@ def cancelar_reserva(reserva_id: int, data: ReservaCancelar):
                 WHERE id = %s RETURNING *
             """, (data.cancelada_por, data.motivo, reserva_id))
             return cur.fetchone()
+
+
+@router.patch("/reservas/{reserva_id}/entrega")
+def registrar_entrega(reserva_id: int, data: ReservaEntrega):
+    """Registra la entrega de inventario firmado y/o devolución del depósito."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            fields, params = [], []
+            if data.inventario_url is not None:
+                fields.append("inventario_url = %s"); params.append(data.inventario_url)
+            if data.deposito_devuelto is not None:
+                fields.append("deposito_devuelto = %s"); params.append(data.deposito_devuelto)
+            if data.estado_entrega is not None:
+                fields.append("estado_entrega = %s"); params.append(data.estado_entrega)
+            if not fields:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            params.append(reserva_id)
+            cur.execute(
+                f"UPDATE reservas SET {', '.join(fields)} WHERE id = %s RETURNING *",
+                params,
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Reserva no encontrada")
+            return row
 
 
 @router.get("/reservas/pendientes-alerta")

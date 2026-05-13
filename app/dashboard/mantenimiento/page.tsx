@@ -28,6 +28,7 @@ const CAT_ICON: Record<string, string> = {
 };
 
 const PERIODICIDADES = ["diario", "semanal", "mensual", "trimestral", "anual"];
+const NEEDS_NEXT_DATE = ["trimestral", "anual"];
 
 export default function MantenimientoPage() {
   const user = getUser();
@@ -36,8 +37,9 @@ export default function MantenimientoPage() {
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
+  const [inventario, setInventario] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"solicitudes" | "alertas">("solicitudes");
+  const [tab, setTab] = useState<"solicitudes" | "alertas" | "inventario">("solicitudes");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroPrioridad, setFiltroPrioridad] = useState("");
   const [filtroProgramado, setFiltroProgramado] = useState<boolean | null>(null);
@@ -46,8 +48,16 @@ export default function MantenimientoPage() {
   const [showForm, setShowForm] = useState(false);
   const [showAlertaForm, setShowAlertaForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showInventarioForm, setShowInventarioForm] = useState(false);
+  const [editInventario, setEditInventario] = useState<any | null>(null);
   const [esProgramado, setEsProgramado] = useState(false);
   const [editEsProgramado, setEditEsProgramado] = useState(false);
+  const [periodicidad, setPeriodicidad] = useState("mensual");
+  const [editPeriodicidad, setEditPeriodicidad] = useState("mensual");
+  const [formProveedorId, setFormProveedorId] = useState<number | null>(null);
+  const [editProveedorId, setEditProveedorId] = useState<number | null>(null);
+  const [formContratos, setFormContratos] = useState<any[]>([]);
+  const [editContratos, setEditContratos] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -56,28 +66,53 @@ export default function MantenimientoPage() {
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroPrioridad) params.prioridad = filtroPrioridad;
     if (filtroProgramado !== null) params.es_programado = filtroProgramado;
-    const [s, a] = await Promise.allSettled([
+    const [s, a, inv] = await Promise.allSettled([
       api.mantenimientos.list(params),
       api.mantenimientos.alertas.list(edificioId),
+      api.mantenimientos.inventario.list(edificioId),
     ]);
     if (s.status === "fulfilled") setSolicitudes(s.value);
     if (a.status === "fulfilled") setAlertas(a.value);
+    if (inv.status === "fulfilled") setInventario(inv.value);
     setLoading(false);
   }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Proveedores se carga por separado para no bloquear la lista principal
   useEffect(() => {
     proveedoresApi.list(edificioId ? { edificio_id: edificioId } : undefined)
       .then((p: any) => setProveedores(Array.isArray(p) ? p : (p?.proveedores ?? [])))
       .catch(() => {});
   }, [edificioId]);
 
+  // Load contracts when proveedor changes in create form
+  useEffect(() => {
+    if (!formProveedorId) { setFormContratos([]); return; }
+    proveedoresApi.contratos.list(formProveedorId)
+      .then((c: any) => setFormContratos(Array.isArray(c) ? c.filter((x: any) => x.activo) : []))
+      .catch(() => setFormContratos([]));
+  }, [formProveedorId]);
+
+  // Load contracts when proveedor changes in edit form
+  useEffect(() => {
+    if (!editProveedorId) { setEditContratos([]); return; }
+    proveedoresApi.contratos.list(editProveedorId)
+      .then((c: any) => setEditContratos(Array.isArray(c) ? c.filter((x: any) => x.activo) : []))
+      .catch(() => setEditContratos([]));
+  }, [editProveedorId]);
+
   const handleUpdateEstado = async (id: number, estado: string) => {
     await api.mantenimientos.update(id, { estado });
     load();
     if (selected?.id === id) setSelected((s: any) => ({ ...s, estado }));
+  };
+
+  const handleClonar = async () => {
+    if (!selected) return;
+    if (!confirm(`¿Clonar esta solicitud? Se creará una copia en estado pendiente.`)) return;
+    const clonada = await api.mantenimientos.clonar(selected.id);
+    await load();
+    setSelected(clonada);
   };
 
   const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -91,19 +126,29 @@ export default function MantenimientoPage() {
       prioridad: fd.get("prioridad"),
       es_programado: esProgramado,
     };
-    if (esProgramado) body.periodicidad = fd.get("periodicidad");
+    if (esProgramado) {
+      body.periodicidad = periodicidad;
+      if (NEEDS_NEXT_DATE.includes(periodicidad)) {
+        const fp = fd.get("fecha_proxima_ejecucion");
+        if (fp) body.fecha_proxima_ejecucion = fp;
+      }
+    }
+    const inventarioId = fd.get("inventario_id");
+    if (inventarioId) body.inventario_id = parseInt(inventarioId as string);
     const proveedor = fd.get("proveedor_id");
     if (proveedor) body.proveedor_id = parseInt(proveedor as string);
+    const contratoId = fd.get("contrato_id");
+    if (contratoId) body.contrato_id = parseInt(contratoId as string);
     const vencimiento = fd.get("fecha_vencimiento");
     if (vencimiento) body.fecha_vencimiento = vencimiento;
     const presupuesto = fd.get("presupuesto");
     if (presupuesto) body.presupuesto = parseFloat(presupuesto as string);
-    const contrato = fd.get("contrato_url");
-    if (contrato) body.contrato_url = contrato;
 
     await api.mantenimientos.create(body);
     setShowForm(false);
     setEsProgramado(false);
+    setPeriodicidad("mensual");
+    setFormProveedorId(null);
     (e.target as HTMLFormElement).reset();
     load();
   };
@@ -125,6 +170,8 @@ export default function MantenimientoPage() {
 
   const openEdit = () => {
     setEditEsProgramado(selected?.es_programado ?? false);
+    setEditPeriodicidad(selected?.periodicidad ?? "mensual");
+    setEditProveedorId(selected?.proveedor_id ?? null);
     setShowEditForm(true);
   };
 
@@ -137,17 +184,23 @@ export default function MantenimientoPage() {
       categoria:   fd.get("categoria"),
       prioridad:   fd.get("prioridad"),
       es_programado: editEsProgramado,
-      periodicidad: editEsProgramado ? fd.get("periodicidad") : null,
+      periodicidad: editEsProgramado ? editPeriodicidad : null,
     };
+    if (editEsProgramado && NEEDS_NEXT_DATE.includes(editPeriodicidad)) {
+      body.fecha_proxima_ejecucion = fd.get("fecha_proxima_ejecucion") || null;
+    } else {
+      body.fecha_proxima_ejecucion = null;
+    }
+    const inventarioId = fd.get("inventario_id");
+    body.inventario_id = inventarioId ? parseInt(inventarioId as string) : null;
     const proveedor = fd.get("proveedor_id");
-    if (proveedor) body.proveedor_id = parseInt(proveedor as string);
-    else body.proveedor_id = null;
+    body.proveedor_id = proveedor ? parseInt(proveedor as string) : null;
+    const contratoId = fd.get("contrato_id");
+    body.contrato_id = contratoId ? parseInt(contratoId as string) : null;
     const vencimiento = fd.get("fecha_vencimiento");
     body.fecha_vencimiento = vencimiento || null;
     const presupuesto = fd.get("presupuesto");
     body.presupuesto = presupuesto ? parseFloat(presupuesto as string) : null;
-    const contrato = fd.get("contrato_url");
-    body.contrato_url = contrato || null;
 
     await api.mantenimientos.update(selected!.id, body);
     setShowEditForm(false);
@@ -169,9 +222,32 @@ export default function MantenimientoPage() {
     load();
   };
 
+  const handleCrearInventario = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const body: any = {
+      edificio_id: edificioId,
+      nombre: fd.get("nombre"),
+      tipo: fd.get("tipo"),
+      descripcion: fd.get("descripcion") || null,
+    };
+    if (editInventario) {
+      await api.mantenimientos.inventario.update(editInventario.id, {
+        nombre: body.nombre,
+        tipo: body.tipo,
+        descripcion: body.descripcion,
+      });
+    } else {
+      await api.mantenimientos.inventario.create(body);
+    }
+    setShowInventarioForm(false);
+    setEditInventario(null);
+    (e.target as HTMLFormElement).reset();
+    load();
+  };
+
   const canEdit = !["servicios", "propietario", "inquilino"].includes(user?.rol ?? "");
 
-  // Aplicar búsqueda aquí para que las stats siempre coincidan con la tabla
   const sq = search.trim().toLowerCase();
   const solicitudesFiltradas = sq
     ? solicitudes.filter((s) =>
@@ -188,6 +264,27 @@ export default function MantenimientoPage() {
   const programados = solicitudesFiltradas.filter((s) => s.es_programado).length;
 
   const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+  const ContratosSelector = ({ contratos, defaultValue, name }: { contratos: any[]; defaultValue?: number; name: string }) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Contrato</label>
+      {contratos.length === 0 ? (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+          ⚠️ Sin contratos vigentes para este proveedor
+        </div>
+      ) : (
+        <select name={name} defaultValue={defaultValue ?? ""} className={INPUT}>
+          <option value="">Sin contrato específico</option>
+          {contratos.map((c: any) => (
+            <option key={c.id} value={c.id}>
+              {c.tipo_servicio} — {c.descripcion ?? `Contrato #${c.id}`}
+              {c.fecha_fin ? ` (hasta ${new Date(c.fecha_fin).toLocaleDateString("es-CO")})` : ""}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -220,12 +317,12 @@ export default function MantenimientoPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["solicitudes", "alertas"] as const).map((t) => (
+        {(["solicitudes", "alertas", "inventario"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
-            {t === "solicitudes" ? "🔧 Solicitudes" : "🔔 Alertas preventivas"}
+            {t === "solicitudes" ? "🔧 Solicitudes" : t === "alertas" ? "🔔 Alertas preventivas" : "📦 Inventario"}
           </button>
         ))}
       </div>
@@ -314,7 +411,9 @@ export default function MantenimientoPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400">{s.unidad_numero ?? "General"}</div>
+                            <div className="text-xs text-gray-400">
+                              {s.inventario_nombre ? `🏗️ ${s.inventario_nombre}` : (s.unidad_numero ?? "General")}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-lg">{CAT_ICON[s.categoria] ?? "🔧"}</td>
                           <td className="px-4 py-3">
@@ -356,9 +455,14 @@ export default function MantenimientoPage() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {canEdit && (
-                      <button onClick={openEdit} className="text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-colors" title="Editar solicitud">
-                        ✏️ Editar
-                      </button>
+                      <>
+                        <button onClick={openEdit} className="text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-colors" title="Editar solicitud">
+                          ✏️ Editar
+                        </button>
+                        <button onClick={handleClonar} className="text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-teal-600 hover:text-white transition-colors" title="Clonar solicitud">
+                          📋 Clonar
+                        </button>
+                      </>
                     )}
                     <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                   </div>
@@ -371,6 +475,14 @@ export default function MantenimientoPage() {
                   <div><span className="text-gray-400">Prioridad</span><div className="font-medium capitalize">{selected.prioridad}</div></div>
                   <div><span className="text-gray-400">Solicitante</span><div className="font-medium">{selected.solicitante_nombre ?? "—"}</div></div>
                   <div><span className="text-gray-400">Unidad</span><div className="font-medium">{selected.unidad_numero ?? "General"}</div></div>
+                  {selected.inventario_nombre && (
+                    <div className="col-span-2">
+                      <span className="text-gray-400">Elemento a mantener</span>
+                      <div className="font-medium">🏗️ {selected.inventario_nombre}
+                        <span className="ml-1 text-xs text-gray-400">({selected.inventario_tipo})</span>
+                      </div>
+                    </div>
+                  )}
                   {selected.proveedor_nombre && (
                     <div className="col-span-2"><span className="text-gray-400">Proveedor</span><div className="font-medium">{selected.proveedor_nombre}</div></div>
                   )}
@@ -381,14 +493,25 @@ export default function MantenimientoPage() {
                     <div><span className="text-gray-400">Costo real</span><div className="font-medium">${Number(selected.costo).toLocaleString("es-CO")}</div></div>
                   )}
                   {selected.fecha_vencimiento && (
-                    <div><span className="text-gray-400">Vencimiento</span><div className="font-medium">{new Date(selected.fecha_vencimiento).toLocaleDateString("es-CO")}</div></div>
+                    <div><span className="text-gray-400">Vencimiento tarea</span><div className="font-medium">{new Date(selected.fecha_vencimiento).toLocaleDateString("es-CO")}</div></div>
+                  )}
+                  {selected.fecha_proxima_ejecucion && (
+                    <div><span className="text-gray-400">Próxima ejecución</span><div className="font-medium text-teal-700">📅 {new Date(selected.fecha_proxima_ejecucion).toLocaleDateString("es-CO")}</div></div>
                   )}
                   {selected.torre_nombre && (
                     <div><span className="text-gray-400">Torre</span><div className="font-medium">{selected.torre_nombre}</div></div>
                   )}
                 </div>
 
-                {selected.contrato_url && (
+                {selected.contrato_descripcion && (
+                  <div className="flex items-center gap-1.5 text-xs text-primary">
+                    📄 Contrato: {selected.contrato_descripcion}
+                    {selected.contrato_archivo_url && (
+                      <a href={selected.contrato_archivo_url} target="_blank" rel="noreferrer" className="hover:underline ml-1">(ver)</a>
+                    )}
+                  </div>
+                )}
+                {!selected.contrato_descripcion && selected.contrato_url && (
                   <a href={selected.contrato_url} target="_blank" rel="noreferrer"
                     className="flex items-center gap-1.5 text-xs text-primary hover:underline">
                     📄 Ver contrato
@@ -497,6 +620,56 @@ export default function MantenimientoPage() {
         </div>
       )}
 
+      {/* Inventario */}
+      {tab === "inventario" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">Catálogo de zonas y componentes del edificio para asociar a mantenimientos.</p>
+            {canEdit && (
+              <button onClick={() => { setEditInventario(null); setShowInventarioForm(true); }}
+                className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
+                + Agregar elemento
+              </button>
+            )}
+          </div>
+
+          {inventario.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-4xl mb-2">📦</div>
+              <p>No hay elementos en el inventario</p>
+              {canEdit && <p className="text-xs mt-1">Agrega zonas y componentes del edificio</p>}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {inventario.map((item) => (
+                <div key={item.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      item.tipo === "zona" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                    }`}>{item.tipo}</span>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <button onClick={() => { setEditInventario(item); setShowInventarioForm(true); }}
+                          className="text-xs text-gray-400 hover:text-primary px-1.5 py-0.5 rounded hover:bg-gray-100">
+                          ✏️
+                        </button>
+                        <button onClick={() => api.mantenimientos.inventario.update(item.id, { activo: false }).then(load)}
+                          className="text-xs text-gray-400 hover:text-red-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+                          title="Desactivar">
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-gray-900 text-sm">{item.nombre}</h3>
+                  {item.descripcion && <p className="text-xs text-gray-500 mt-1">{item.descripcion}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Nueva solicitud modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -528,6 +701,16 @@ export default function MantenimientoPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Elemento a mantener</label>
+                <select name="inventario_id" className={INPUT}>
+                  <option value="">Sin elemento específico</option>
+                  {inventario.map((i: any) => (
+                    <option key={i.id} value={i.id}>{i.nombre} ({i.tipo})</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Toggle programado */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div>
@@ -542,20 +725,30 @@ export default function MantenimientoPage() {
               </div>
 
               {esProgramado && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
-                  <select name="periodicidad" className={INPUT}>
-                    {PERIODICIDADES.map((p) => (
-                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
+                    <select name="periodicidad" value={periodicidad} onChange={(e) => setPeriodicidad(e.target.value)} className={INPUT}>
+                      {PERIODICIDADES.map((p) => (
+                        <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {NEEDS_NEXT_DATE.includes(periodicidad) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fecha próxima ejecución</label>
+                      <input name="fecha_proxima_ejecucion" type="date" className={INPUT} />
+                      <p className="text-xs text-teal-600 mt-1">Se crearán alertas automáticas 30 y 15 días antes</p>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                  <select name="proveedor_id" className={INPUT}>
+                  <select name="proveedor_id" className={INPUT}
+                    onChange={(e) => setFormProveedorId(e.target.value ? parseInt(e.target.value) : null)}>
                     <option value="">Sin proveedor</option>
                     {proveedores.map((p: any) => (
                       <option key={p.id} value={p.id}>{p.nombre}</option>
@@ -568,18 +761,17 @@ export default function MantenimientoPage() {
                 </div>
               </div>
 
+              {formProveedorId && (
+                <ContratosSelector contratos={formContratos} name="contrato_id" />
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento (tarea)</label>
                 <input name="fecha_vencimiento" type="date" className={INPUT} />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL del contrato</label>
-                <input name="contrato_url" type="url" placeholder="https://…" className={INPUT} />
-              </div>
-
               <div className="flex gap-3 justify-end pt-2">
-                <button type="button" onClick={() => { setShowForm(false); setEsProgramado(false); }}
+                <button type="button" onClick={() => { setShowForm(false); setEsProgramado(false); setFormProveedorId(null); setPeriodicidad("mensual"); }}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
                   Cancelar
                 </button>
@@ -623,6 +815,16 @@ export default function MantenimientoPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Elemento a mantener</label>
+                <select name="inventario_id" defaultValue={selected.inventario_id ?? ""} className={INPUT}>
+                  <option value="">Sin elemento específico</option>
+                  {inventario.map((i: any) => (
+                    <option key={i.id} value={i.id}>{i.nombre} ({i.tipo})</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Toggle programado */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div>
@@ -637,20 +839,34 @@ export default function MantenimientoPage() {
               </div>
 
               {editEsProgramado && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
-                  <select name="periodicidad" defaultValue={selected.periodicidad ?? "mensual"} className={INPUT}>
-                    {PERIODICIDADES.map((p) => (
-                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Periodicidad</label>
+                    <select name="periodicidad" value={editPeriodicidad}
+                      onChange={(e) => setEditPeriodicidad(e.target.value)} className={INPUT}>
+                      {PERIODICIDADES.map((p) => (
+                        <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {NEEDS_NEXT_DATE.includes(editPeriodicidad) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fecha próxima ejecución</label>
+                      <input name="fecha_proxima_ejecucion" type="date"
+                        defaultValue={selected.fecha_proxima_ejecucion ? selected.fecha_proxima_ejecucion.slice(0, 10) : ""}
+                        className={INPUT} />
+                      <p className="text-xs text-teal-600 mt-1">Se crearán alertas automáticas 30 y 15 días antes</p>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                  <select name="proveedor_id" defaultValue={selected.proveedor_id ?? ""} className={INPUT}>
+                  <select name="proveedor_id" defaultValue={selected.proveedor_id ?? ""}
+                    onChange={(e) => setEditProveedorId(e.target.value ? parseInt(e.target.value) : null)}
+                    className={INPUT}>
                     <option value="">Sin proveedor</option>
                     {proveedores.map((p: any) => (
                       <option key={p.id} value={p.id}>{p.nombre}</option>
@@ -664,16 +880,14 @@ export default function MantenimientoPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento</label>
-                <input name="fecha_vencimiento" type="date"
-                  defaultValue={selected.fecha_vencimiento ? selected.fecha_vencimiento.slice(0, 10) : ""} className={INPUT} />
-              </div>
+              {editProveedorId && (
+                <ContratosSelector contratos={editContratos} defaultValue={selected.contrato_id} name="contrato_id" />
+              )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL del contrato</label>
-                <input name="contrato_url" type="url" placeholder="https://…"
-                  defaultValue={selected.contrato_url ?? ""} className={INPUT} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de vencimiento (tarea)</label>
+                <input name="fecha_vencimiento" type="date"
+                  defaultValue={selected.fecha_vencimiento ? selected.fecha_vencimiento.slice(0, 10) : ""} className={INPUT} />
               </div>
 
               <div className="flex gap-3 justify-end pt-2">
@@ -722,6 +936,41 @@ export default function MantenimientoPage() {
                 <button type="button" onClick={() => setShowAlertaForm(false)}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Programar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inventario modal */}
+      {showInventarioForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">
+              {editInventario ? "Editar elemento" : "Agregar elemento al inventario"}
+            </h3>
+            <form onSubmit={handleCrearInventario} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input name="nombre" required defaultValue={editInventario?.nombre ?? ""} placeholder="Ej: Ascensor 1 Torre 1" className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
+                <select name="tipo" defaultValue={editInventario?.tipo ?? "zona"} className={INPUT}>
+                  <option value="zona">Zona</option>
+                  <option value="componente">Componente</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea name="descripcion" rows={2} defaultValue={editInventario?.descripcion ?? ""} className={INPUT} />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button type="button" onClick={() => { setShowInventarioForm(false); setEditInventario(null); }}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
+                  {editInventario ? "Guardar" : "Agregar"}
+                </button>
               </div>
             </form>
           </div>

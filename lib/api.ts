@@ -246,6 +246,7 @@ export const api = {
     },
     create: (data: any) => request<any>("/api/mantenimientos/", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/mantenimientos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    clonar: (id: number) => request<any>(`/api/mantenimientos/${id}/clonar`, { method: "POST", body: "{}" }),
     uploadArchivo: (id: number, formData: FormData) =>
       fetch(`${BASE}/api/mantenimientos/${id}/archivos`, { method: "POST", body: formData }).then((r) => r.json()),
     alertas: {
@@ -256,6 +257,17 @@ export const api = {
       create: (data: any) => request<any>("/api/mantenimientos/alertas/", { method: "POST", body: JSON.stringify(data) }),
       update: (id: number, estado: string) =>
         request<any>(`/api/mantenimientos/alertas/${id}?estado=${estado}`, { method: "PATCH" }),
+    },
+    inventario: {
+      list: (edificio_id?: number, tipo?: string) => {
+        const params: any = {};
+        if (edificio_id) params.edificio_id = edificio_id;
+        if (tipo) params.tipo = tipo;
+        const q = new URLSearchParams(params).toString();
+        return request<any[]>(`/api/mantenimientos/inventario${q ? "?" + q : ""}`);
+      },
+      create: (data: any) => request<any>("/api/mantenimientos/inventario", { method: "POST", body: JSON.stringify(data) }),
+      update: (id: number, data: any) => request<any>(`/api/mantenimientos/inventario/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     },
   },
 
@@ -301,6 +313,8 @@ export const api = {
         request<any>(`/api/zonas-comunes/reservas/${id}?estado=${estado}`, { method: "PATCH" }),
       cancelar: (id: number, data: { cancelada_por: string; motivo?: string }) =>
         request<any>(`/api/zonas-comunes/reservas/${id}/cancelar`, { method: "PATCH", body: JSON.stringify(data) }),
+      entrega: (id: number, data: { inventario_url?: string; deposito_devuelto?: boolean; estado_entrega?: string }) =>
+        request<any>(`/api/zonas-comunes/reservas/${id}/entrega`, { method: "PATCH", body: JSON.stringify(data) }),
       pendientesAlerta: () => request<any[]>("/api/zonas-comunes/reservas/pendientes-alerta"),
       marcarAlertaEnviada: (id: number) =>
         request<any>(`/api/zonas-comunes/reservas/${id}/alerta-enviada`, { method: "PATCH", body: JSON.stringify({}) }),

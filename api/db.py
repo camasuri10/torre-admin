@@ -288,6 +288,22 @@ CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Inventario de zonas y componentes para mantenimiento
+CREATE TABLE IF NOT EXISTS inventario_mantenimiento (
+    id          SERIAL PRIMARY KEY,
+    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    nombre      TEXT NOT NULL,
+    tipo        TEXT NOT NULL CHECK (tipo IN ('zona','componente')),
+    descripcion TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Columnas adicionales en mantenimientos
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS inventario_id INTEGER REFERENCES inventario_mantenimiento(id);
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS contrato_id INTEGER REFERENCES contratos_servicio(id);
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_proxima_ejecucion DATE;
+
 -- Comunicados
 CREATE TABLE IF NOT EXISTS comunicados (
     id                SERIAL PRIMARY KEY,
@@ -892,6 +908,16 @@ CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios
 
 -- v4.0 — Capacidad por hora en zonas comunes
 ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS capacidad_hora INTEGER;
+
+-- v8.0 — Zonas: inventario, costo arriendo y depósito
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS requiere_inventario BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_arriendo NUMERIC(12,2);
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_deposito NUMERIC(12,2);
+
+-- v8.0 — Reservas: entrega de inventario firmado y devolución depósito
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS inventario_url TEXT;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS deposito_devuelto BOOLEAN;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS estado_entrega TEXT CHECK (estado_entrega IN ('pendiente','inventario_adjunto','completada'));
 
 -- v7.0 — Destinatarios selectivos en comunicados
 ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT DEFAULT NULL;
