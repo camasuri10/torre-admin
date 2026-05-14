@@ -23,6 +23,11 @@ export default function SuperAdminPage() {
   const [detailCuotas, setDetailCuotas] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Mantenimientos detail modal
+  const [detailMant, setDetailMant] = useState(false);
+  const [detailMants, setDetailMants] = useState<any[]>([]);
+  const [detailMantLoading, setDetailMantLoading] = useState(false);
+
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
@@ -47,6 +52,17 @@ export default function SuperAdminPage() {
       setDetailCuotas(data?.cuotas ?? []);
     } catch { /* ignore */ }
     finally { setDetailLoading(false); }
+  }
+
+  async function openMantDetalle() {
+    setDetailMant(true);
+    setDetailMantLoading(true);
+    setDetailMants([]);
+    try {
+      const data = await superadminApi.mantenimientosDetalle("todos", conjuntoId);
+      setDetailMants(data?.mantenimientos ?? []);
+    } catch { /* ignore */ }
+    finally { setDetailMantLoading(false); }
   }
 
   const statCards = [
@@ -96,8 +112,9 @@ export default function SuperAdminPage() {
       icon: "🔧",
       color: "bg-orange-50 border-orange-200 text-orange-700",
       valueColor: "text-orange-700",
-      clickable: false,
+      clickable: true,
       estado: null,
+      onClick: openMantDetalle,
     },
     {
       label: "Reservas hoy",
@@ -171,7 +188,7 @@ export default function SuperAdminPage() {
               </div>
             );
             return k.clickable && !loading ? (
-              <button key={k.label} className="text-left h-full" onClick={() => openDetalle(k.estado!)}>
+              <button key={k.label} className="text-left h-full" onClick={() => (k as any).onClick ? (k as any).onClick() : openDetalle(k.estado!)}>
                 {inner}
               </button>
             ) : (
@@ -249,6 +266,72 @@ export default function SuperAdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Mantenimientos detail modal */}
+      {detailMant && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-900">🔧 Mantenimientos activos</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Pendientes y en proceso en toda la plataforma</p>
+              </div>
+              <button onClick={() => setDetailMant(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="overflow-auto flex-1 p-5">
+              {detailMantLoading ? (
+                <p className="text-center text-gray-400 py-8">Cargando…</p>
+              ) : detailMants.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No hay mantenimientos activos en este momento.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-left">
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Edificio</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Título</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Categoría</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Prioridad</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Estado</th>
+                      <th className="pb-2 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {detailMants.map((m: any) => {
+                      const prioColor = m.prioridad === "urgente" ? "bg-red-100 text-red-700" :
+                                        m.prioridad === "alta"    ? "bg-orange-100 text-orange-700" :
+                                        m.prioridad === "media"   ? "bg-yellow-100 text-yellow-700" :
+                                                                    "bg-gray-100 text-gray-500";
+                      const estadoColor = m.estado === "en_proceso" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500";
+                      return (
+                        <tr key={m.id} className="hover:bg-gray-50">
+                          <td className="py-2.5 pr-4 text-gray-500 text-xs">{m.edificio_nombre}</td>
+                          <td className="py-2.5 pr-4 text-gray-800 font-medium">{m.titulo}</td>
+                          <td className="py-2.5 pr-4 text-gray-500 hidden sm:table-cell capitalize">{m.categoria ?? "—"}</td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${prioColor}`}>{m.prioridad}</span>
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoColor}`}>{m.estado.replace("_", " ")}</span>
+                          </td>
+                          <td className="py-2.5 text-gray-400 text-xs hidden md:table-cell">
+                            {m.fecha_solicitud ? new Date(m.fecha_solicitud).toLocaleDateString("es-CO") : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setDetailMant(false)}
+                className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cuotas detail modal */}
       {detailEstado && (

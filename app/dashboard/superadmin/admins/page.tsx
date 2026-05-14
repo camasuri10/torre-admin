@@ -47,6 +47,7 @@ const emptyForm = {
   rol: "administrador",
   eps: "", aseguradora_riesgo: "", proveedor_id: "",
   edificio_ids: [] as number[],
+  asignarEdificio: false,
 };
 
 const emptyEdificioRapido = { nombre: "", direccion: "", pisos: 1 };
@@ -70,6 +71,9 @@ export default function AdminsPage() {
   const [edificioRapidoForm, setEdificioRapidoForm] = useState(emptyEdificioRapido);
   const [edificioRapidoSaving, setEdificioRapidoSaving] = useState(false);
   const [edificioRapidoError, setEdificioRapidoError] = useState("");
+
+  // View modal
+  const [viewingAdmin, setViewingAdmin] = useState<Admin | null>(null);
 
   // Edit modal (personal data + edificios)
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
@@ -327,63 +331,74 @@ export default function AdminsPage() {
 
             {/* Edificios */}
             <div className="sm:col-span-2">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-medium text-gray-600">Edificios asignados</label>
-                <button
-                  type="button"
-                  onClick={() => { setShowEdificioRapido((v) => !v); setEdificioRapidoError(""); }}
-                  className="text-xs text-primary font-medium hover:underline"
-                >
-                  + Crear nuevo edificio
-                </button>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer mb-3">
+                <input type="checkbox" checked={form.asignarEdificio}
+                  onChange={() => setForm({ ...form, asignarEdificio: !form.asignarEdificio, edificio_ids: [] })}
+                  className="accent-primary" />
+                <span className="text-sm font-medium text-gray-700">¿Asignar a un edificio?</span>
+              </label>
 
-              {/* Quick building creation */}
-              {showEdificioRapido && (
-                <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 mb-3">
-                  <p className="text-xs font-semibold text-blue-700 mb-3">Crear edificio rápido</p>
-                  <form onSubmit={handleCrearEdificioRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-                      <input required value={edificioRapidoForm.nombre}
-                        onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, nombre: e.target.value })}
-                        placeholder="Torres del Norte" className={INPUT} />
+              {form.asignarEdificio && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-gray-600">Edificios asignados</label>
+                    <button
+                      type="button"
+                      onClick={() => { setShowEdificioRapido((v) => !v); setEdificioRapidoError(""); }}
+                      className="text-xs text-primary font-medium hover:underline"
+                    >
+                      + Crear nuevo edificio
+                    </button>
+                  </div>
+
+                  {/* Quick building creation */}
+                  {showEdificioRapido && (
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear edificio rápido</p>
+                      <form onSubmit={handleCrearEdificioRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                          <input required value={edificioRapidoForm.nombre}
+                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, nombre: e.target.value })}
+                            placeholder="Torres del Norte" className={INPUT} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
+                          <input type="number" min={1} value={edificioRapidoForm.pisos}
+                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, pisos: parseInt(e.target.value) || 1 })}
+                            className={INPUT} />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
+                          <input required value={edificioRapidoForm.direccion}
+                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, direccion: e.target.value })}
+                            placeholder="Cra 15 #85-32, Bogotá" className={INPUT} />
+                        </div>
+                        {edificioRapidoError && <p className="sm:col-span-3 text-red-600 text-xs">{edificioRapidoError}</p>}
+                        <div className="sm:col-span-3 flex gap-2">
+                          <button type="submit" disabled={edificioRapidoSaving}
+                            className="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-60">
+                            {edificioRapidoSaving ? "Creando…" : "Crear y seleccionar"}
+                          </button>
+                          <button type="button" onClick={() => setShowEdificioRapido(false)}
+                            className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-200 hover:text-gray-700">
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-                      <input type="number" min={1} value={edificioRapidoForm.pisos}
-                        onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, pisos: parseInt(e.target.value) || 1 })}
-                        className={INPUT} />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
-                      <input required value={edificioRapidoForm.direccion}
-                        onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, direccion: e.target.value })}
-                        placeholder="Cra 15 #85-32, Bogotá" className={INPUT} />
-                    </div>
-                    {edificioRapidoError && <p className="sm:col-span-3 text-red-600 text-xs">{edificioRapidoError}</p>}
-                    <div className="sm:col-span-3 flex gap-2">
-                      <button type="submit" disabled={edificioRapidoSaving}
-                        className="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-60">
-                        {edificioRapidoSaving ? "Creando…" : "Crear y seleccionar"}
-                      </button>
-                      <button type="button" onClick={() => setShowEdificioRapido(false)}
-                        className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-200 hover:text-gray-700">
-                        Cancelar
-                      </button>
-                    </div>
-                  </form>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {edificios.map((e: any) => (
+                      <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">
+                        <input type="checkbox" checked={form.edificio_ids.includes(e.id)} onChange={() => toggleEdificio(e.id)} className="accent-primary" />
+                        <span className="text-sm text-gray-700">{e.nombre}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {edificios.map((e: any) => (
-                  <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">
-                    <input type="checkbox" checked={form.edificio_ids.includes(e.id)} onChange={() => toggleEdificio(e.id)} className="accent-primary" />
-                    <span className="text-sm text-gray-700">{e.nombre}</span>
-                  </label>
-                ))}
-              </div>
             </div>
 
             {error && <p className="sm:col-span-2 text-red-600 text-xs">{error}</p>}
@@ -398,6 +413,77 @@ export default function AdminsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* View modal */}
+      {viewingAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-semibold text-gray-900">{viewingAdmin.nombre}</h3>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${ROL_COLORS[viewingAdmin.rol ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
+                  {ROL_LABELS[viewingAdmin.rol ?? ""] ?? viewingAdmin.rol}
+                </span>
+              </div>
+              <button onClick={() => setViewingAdmin(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                  <p className="text-gray-800">{viewingAdmin.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Documento</p>
+                  <p className="text-gray-800">{viewingAdmin.cedula ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Teléfono</p>
+                  <p className="text-gray-800">{viewingAdmin.telefono ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Estado</p>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${viewingAdmin.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {viewingAdmin.activo ? "Activo" : "Inactivo"}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">EPS</p>
+                  <p className="text-gray-800">{viewingAdmin.eps ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">ARL</p>
+                  <p className="text-gray-800">{viewingAdmin.aseguradora_riesgo ?? "—"}</p>
+                </div>
+              </div>
+
+              {viewingAdmin.edificios?.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-xs text-gray-400 mb-1.5">Edificios asignados</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {viewingAdmin.edificios.map((e) => (
+                      <span key={e.id} className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">{e.nombre}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => { setViewingAdmin(null); openEdit(viewingAdmin); }}
+                  className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90">
+                  ✏️ Editar
+                </button>
+                <button onClick={() => setViewingAdmin(null)}
+                  className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -488,16 +574,18 @@ export default function AdminsPage() {
         list={pageTab === "admins" ? filteredAdmins : filteredStaff}
         emptyMsg={q ? "Sin resultados." : pageTab === "admins" ? "No hay administradores." : "No hay staff registrado."}
         onEdit={openEdit}
+        onView={setViewingAdmin}
         showRol={pageTab === "staff"}
       />
     </div>
   );
 }
 
-function PersonalTable({ list, emptyMsg, onEdit, showRol }: {
+function PersonalTable({ list, emptyMsg, onEdit, onView, showRol }: {
   list: any[];
   emptyMsg: string;
   onEdit: (a: any) => void;
+  onView: (a: any) => void;
   showRol?: boolean;
 }) {
   const ROL_COLORS: Record<string, string> = {
@@ -530,8 +618,8 @@ function PersonalTable({ list, emptyMsg, onEdit, showRol }: {
           <tbody className="divide-y divide-gray-50">
             {list.map((a) => (
               <tr key={a.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-5 py-3.5">
-                  <div className="font-medium text-gray-900">{a.nombre}</div>
+                <td className="px-5 py-3.5 cursor-pointer" onClick={() => onView(a)}>
+                  <div className="font-medium text-gray-900 hover:text-primary">{a.nombre}</div>
                   {a.cedula && <div className="text-xs text-gray-400">{a.cedula}</div>}
                 </td>
                 <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{a.email}</td>

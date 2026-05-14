@@ -15,6 +15,7 @@ class ProveedorCreate(BaseModel):
     email: Optional[str] = None
     especialidad: Optional[str] = None
     nit: Optional[str] = None
+    descripcion: Optional[str] = None
 
 
 class ProveedorUpdate(BaseModel):
@@ -24,6 +25,7 @@ class ProveedorUpdate(BaseModel):
     email: Optional[str] = None
     especialidad: Optional[str] = None
     nit: Optional[str] = None
+    descripcion: Optional[str] = None
 
 
 class ProveedorEdificioAdd(BaseModel):
@@ -41,6 +43,7 @@ class ContratoCreate(BaseModel):
     fecha_auditoria: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
+    aprobacion_asamblea_url: Optional[str] = None
     valor: Optional[float] = None
     moneda: Optional[str] = "COP"
     num_cotizaciones_requeridas: Optional[int] = None
@@ -57,6 +60,7 @@ class ContratoUpdate(BaseModel):
     fecha_auditoria: Optional[str] = None
     condiciones: Optional[str] = None
     archivo_url: Optional[str] = None
+    aprobacion_asamblea_url: Optional[str] = None
     valor: Optional[float] = None
     moneda: Optional[str] = None
     num_cotizaciones_requeridas: Optional[int] = None
@@ -205,10 +209,10 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO proveedores (nombre, contacto, telefono, email, especialidad, nit, creado_por)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                """INSERT INTO proveedores (nombre, contacto, telefono, email, especialidad, nit, descripcion, creado_por)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (data.nombre, data.contacto, data.telefono, data.email,
-                 data.especialidad, data.nit, creado_por),
+                 data.especialidad, data.nit, data.descripcion, creado_por),
             )
             proveedor = dict(cur.fetchone())
 
@@ -331,12 +335,12 @@ def create_contrato(
                 """INSERT INTO contratos_servicio
                    (proveedor_id, conjunto_id, edificio_id, tipo_servicio, descripcion,
                     fecha_inicio, fecha_fin, fecha_auditoria, condiciones, archivo_url,
-                    valor, moneda, orden_compra_id)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                    aprobacion_asamblea_url, valor, moneda, orden_compra_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (proveedor_id, data.conjunto_id, data.edificio_id, data.tipo_servicio,
                  data.descripcion, data.fecha_inicio, data.fecha_fin, data.fecha_auditoria,
-                 data.condiciones, data.archivo_url, data.valor, data.moneda,
-                 data.orden_compra_id),
+                 data.condiciones, data.archivo_url, data.aprobacion_asamblea_url,
+                 data.valor, data.moneda, data.orden_compra_id),
             )
             return dict(cur.fetchone())
 

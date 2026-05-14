@@ -4,8 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { api, proveedoresApi, superadminApi, conjuntosApi } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
+const ESPECIALIDADES = [
+  "Seguridad / Vigilancia", "Aseo / Limpieza", "Jardinería",
+  "Mantenimiento general", "Plomería", "Electricidad", "Pintura",
+  "Fumigación", "Ascensores", "Piscinas / Áreas comunes",
+  "Contabilidad", "Administración", "Otro",
+];
+
 const EMPTY_FORM = {
-  nombre: "", especialidad: "", contacto: "", telefono: "", email: "", nit: "",
+  nombre: "", especialidad: "", contacto: "", telefono: "", email: "", nit: "", descripcion: "",
 };
 
 const EMPTY_CONTRATO = {
@@ -15,6 +22,8 @@ const EMPTY_CONTRATO = {
   fecha_fin: "",
   condiciones: "",
   archivo_url: "",
+  archivo_input_mode: "url" as "url" | "file",
+  aprobacion_asamblea_url: "",
   valor: "",
   moneda: "COP",
   edificio_id: "",
@@ -53,7 +62,7 @@ export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [edificios, setEdificios]     = useState<any[]>([]);
   const [conjuntos, setConjuntos]     = useState<any[]>([]);
-  const [filtroEdificio, setFiltroEdificio] = useState<number>(edificioId ?? 0);
+  const [filtroEdificio, setFiltroEdificio] = useState<number>(0);
   const [loading, setLoading]         = useState(true);
   const [showForm, setShowForm]       = useState(false);
   const [editando, setEditando]       = useState<any | null>(null);
@@ -134,7 +143,7 @@ export default function ProveedoresPage() {
   const openCreate = () => { setEditando(null); setForm(EMPTY_FORM); setShowForm(true); };
   const openEdit = (p: any) => {
     setEditando(p);
-    setForm({ nombre: p.nombre ?? "", especialidad: p.especialidad ?? "", contacto: p.contacto ?? "", telefono: p.telefono ?? "", email: p.email ?? "", nit: p.nit ?? "" });
+    setForm({ nombre: p.nombre ?? "", especialidad: p.especialidad ?? "", contacto: p.contacto ?? "", telefono: p.telefono ?? "", email: p.email ?? "", nit: p.nit ?? "", descripcion: p.descripcion ?? "" });
     setShowForm(true);
   };
 
@@ -232,6 +241,7 @@ export default function ProveedoresPage() {
         fecha_fin: contratoForm.fecha_fin || undefined,
         condiciones: contratoForm.condiciones || undefined,
         archivo_url: contratoForm.archivo_url || undefined,
+        aprobacion_asamblea_url: contratoForm.aprobacion_asamblea_url || undefined,
         valor: contratoForm.valor ? parseFloat(contratoForm.valor) : undefined,
         moneda: contratoForm.moneda || "COP",
         edificio_id: contratoForm.edificio_id ? parseInt(contratoForm.edificio_id) : undefined,
@@ -698,6 +708,11 @@ export default function ProveedoresPage() {
                                     📎 Ver documento
                                   </a>
                                 )}
+                                {c.aprobacion_asamblea_url && (
+                                  <a href={c.aprobacion_asamblea_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:underline font-medium">
+                                    ✅ Aprobación asamblea
+                                  </a>
+                                )}
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 <button onClick={() => openGestion(c)} className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium whitespace-nowrap">
@@ -786,11 +801,44 @@ export default function ProveedoresPage() {
                             rows={2} placeholder="Condiciones del contrato…" className={INPUT} />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-xs font-medium text-gray-600 mb-1">URL del documento / contrato</label>
-                          <input type="url" value={contratoForm.archivo_url}
-                            onChange={(e) => setContratoForm({ ...contratoForm, archivo_url: e.target.value })}
-                            placeholder="https://drive.google.com/… o enlace al contrato" className={INPUT} />
-                          <p className="text-xs text-gray-400 mt-0.5">Pega el enlace al contrato en Google Drive, Dropbox u otro servicio.</p>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Documento del contrato</label>
+                          <div className="flex gap-1 mb-2">
+                            {(["url", "file"] as const).map((m) => (
+                              <button key={m} type="button"
+                                onClick={() => setContratoForm({ ...contratoForm, archivo_input_mode: m, archivo_url: "" })}
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                                  contratoForm.archivo_input_mode === m ? "bg-primary text-white border-primary" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                                }`}>
+                                {m === "url" ? "🔗 URL" : "📁 Archivo"}
+                              </button>
+                            ))}
+                          </div>
+                          {contratoForm.archivo_input_mode === "url" ? (
+                            <input type="url" value={contratoForm.archivo_url}
+                              onChange={(e) => setContratoForm({ ...contratoForm, archivo_url: e.target.value })}
+                              placeholder="https://drive.google.com/… o enlace al contrato" className={INPUT} />
+                          ) : (
+                            <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = () => setContratoForm({ ...contratoForm, archivo_url: reader.result as string });
+                                reader.readAsDataURL(file);
+                              }}
+                              className={INPUT} />
+                          )}
+                          {contratoForm.archivo_url && contratoForm.archivo_input_mode === "file" && (
+                            <p className="text-xs text-green-600 mt-0.5">✓ Archivo cargado</p>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Aprobación de Asamblea <span className="text-gray-400 font-normal">(opcional)</span>
+                          </label>
+                          <input type="url" value={contratoForm.aprobacion_asamblea_url}
+                            onChange={(e) => setContratoForm({ ...contratoForm, aprobacion_asamblea_url: e.target.value })}
+                            placeholder="URL del acta de asamblea…" className={INPUT} />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Valor del contrato</label>
@@ -1124,8 +1172,15 @@ export default function ProveedoresPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Especialidad</label>
-                <input value={form.especialidad} onChange={(e) => setForm({ ...form, especialidad: e.target.value })}
-                  placeholder="Ej: Plomería, Electricidad, Ascensores…" className={INPUT} />
+                <select value={form.especialidad} onChange={(e) => setForm({ ...form, especialidad: e.target.value })} className={INPUT}>
+                  <option value="">Seleccionar especialidad…</option>
+                  {ESPECIALIDADES.map((esp) => <option key={esp} value={esp}>{esp}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Descripción <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <textarea rows={2} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                  placeholder="Información adicional del proveedor…" className={INPUT} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

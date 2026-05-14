@@ -56,6 +56,12 @@ export const superadminApi = {
     if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
     return request<any>(`/api/superadmin/stats/cuotas-detalle?${params}`);
   },
+  mantenimientosDetalle: (estado?: string, conjunto_id?: number) => {
+    const params = new URLSearchParams();
+    if (estado) params.set("estado", estado);
+    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
+    return request<any>(`/api/superadmin/stats/mantenimientos-detalle?${params}`);
+  },
   analytics: (edificio_id?: number) => {
     const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);

@@ -515,6 +515,47 @@ def get_cuotas_detalle(
             return {"cuotas": [dict(r) for r in cur.fetchall()]}
 
 
+# ── Mantenimientos detalle (drill-down SA panel) ──────────────────────────────
+
+@router.get("/stats/mantenimientos-detalle")
+def get_mantenimientos_detalle(
+    estado: str = "todos",   # pendiente | en_proceso | todos
+    conjunto_id: Optional[int] = None,
+    sa=Depends(_require_superadmin),
+):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            params: list = []
+            where_estado = "AND m.estado IN ('pendiente','en_proceso')"
+            if estado in ("pendiente", "en_proceso"):
+                where_estado = "AND m.estado = %s"
+                params.append(estado)
+            where_eid = ""
+            if conjunto_id:
+                cur.execute("SELECT id FROM edificios WHERE conjunto_id = %s", (conjunto_id,))
+                eid_list = [r["id"] for r in cur.fetchall()]
+                if eid_list:
+                    where_eid = "AND m.edificio_id = ANY(%s)"
+                    params.append(eid_list)
+            cur.execute(f"""
+                SELECT m.id, m.titulo, m.estado, m.prioridad, m.categoria,
+                       m.fecha_solicitud, m.es_programado,
+                       e.nombre AS edificio_nombre,
+                       u.numero AS unidad_numero,
+                       sol.nombre AS solicitante_nombre
+                FROM mantenimientos m
+                JOIN edificios e ON e.id = m.edificio_id
+                LEFT JOIN unidades u ON u.id = m.unidad_id
+                LEFT JOIN usuarios sol ON sol.id = m.solicitado_por_id
+                WHERE 1=1 {where_estado} {where_eid}
+                ORDER BY CASE m.prioridad
+                    WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'media' THEN 3 ELSE 4
+                END, m.fecha_solicitud DESC
+                LIMIT 200
+            """, params)
+            return {"mantenimientos": [dict(r) for r in cur.fetchall()]}
+
+
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
 @router.get("/analytics")

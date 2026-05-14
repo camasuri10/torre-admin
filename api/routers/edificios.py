@@ -250,10 +250,20 @@ def create_unidad(edificio_id: int, data: UnidadCreate, current_user: dict = Dep
             if not cur.fetchone():
                 raise HTTPException(status_code=400, detail="La torre no pertenece a este edificio")
 
+            coef = data.coeficiente
+            if coef is None:
+                cur.execute("""
+                    SELECT COUNT(*) AS total FROM unidades u
+                    JOIN torres t ON t.id = u.torre_id
+                    WHERE t.edificio_id = %s AND u.activo = TRUE
+                """, (edificio_id,))
+                total = cur.fetchone()["total"]
+                coef = round(1.0 / (total + 1), 6)
+
             cur.execute(
                 """INSERT INTO unidades (torre_id, numero, piso, tipo, area_m2, coeficiente)
                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING *""",
-                (data.torre_id, data.numero, data.piso, data.tipo, data.area_m2, data.coeficiente),
+                (data.torre_id, data.numero, data.piso, data.tipo, data.area_m2, coef),
             )
             return dict(cur.fetchone())
 

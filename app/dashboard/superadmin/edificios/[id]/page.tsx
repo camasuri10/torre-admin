@@ -55,10 +55,16 @@ export default function EdificioGestionPage() {
   const [editUSaving, setEditUSaving]         = useState(false);
   const [editUError, setEditUError]           = useState("");
 
+  const [isSA, setIsSA] = useState(false);
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const user = getUser();
-    if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
+    const sa = user?.rol === "superadmin";
+    const admin = user?.rol === "administrador";
+    if (!user || (!sa && !admin)) { router.replace("/dashboard"); return; }
+    if (admin && user.edificio_id !== edificioId) { router.replace("/dashboard"); return; }
+    setIsSA(sa);
 
     Promise.allSettled([
       superadminApi.edificios.getModulos(edificioId),
@@ -232,8 +238,8 @@ export default function EdificioGestionPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <Link href="/dashboard/superadmin/edificios" className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
-        ← Edificios
+      <Link href={isSA ? "/dashboard/superadmin/edificios" : "/dashboard/backoffice"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
+        ← {isSA ? "Edificios" : "Mi edificio"}
       </Link>
 
       <div>
@@ -466,7 +472,9 @@ export default function EdificioGestionPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Coeficiente</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Coeficiente <span className="text-gray-400 font-normal">(opcional — se calcula automáticamente)</span>
+                  </label>
                   <input type="number" step="0.0001" min={0} value={addForm.coeficiente}
                     onChange={(e) => setAddForm({ ...addForm, coeficiente: e.target.value })}
                     placeholder="0.0250"

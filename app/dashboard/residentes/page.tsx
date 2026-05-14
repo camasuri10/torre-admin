@@ -105,6 +105,10 @@ export default function ResidentesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if ((form.rol === "propietario" || form.rol === "inquilino") && !form.unidad_id) {
+      setCreateError("La unidad es obligatoria. Crea la unidad antes de agregar el residente.");
+      return;
+    }
     setSaving(true);
     setCreateError("");
     try {
@@ -359,9 +363,9 @@ export default function ResidentesPage() {
               <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className={INPUT} /></div>
             {(form.rol === "propietario" || form.rol === "inquilino") && (
               <>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Unidad (apartamento)</label>
-                  <select value={form.unidad_id} onChange={(e) => setForm({ ...form, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
-                    <option value="">Asignar después</option>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Unidad (apartamento) *</label>
+                  <select required value={form.unidad_id} onChange={(e) => setForm({ ...form, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
+                    <option value="">Seleccionar unidad…</option>
                     {unidades.map((u: any) => (
                       <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>
                     ))}

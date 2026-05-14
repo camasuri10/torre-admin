@@ -1114,6 +1114,12 @@ ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);
 
 ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;
+
+-- v10.0 — Proveedores: descripción libre
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS descripcion TEXT;
+
+-- v10.0 — Contratos: documento de aprobación de asamblea
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS aprobacion_asamblea_url TEXT;
 """
 
 
