@@ -1,7 +1,7 @@
 from .openai_provider import OpenAIProvider
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+DEFAULT_MODEL = "deepseek/deepseek-v4-flash:free"
 
 
 class OpenRouterProvider(OpenAIProvider):

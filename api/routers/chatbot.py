@@ -1,6 +1,6 @@
 import os
 import time
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
@@ -14,7 +14,7 @@ _bearer = HTTPBearer(auto_error=False)
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
 class ChatMessage(BaseModel):
-    role: str   # "user" | "assistant"
+    role: str
     content: str
 
 
@@ -23,24 +23,52 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = []
 
 
-class ConfigUpdate(BaseModel):
+class ConfigCreate(BaseModel):
+    nombre: str
     proveedor: str
-    api_key: Optional[str] = None
+    api_key: str
     modelo: Optional[str] = None
     base_url: Optional[str] = None
     temperatura: float = 0.3
 
 
+class ConfigUpdate(BaseModel):
+    nombre: Optional[str] = None
+    proveedor: Optional[str] = None
+    api_key: Optional[str] = None   # None = no cambiar
+    modelo: Optional[str] = None
+    base_url: Optional[str] = None
+    temperatura: Optional[float] = None
+
+
+class TestRequest(BaseModel):
+    proveedor: Optional[str] = None
+    api_key: Optional[str] = None
+    modelo: Optional[str] = None
+    base_url: Optional[str] = None
+    temperatura: Optional[float] = None
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_config() -> dict:
+    """Returns the currently active config, or a safe default."""
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chatbot_config WHERE id = 1")
+            cur.execute(
+                "SELECT * FROM chatbot_config WHERE activo = TRUE ORDER BY id DESC LIMIT 1"
+            )
             row = cur.fetchone()
             if row:
                 return dict(row)
     return {"proveedor": "claude", "api_key": None, "modelo": None, "base_url": None, "temperatura": 0.3}
+
+
+def _mask_key(config: dict) -> dict:
+    c = dict(config)
+    if c.get("api_key"):
+        c["api_key"] = "***" + c["api_key"][-4:]
+    return c
 
 
 def _require_superadmin(current_user: dict = Depends(get_current_user)):
@@ -49,7 +77,7 @@ def _require_superadmin(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Chat endpoint ─────────────────────────────────────────────────────────────
 
 @router.post("/message")
 async def chat_message(
@@ -57,10 +85,8 @@ async def chat_message(
     current_user: dict = Depends(get_current_user),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ):
-    """Send a message to the AI assistant and get a response."""
     rol = current_user.get("rol", "propietario")
-    allowed_roles = {"superadmin", "administrador", "propietario"}
-    if rol not in allowed_roles:
+    if rol not in {"superadmin", "administrador", "propietario"}:
         raise HTTPException(status_code=403, detail="Tu rol no tiene acceso al asistente IA.")
 
     config = _get_config()
@@ -73,8 +99,6 @@ async def chat_message(
     from chatbot_engine import ChatbotEngine
 
     engine = ChatbotEngine(config)
-
-    # Determine API base URL for internal tool calls
     api_base = os.environ.get("INTERNAL_API_BASE") or os.environ.get("NEXT_PUBLIC_API_URL", "")
     raw_token = credentials.credentials if credentials else ""
 
@@ -89,50 +113,130 @@ async def chat_message(
     history = [{"role": m.role, "content": m.content} for m in body.history]
 
     try:
-        result = await engine.process(
-            message=body.message,
-            history=history,
-            context=context,
-        )
+        result = await engine.process(message=body.message, history=history, context=context)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error del asistente: {str(e)}")
 
 
+# ── Single active config (backward compat) ───────────────────────────────────
+
 @router.get("/config")
-def get_config(sa=Depends(_require_superadmin)):
-    """Get current chatbot configuration (api_key is masked)."""
-    config = _get_config()
-    # Mask the API key
-    if config.get("api_key"):
-        config["api_key"] = "***" + config["api_key"][-4:]
-    return config
+def get_active_config(sa=Depends(_require_superadmin)):
+    """Returns the currently active config (api_key masked)."""
+    return _mask_key(_get_config())
 
 
-@router.put("/config")
-def update_config(body: ConfigUpdate, sa=Depends(_require_superadmin)):
-    """Create or update global chatbot configuration."""
+# ── Multi-config CRUD ─────────────────────────────────────────────────────────
+
+@router.get("/configs")
+def list_configs(sa=Depends(_require_superadmin)):
+    """List all saved configurations."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM chatbot_config ORDER BY activo DESC, id ASC")
+            rows = cur.fetchall()
+    return [_mask_key(dict(r)) for r in rows]
+
+
+@router.post("/configs")
+def create_config(body: ConfigCreate, sa=Depends(_require_superadmin)):
+    """Create a new configuration (inactive by default)."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO chatbot_config (id, proveedor, api_key, modelo, base_url, temperatura, updated_at)
-                VALUES (1, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (id) DO UPDATE SET
-                    proveedor   = EXCLUDED.proveedor,
-                    api_key     = CASE WHEN EXCLUDED.api_key IS NOT NULL THEN EXCLUDED.api_key ELSE chatbot_config.api_key END,
-                    modelo      = EXCLUDED.modelo,
-                    base_url    = EXCLUDED.base_url,
-                    temperatura = EXCLUDED.temperatura,
-                    updated_at  = NOW()
+                INSERT INTO chatbot_config (nombre, proveedor, api_key, modelo, base_url, temperatura, activo, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())
                 RETURNING *
-            """, (body.proveedor, body.api_key, body.modelo, body.base_url, body.temperatura))
-            return cur.fetchone()
+            """, (body.nombre, body.proveedor, body.api_key, body.modelo, body.base_url, body.temperatura))
+            return _mask_key(dict(cur.fetchone()))
 
+
+@router.put("/configs/{config_id}")
+def update_config(config_id: int, body: ConfigUpdate, sa=Depends(_require_superadmin)):
+    """Update an existing configuration. Only provided fields are changed."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM chatbot_config WHERE id = %s", (config_id,))
+            existing = cur.fetchone()
+            if not existing:
+                raise HTTPException(status_code=404, detail="Configuración no encontrada")
+
+            # Build SET clause from provided fields
+            updates = {}
+            if body.nombre is not None:
+                updates["nombre"] = body.nombre
+            if body.proveedor is not None:
+                updates["proveedor"] = body.proveedor
+            if body.api_key is not None:
+                updates["api_key"] = body.api_key
+            if body.modelo is not None:
+                updates["modelo"] = body.modelo
+            if body.base_url is not None:
+                updates["base_url"] = body.base_url
+            if body.temperatura is not None:
+                updates["temperatura"] = body.temperatura
+
+            if not updates:
+                return _mask_key(dict(existing))
+
+            set_clause = ", ".join(f"{k} = %s" for k in updates)
+            values = list(updates.values()) + [config_id]
+            cur.execute(
+                f"UPDATE chatbot_config SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *",
+                values,
+            )
+            return _mask_key(dict(cur.fetchone()))
+
+
+@router.delete("/configs/{config_id}")
+def delete_config(config_id: int, sa=Depends(_require_superadmin)):
+    """Delete a configuration. Cannot delete the active one."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT activo FROM chatbot_config WHERE id = %s", (config_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Configuración no encontrada")
+            if row["activo"]:
+                raise HTTPException(status_code=400, detail="No se puede eliminar la configuración activa. Activa otra primero.")
+            cur.execute("DELETE FROM chatbot_config WHERE id = %s", (config_id,))
+    return {"ok": True}
+
+
+@router.post("/configs/{config_id}/activate")
+def activate_config(config_id: int, sa=Depends(_require_superadmin)):
+    """Set a configuration as the active one (deactivates all others)."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM chatbot_config WHERE id = %s", (config_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Configuración no encontrada")
+            cur.execute("UPDATE chatbot_config SET activo = FALSE")
+            cur.execute(
+                "UPDATE chatbot_config SET activo = TRUE, updated_at = NOW() WHERE id = %s RETURNING *",
+                (config_id,),
+            )
+            return _mask_key(dict(cur.fetchone()))
+
+
+# ── Test endpoint ─────────────────────────────────────────────────────────────
 
 @router.post("/test")
-async def test_connection(sa=Depends(_require_superadmin)):
-    """Test the current AI provider configuration."""
+async def test_connection(body: TestRequest = TestRequest(), sa=Depends(_require_superadmin)):
+    """Test an AI provider configuration (uses form values, falls back to active DB config)."""
     config = _get_config()
+    if body.proveedor is not None:
+        config["proveedor"] = body.proveedor
+    if body.api_key is not None:
+        config["api_key"] = body.api_key
+    if body.modelo is not None:
+        config["modelo"] = body.modelo
+    if body.base_url is not None:
+        config["base_url"] = body.base_url
+    if body.temperatura is not None:
+        config["temperatura"] = body.temperatura
+
     if not config.get("api_key") and config.get("proveedor") != "ollama":
         return {"ok": False, "message": "API key no configurada.", "latencia_ms": 0}
 
@@ -144,18 +248,10 @@ async def test_connection(sa=Depends(_require_superadmin)):
         result = await engine.process(
             message="Hola, ¿estás funcionando correctamente? Responde solo con 'Sí, estoy listo.'",
             history=[],
-            context={
-                "token": "",
-                "edificio_id": 1,
-                "usuario_id": 1,
-                "rol": "superadmin",
-                "api_base": "",
-            },
+            context={"token": "", "edificio_id": 1, "usuario_id": 1, "rol": "superadmin", "api_base": ""},
         )
         latencia = int((time.monotonic() - start) * 1000)
         return {"ok": True, "message": result.get("message", ""), "latencia_ms": latencia}
     except Exception as e:
         latencia = int((time.monotonic() - start) * 1000)
         return {"ok": False, "message": str(e), "latencia_ms": latencia}
-
-

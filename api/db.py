@@ -1221,6 +1221,10 @@ CREATE TABLE IF NOT EXISTS chatbot_config (
 INSERT INTO modulos (clave, nombre, icono)
 VALUES ('chatbot', 'Asistente IA', '🤖')
 ON CONFLICT (clave) DO NOTHING;
+
+-- v13.0 — Soporte multi-configuración chatbot
+ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(100);
+UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;
 """
 
 

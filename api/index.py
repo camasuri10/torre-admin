@@ -86,6 +86,31 @@ app.include_router(consejo.router,        prefix="/api/consejo",           tags=
 app.include_router(chatbot.router,        prefix="/api/chatbot",           tags=["Chatbot IA"])
 
 
+@app.get("/api/migrate-v13")
+def migrate_v13():
+    """Apply v13 migrations: chatbot multi-config support (nombre column)."""
+    from db import get_db
+    migrations = [
+        ("chatbot_config nombre column",
+         "ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(100);"),
+        ("chatbot_config nombre default",
+         "UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;"),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        cur.execute(sql)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/api/migrate-v12")
 def migrate_v12():
     """Apply v12 migrations: chatbot_config table + chatbot module seed."""

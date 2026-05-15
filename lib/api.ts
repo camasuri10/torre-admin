@@ -577,18 +577,39 @@ export const api = {
         "/api/chatbot/message",
         { method: "POST", body: JSON.stringify({ message, history }) }
       ),
+    // Active config (backward compat for test/bubble)
     getConfig: () => request<any>("/api/chatbot/config"),
-    updateConfig: (data: {
+    // Multi-config CRUD
+    listConfigs: () => request<any[]>("/api/chatbot/configs"),
+    createConfig: (data: {
+      nombre: string;
       proveedor: string;
-      api_key?: string;
+      api_key: string;
       modelo?: string;
       base_url?: string;
       temperatura: number;
-    }) => request<any>("/api/chatbot/config", { method: "PUT", body: JSON.stringify(data) }),
-    testConnection: () =>
+    }) => request<any>("/api/chatbot/configs", { method: "POST", body: JSON.stringify(data) }),
+    updateConfig: (id: number, data: {
+      nombre?: string;
+      proveedor?: string;
+      api_key?: string;
+      modelo?: string;
+      base_url?: string;
+      temperatura?: number;
+    }) => request<any>(`/api/chatbot/configs/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteConfig: (id: number) => request<void>(`/api/chatbot/configs/${id}`, { method: "DELETE" }),
+    activateConfig: (id: number) =>
+      request<any>(`/api/chatbot/configs/${id}/activate`, { method: "POST" }),
+    testConnection: (config?: {
+      proveedor?: string;
+      api_key?: string;
+      modelo?: string;
+      base_url?: string;
+      temperatura?: number;
+    }) =>
       request<{ ok: boolean; message: string; latencia_ms: number }>(
         "/api/chatbot/test",
-        { method: "POST" }
+        { method: "POST", body: JSON.stringify(config ?? {}) }
       ),
   },
 };
