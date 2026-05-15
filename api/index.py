@@ -171,6 +171,10 @@ def migrate_v11():
         """),
         ("consejo_miembros index",
          "CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);"),
+        ("ordenes proyecto_id",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS proyecto_id INTEGER REFERENCES ordenes_compra(id);"),
+        ("ordenes proyecto_id index",
+         "CREATE INDEX IF NOT EXISTS idx_ordenes_proyecto ON ordenes_compra(proyecto_id);"),
     ]
     results = []
     try:

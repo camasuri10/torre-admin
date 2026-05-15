@@ -43,8 +43,6 @@ const CLASIFICACIONES = [
   { value: "actividad", label: "Actividad" },
 ];
 
-const CARGOS_CONSEJO = ["presidente", "vicepresidente", "secretario", "vocal", "fiscal"];
-
 const KANBAN_COLS: { key: string; label: string; color: string }[] = [
   { key: "borrador",             label: "Borrador",       color: "bg-gray-50 border-gray-200" },
   { key: "pendiente_aprobacion", label: "En Aprobación",  color: "bg-yellow-50 border-yellow-200" },
@@ -68,8 +66,8 @@ function fmtDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleString("es-CO", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-// Change 6: Removed "flujos", added "consejo"
-type Tab = "ordenes" | "cotizaciones" | "asamblea" | "kanban" | "consejo";
+// Change 6: Removed "flujos" and "consejo" (consejo moved to its own module)
+type Tab = "ordenes" | "cotizaciones" | "asamblea" | "kanban";
 type ItemForm = { descripcion: string; cantidad: number; unidad_medida: string; precio_unitario: number };
 
 const mkItem = (): ItemForm => ({ descripcion: "", cantidad: 1, unidad_medida: "und", precio_unitario: 0 });
@@ -109,9 +107,16 @@ export default function GestionPage() {
   });
   const [oItems, setOItems] = useState<ItemForm[]>([mkItem()]);
   const [oClasificacion, setOClasificacion] = useState("");
-  const [oEsIndividual, setOEsIndividual] = useState(false);       // Change 4
-  const [oRequiereConsejo, setORequiereConsejo] = useState(false); // Change 9
+  const [oEsIndividual, setOEsIndividual] = useState(false);
+  const [oRequiereConsejo, setORequiereConsejo] = useState(false);
+  const [oProyectoId, setOProyectoId] = useState("");
   const [savingO, setSavingO] = useState(false);
+
+  // Consejo decision state (for approving/rejecting individual orders)
+  const [showConsejoDecisionModal, setShowConsejoDecisionModal] = useState(false);
+  const [consejoTarget, setConsejoTarget] = useState<any>(null);
+  const [consejoDecisionForm, setConsejoDecisionForm] = useState({ decision: "aprobada", comentario: "" });
+  const [savingConsejoDecision, setSavingConsejoDecision] = useState(false);
 
   // Action modal
   const [showActionModal, setShowActionModal] = useState(false);
@@ -154,20 +159,6 @@ export default function GestionPage() {
   const [asambleaDecisionForm, setAsambleaDecisionForm] = useState({ decision: "aprobada", acta_url: "", cotizacion_url: "", comentario: "" });
   const [savingAsamblea, setSavingAsamblea] = useState(false);
   const [togglingAsamblea, setTogglingAsamblea] = useState(false);
-
-  // Change 8: Consejo tab state
-  const [miembros, setMiembros] = useState<any[]>([]);
-  const [loadingMiembros, setLoadingMiembros] = useState(false);
-  const [showMiembroModal, setShowMiembroModal] = useState(false);
-  const [editingMiembro, setEditingMiembro] = useState<any>(null);
-  const [miembroForm, setMiembroForm] = useState({ nombre: "", cargo: "presidente", tipo: "activo" });
-  const [savingMiembro, setSavingMiembro] = useState(false);
-
-  // Change 9: Consejo decision state
-  const [showConsejoDecisionModal, setShowConsejoDecisionModal] = useState(false);
-  const [consejoTarget, setConsejoTarget] = useState<any>(null);
-  const [consejoDecisionForm, setConsejoDecisionForm] = useState({ decision: "aprobada", comentario: "" });
-  const [savingConsejoDecision, setSavingConsejoDecision] = useState(false);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -247,7 +238,6 @@ export default function GestionPage() {
     if (activeTab === "cotizaciones" && eid && solicitudes.length === 0) loadSolicitudes();
     if (activeTab === "kanban" && eid) loadKanban();
     if (activeTab === "asamblea" && eid) loadAsamblea();
-    if (activeTab === "consejo" && eid) loadMiembros();
   }, [activeTab, eid]);
 
   async function loadKanban() {
@@ -272,48 +262,6 @@ export default function GestionPage() {
     }
   }
 
-  async function loadMiembros() {
-    if (!eid) return;
-    setLoadingMiembros(true);
-    try {
-      const res = await fetch(`${API}/api/consejo/${eid}`);
-      const data = await res.json();
-      setMiembros(Array.isArray(data) ? data : []);
-    } finally {
-      setLoadingMiembros(false);
-    }
-  }
-
-  async function saveMiembro() {
-    if (!eid) return;
-    setSavingMiembro(true);
-    try {
-      if (editingMiembro) {
-        await fetch(`${API}/api/consejo/miembros/${editingMiembro.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(miembroForm),
-        });
-      } else {
-        await fetch(`${API}/api/consejo/${eid}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(miembroForm),
-        });
-      }
-      setShowMiembroModal(false);
-      loadMiembros();
-    } finally {
-      setSavingMiembro(false);
-    }
-  }
-
-  async function deleteMiembro(id: number) {
-    if (!confirm("¿Eliminar este miembro del consejo?")) return;
-    await fetch(`${API}/api/consejo/miembros/${id}`, { method: "DELETE" });
-    loadMiembros();
-  }
-
   // ── Orden modal ───────────────────────────────────────────────────────────
 
   function openCreateOrden() {
@@ -322,6 +270,7 @@ export default function GestionPage() {
     setOClasificacion("");
     setOEsIndividual(false);
     setORequiereConsejo(false);
+    setOProyectoId("");
     setOItems([mkItem()]);
     setShowOrdenModal(true);
   }
@@ -339,6 +288,7 @@ export default function GestionPage() {
     setOClasificacion(orden.clasificacion ?? "");
     setOEsIndividual(orden.es_individual ?? false);
     setORequiereConsejo(orden.requiere_aprobacion_consejo ?? false);
+    setOProyectoId(orden.proyecto_id ? String(orden.proyecto_id) : "");
     setOItems(
       orden.items?.length
         ? orden.items.map((i: any) => ({
@@ -362,6 +312,7 @@ export default function GestionPage() {
         clasificacion: oClasificacion || null,
         es_individual: oEsIndividual,
         requiere_aprobacion_consejo: oRequiereConsejo,
+        proyecto_id: (oClasificacion === "actividad" && !oEsIndividual && oProyectoId) ? parseInt(oProyectoId) : null,
         items: oItems.filter((i) => i.descripcion.trim()),
       };
       const result = editingOrden
@@ -483,11 +434,6 @@ export default function GestionPage() {
             + Nueva Solicitud
           </button>
         )}
-        {activeTab === "consejo" && isAdmin && (
-          <button onClick={() => { setEditingMiembro(null); setMiembroForm({ nombre: "", cargo: "presidente", tipo: "activo" }); setShowMiembroModal(true); }} className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-            + Agregar Miembro
-          </button>
-        )}
       </div>
 
       {/* KPI cards */}
@@ -512,15 +458,14 @@ export default function GestionPage() {
         </div>
       )}
 
-      {/* Tabs — Change 6: flujos removed, consejo added */}
+      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
-        {(["ordenes", "cotizaciones", "asamblea", "kanban", "consejo"] as Tab[]).map((t) => {
+        {(["ordenes", "cotizaciones", "asamblea", "kanban"] as Tab[]).map((t) => {
           const labels: Record<Tab, string> = {
             ordenes: "📋 Órdenes",
             cotizaciones: "📊 Cotizaciones & RFQ",
             asamblea: "🏛️ Asamblea",
             kanban: "📌 Tablero",
-            consejo: "⚖️ Consejo",
           };
           return (
             <button
@@ -595,7 +540,12 @@ export default function GestionPage() {
                         className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedOrden?.id === o.id ? "bg-blue-50" : ""}`}
                       >
                         <td className="px-4 py-3 font-mono text-xs text-gray-500">{o.numero_orden}</td>
-                        <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">{o.titulo}</td>
+                        <td className="px-4 py-3 max-w-[180px]">
+                          <div className="font-medium text-gray-900 truncate">{o.titulo}</div>
+                          {o.proyecto_titulo && (
+                            <div className="text-xs text-blue-600 truncate">{o.proyecto_titulo}</div>
+                          )}
+                        </td>
                         <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-500 capitalize">
                           {o.clasificacion?.replace(/_/g, " ") ?? "—"}
                         </td>
@@ -646,6 +596,12 @@ export default function GestionPage() {
                     <div className="flex justify-between gap-2">
                       <span className="text-gray-500 shrink-0">Clasificación</span>
                       <span className="text-right capitalize">{selectedOrden.clasificacion.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+                  {selectedOrden.proyecto_titulo && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500 shrink-0">Proyecto</span>
+                      <span className="text-right text-xs font-medium text-blue-700">{selectedOrden.proyecto_titulo}</span>
                     </div>
                   )}
                   <div className="flex justify-between gap-2">
@@ -1201,70 +1157,6 @@ export default function GestionPage() {
         </div>
       )}
 
-      {/* ── Tab: Consejo — Change 8 ── */}
-      {activeTab === "consejo" && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-            Miembros del consejo de administración del edificio. Las decisiones del consejo se registran desde el detalle de cada orden de gestión.
-          </div>
-          {loadingMiembros ? (
-            <div className="bg-white border rounded-xl py-10 text-center text-gray-400 text-sm">Cargando…</div>
-          ) : miembros.length === 0 ? (
-            <div className="bg-white border rounded-xl py-10 text-center text-gray-400 text-sm">Sin miembros registrados. Agrega el primer miembro del consejo.</div>
-          ) : (
-            <div className="bg-white border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Nombre</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Cargo</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tipo</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Estado</th>
-                    {isAdmin && <th className="px-4 py-3" />}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {miembros.map((m) => (
-                    <tr key={m.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{m.nombre}</td>
-                      <td className="px-4 py-3 text-gray-700 capitalize">{m.cargo}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${m.tipo === "activo" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
-                          {m.tipo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${m.activo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
-                          {m.activo ? "Activo" : "Inactivo"}
-                        </span>
-                      </td>
-                      {isAdmin && (
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={() => { setEditingMiembro(m); setMiembroForm({ nombre: m.nombre, cargo: m.cargo, tipo: m.tipo }); setShowMiembroModal(true); }}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => deleteMiembro(m.id)}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ══ Modals ══════════════════════════════════════════════════════════════ */}
 
       {/* Modal: Crear/Editar Orden */}
@@ -1306,9 +1198,22 @@ export default function GestionPage() {
                 {!oEsIndividual && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Clasificación</label>
-                    <select value={oClasificacion} onChange={(e) => setOClasificacion(e.target.value)}
+                    <select value={oClasificacion} onChange={(e) => { setOClasificacion(e.target.value); setOProyectoId(""); }}
                       className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                       {CLASIFICACIONES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {!oEsIndividual && oClasificacion === "actividad" && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Proyecto al que pertenece</label>
+                    <select value={oProyectoId} onChange={(e) => setOProyectoId(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                      <option value="">Sin proyecto asociado</option>
+                      {ordenes.filter((o: any) => o.clasificacion === "proyecto").map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.titulo}</option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -1679,7 +1584,7 @@ export default function GestionPage() {
         </div>
       )}
 
-      {/* Modal: Decisión Consejo — Change 9 */}
+      {/* Modal: Decisión Consejo */}
       {showConsejoDecisionModal && consejoTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -1733,56 +1638,6 @@ export default function GestionPage() {
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
               >
                 {savingConsejoDecision ? "Guardando…" : "Guardar Decisión"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Consejo Miembro — Change 8 */}
-      {showMiembroModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{editingMiembro ? "Editar Miembro" : "Nuevo Miembro del Consejo"}</h3>
-              <button onClick={() => setShowMiembroModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Nombre completo *</label>
-                <input
-                  value={miembroForm.nombre}
-                  onChange={(e) => setMiembroForm((f) => ({ ...f, nombre: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Nombre del miembro"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Cargo</label>
-                  <select value={miembroForm.cargo} onChange={(e) => setMiembroForm((f) => ({ ...f, cargo: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    {CARGOS_CONSEJO.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
-                  <select value={miembroForm.tipo} onChange={(e) => setMiembroForm((f) => ({ ...f, tipo: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option value="activo">Activo</option>
-                    <option value="suplente">Suplente</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3">
-              <button onClick={() => setShowMiembroModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button
-                onClick={saveMiembro}
-                disabled={savingMiembro || !miembroForm.nombre.trim()}
-                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
-              >
-                {savingMiembro ? "Guardando…" : editingMiembro ? "Guardar cambios" : "Agregar miembro"}
               </button>
             </div>
           </div>

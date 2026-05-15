@@ -59,11 +59,13 @@ _ORDEN_SELECT = """
     SELECT o.*,
            p.nombre AS proveedor_nombre,
            e.nombre AS edificio_nombre,
-           u.nombre AS solicitante_nombre
+           u.nombre AS solicitante_nombre,
+           pr.titulo AS proyecto_titulo
     FROM ordenes_compra o
     LEFT JOIN proveedores p ON p.id = o.proveedor_id
     JOIN edificios e ON e.id = o.edificio_id
     LEFT JOIN usuarios u ON u.id = o.solicitante_id
+    LEFT JOIN ordenes_compra pr ON pr.id = o.proyecto_id
 """
 
 
@@ -127,6 +129,7 @@ class OrdenCreate(BaseModel):
     requiere_cotizaciones: bool = False
     es_individual: bool = False
     requiere_aprobacion_consejo: bool = False
+    proyecto_id: Optional[int] = None
 
 
 class OrdenUpdate(BaseModel):
@@ -144,6 +147,7 @@ class OrdenUpdate(BaseModel):
     requiere_cotizaciones: Optional[bool] = None
     es_individual: Optional[bool] = None
     requiere_aprobacion_consejo: Optional[bool] = None
+    proyecto_id: Optional[int] = None
 
 
 class ConsejoDecision(BaseModel):
@@ -311,13 +315,14 @@ def create_orden(data: OrdenCreate, current_user: dict = Depends(_require_procur
                     (numero_orden, titulo, tipo_orden, clasificacion, proveedor_id,
                      descripcion, justificacion, cantidad, monto_estimado,
                      fecha_necesidad, edificio_id, solicitante_id, evidencias,
-                     requiere_cotizaciones, es_individual, requiere_aprobacion_consejo)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s) RETURNING id
+                     requiere_cotizaciones, es_individual, requiere_aprobacion_consejo, proyecto_id)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) RETURNING id
             """, (
                 numero, data.titulo, data.tipo_orden, data.clasificacion, data.proveedor_id,
                 data.descripcion, data.justificacion, data.cantidad, data.monto_estimado,
                 data.fecha_necesidad, data.edificio_id, solicitante_id, evidencias_json,
                 data.requiere_cotizaciones, data.es_individual, data.requiere_aprobacion_consejo,
+                data.proyecto_id,
             ))
             orden_id = cur.fetchone()["id"]
 
@@ -366,6 +371,12 @@ def update_orden(orden_id: int, data: OrdenUpdate, _: dict = Depends(_require_pr
                 values.append(json.dumps([e.model_dump() for e in data.evidencias]))
             if data.requiere_cotizaciones is not None:
                 fields.append("requiere_cotizaciones=%s"); values.append(data.requiere_cotizaciones)
+            if data.es_individual is not None:
+                fields.append("es_individual=%s"); values.append(data.es_individual)
+            if data.requiere_aprobacion_consejo is not None:
+                fields.append("requiere_aprobacion_consejo=%s"); values.append(data.requiere_aprobacion_consejo)
+            if data.proyecto_id is not None:
+                fields.append("proyecto_id=%s"); values.append(data.proyecto_id)
 
             if fields:
                 fields.append("updated_at=NOW()")

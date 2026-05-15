@@ -654,47 +654,57 @@ export default function ZonasComunesPage() {
               </div>
             )}
 
-            {/* Residente (admin selecciona, residentes ven el suyo) */}
+            {/* Apto primero, luego residente filtrado — solo admin */}
             {isAdmin ? (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Residente</label>
-                <select
-                  value={reservaSelectedUserId ?? ""}
-                  onChange={(e) => {
-                    const uid = e.target.value ? Number(e.target.value) : null;
-                    setReservaSelectedUserId(uid);
-                    // Autoselect unit based on resident's unidad if available
-                    if (uid) {
-                      const u = usuarios.find((usr: any) => usr.id === uid);
-                      if (u?.unidad_id) setReservaUnidadId(u.unidad_id);
-                    }
-                  }}
-                  className={INPUT}
-                >
-                  <option value="">— Seleccionar residente —</option>
-                  {usuarios.filter((u: any) => ["propietario", "inquilino"].includes(u.rol ?? "")).map((u: any) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre}{u.unidad_numero ? ` — Apto ${u.unidad_numero}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Apartamento / Unidad</label>
+                  <select
+                    value={reservaUnidadId ?? ""}
+                    onChange={(e) => {
+                      const uid = e.target.value ? Number(e.target.value) : null;
+                      setReservaUnidadId(uid);
+                      setReservaSelectedUserId(null);
+                    }}
+                    className={INPUT}
+                  >
+                    <option value="">— Seleccionar apto —</option>
+                    {unidades.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.numero}{u.torre_nombre ? ` (${u.torre_nombre})` : ""}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Unidad */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Apartamento / Unidad</label>
-              <select
-                value={reservaUnidadId ?? ""}
-                onChange={(e) => setReservaUnidadId(e.target.value ? Number(e.target.value) : null)}
-                className={INPUT}
-              >
-                <option value="">— Sin unidad —</option>
-                {unidades.map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}</option>
-                ))}
-              </select>
-            </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Residente</label>
+                  <select
+                    value={reservaSelectedUserId ?? ""}
+                    onChange={(e) => setReservaSelectedUserId(e.target.value ? Number(e.target.value) : null)}
+                    className={INPUT}
+                    disabled={!reservaUnidadId}
+                  >
+                    <option value="">
+                      {reservaUnidadId ? "— Seleccionar residente —" : "Primero selecciona un apto"}
+                    </option>
+                    {usuarios
+                      .filter((u: any) =>
+                        ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                        u.unidad_id === reservaUnidadId
+                      )
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.nombre}</option>
+                      ))}
+                  </select>
+                  {reservaUnidadId &&
+                    usuarios.filter((u: any) =>
+                      ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                      u.unidad_id === reservaUnidadId
+                    ).length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">Este apto no tiene residentes registrados.</p>
+                    )}
+                </div>
+              </>
+            ) : null}
 
             {/* Fecha — con restricción de anticipación */}
             <div className="mb-4">
