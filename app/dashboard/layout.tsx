@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getUser, clearToken, setToken, getEdificiosDisponibles, type AuthUser } from "@/lib/auth";
 import { authApi, api } from "@/lib/api";
+import ChatbotBubble from "@/components/ChatbotBubble";
 
 type NavItem = {
   href: string;
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏢",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
     ],
   },
   {
@@ -385,6 +387,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
+
+      {/* Chatbot bubble — shown to SA always, to others when module is active */}
+      {user && (user.rol === "superadmin" || user.rol === "administrador" || user.rol === "propietario") &&
+        (user.rol === "superadmin" || activeModules.includes("chatbot")) && (
+        <ChatbotBubble user={user} edificioId={user.edificio_id} />
+      )}
     </div>
   );
 }

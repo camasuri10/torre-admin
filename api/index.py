@@ -18,7 +18,7 @@ from routers import (
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
     conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
-    procurement, contratos, consejo,
+    procurement, contratos, consejo, chatbot,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -83,6 +83,42 @@ app.include_router(encuestas.router,      prefix="/api/encuestas",        tags=[
 app.include_router(procurement.router,    prefix="/api/procurement",      tags=["Procurement"])
 app.include_router(contratos.router,      prefix="/api/contratos",         tags=["Contratos"])
 app.include_router(consejo.router,        prefix="/api/consejo",           tags=["Consejo"])
+app.include_router(chatbot.router,        prefix="/api/chatbot",           tags=["Chatbot IA"])
+
+
+@app.get("/api/migrate-v12")
+def migrate_v12():
+    """Apply v12 migrations: chatbot_config table + chatbot module seed."""
+    from db import get_db
+    migrations = [
+        ("chatbot_config table", """
+            CREATE TABLE IF NOT EXISTS chatbot_config (
+                id          SERIAL PRIMARY KEY,
+                proveedor   VARCHAR(50)  NOT NULL DEFAULT 'claude',
+                api_key     TEXT,
+                modelo      VARCHAR(100),
+                base_url    TEXT,
+                temperatura FLOAT        NOT NULL DEFAULT 0.3,
+                activo      BOOLEAN      NOT NULL DEFAULT TRUE,
+                updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("chatbot modulo seed",
+         "INSERT INTO modulos (clave, nombre, icono) VALUES ('chatbot', 'Asistente IA', '🤖') ON CONFLICT (clave) DO NOTHING;"),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        cur.execute(sql.strip())
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/migrate-v11")

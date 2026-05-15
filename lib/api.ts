@@ -569,4 +569,26 @@ export const api = {
     paquetes: (edificio_id: number) => request<any>(`/api/reportes/paquetes/${edificio_id}`),
     guardias: (edificio_id: number) => request<any[]>(`/api/reportes/guardias/${edificio_id}`),
   },
+
+  // ── Chatbot IA ─────────────────────────────────────────────────────────────
+  chatbot: {
+    sendMessage: (message: string, history: { role: string; content: string }[]) =>
+      request<{ message: string; actions: { tool: string; success: boolean; summary: string }[] }>(
+        "/api/chatbot/message",
+        { method: "POST", body: JSON.stringify({ message, history }) }
+      ),
+    getConfig: () => request<any>("/api/chatbot/config"),
+    updateConfig: (data: {
+      proveedor: string;
+      api_key?: string;
+      modelo?: string;
+      base_url?: string;
+      temperatura: number;
+    }) => request<any>("/api/chatbot/config", { method: "PUT", body: JSON.stringify(data) }),
+    testConnection: () =>
+      request<{ ok: boolean; message: string; latencia_ms: number }>(
+        "/api/chatbot/test",
+        { method: "POST" }
+      ),
+  },
 };

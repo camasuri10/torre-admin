@@ -1205,6 +1205,22 @@ CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id)
 -- v11.0 — Consejo: link a unidad y residente propietario
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS unidad_id    INTEGER REFERENCES unidades(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFERENCES usuarios(id);
+
+-- v12.0 — Chatbot / Asistente IA
+CREATE TABLE IF NOT EXISTS chatbot_config (
+    id          SERIAL PRIMARY KEY,
+    proveedor   VARCHAR(50)  NOT NULL DEFAULT 'claude',
+    api_key     TEXT,
+    modelo      VARCHAR(100),
+    base_url    TEXT,
+    temperatura FLOAT        NOT NULL DEFAULT 0.3,
+    activo      BOOLEAN      NOT NULL DEFAULT TRUE,
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO modulos (clave, nombre, icono)
+VALUES ('chatbot', 'Asistente IA', '🤖')
+ON CONFLICT (clave) DO NOTHING;
 """
 
 
