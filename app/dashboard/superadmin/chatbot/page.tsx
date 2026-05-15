@@ -96,7 +96,7 @@ export default function ChatbotConfigPage() {
       <div>
         <h2 className="text-xl font-bold text-gray-900">Configuración del Asistente IA</h2>
         <p className="text-sm text-gray-500 mt-0.5">
-          Configura el proveedor de inteligencia artificial para el chatbot de la plataforma. Esta configuración aplica a todos los edificios que tengan el módulo "Asistente IA" activado.
+          Configura el proveedor de inteligencia artificial para el chatbot de la plataforma. Esta configuración aplica a todos los edificios que tengan el módulo &quot;Asistente IA&quot; activado.
         </p>
       </div>
 
@@ -250,7 +250,7 @@ export default function ChatbotConfigPage() {
         <ol className="list-decimal list-inside space-y-1 text-blue-600">
           <li>Guarda la configuración del proveedor aquí.</li>
           <li>Ve a <strong>Edificios → [Edificio] → Módulos</strong>.</li>
-          <li>Activa el módulo <strong>"Asistente IA"</strong>.</li>
+          <li>Activa el módulo <strong>&quot;Asistente IA&quot;</strong>.</li>
           <li>Los administradores y propietarios del edificio verán la burbuja 🤖.</li>
         </ol>
       </div>
