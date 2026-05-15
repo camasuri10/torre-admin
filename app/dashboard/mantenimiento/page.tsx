@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { api, proveedoresApi } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import Bitacora from "@/components/Bitacora";
+import FileUploadGenerico from "@/components/FileUploadGenerico";
 
 const ESTADO_BADGE: Record<string, string> = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -59,6 +61,17 @@ export default function MantenimientoPage() {
   const [formContratos, setFormContratos] = useState<any[]>([]);
   const [editContratos, setEditContratos] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Change 3: date range filter state
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  // Change 1: date conflict alert state
+  const [showConflictoAlert, setShowConflictoAlert] = useState(false);
+  // Change 2: bitácora state
+  const [bitacora, setBitacora] = useState<any[]>([]);
+  const [loadingBitacora, setLoadingBitacora] = useState(false);
+  // Change 4: crear hijos state
+  const [creandoHijos, setCreandoHijos] = useState(false);
+  const [hijosCreados, setHijosCreados] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +79,9 @@ export default function MantenimientoPage() {
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroPrioridad) params.prioridad = filtroPrioridad;
     if (filtroProgramado !== null) params.es_programado = filtroProgramado;
+    // Change 3: pass date range params
+    if (fechaDesde) params.fecha_desde = fechaDesde;
+    if (fechaHasta) params.fecha_hasta = fechaHasta;
     const [s, a, inv] = await Promise.allSettled([
       api.mantenimientos.list(params),
       api.mantenimientos.alertas.list(edificioId),
@@ -75,7 +91,7 @@ export default function MantenimientoPage() {
     if (a.status === "fulfilled") setAlertas(a.value);
     if (inv.status === "fulfilled") setInventario(inv.value);
     setLoading(false);
-  }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado]);
+  }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado, fechaDesde, fechaHasta]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,6 +116,18 @@ export default function MantenimientoPage() {
       .then((c: any) => setEditContratos(Array.isArray(c) ? c.filter((x: any) => x.activo) : []))
       .catch(() => setEditContratos([]));
   }, [editProveedorId]);
+
+  // Change 2: load bitácora when selected changes
+  useEffect(() => {
+    if (!selected) { setBitacora([]); return; }
+    setLoadingBitacora(true);
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
+    fetch(`${API}/api/mantenimientos/${selected.id}/bitacora`)
+      .then((r) => r.json())
+      .then((d) => setBitacora(Array.isArray(d) ? d : []))
+      .catch(() => setBitacora([]))
+      .finally(() => setLoadingBitacora(false));
+  }, [selected?.id]);
 
   const handleUpdateEstado = async (id: number, estado: string) => {
     await api.mantenimientos.update(id, { estado });
@@ -144,13 +172,15 @@ export default function MantenimientoPage() {
     const presupuesto = fd.get("presupuesto");
     if (presupuesto) body.presupuesto = parseFloat(presupuesto as string);
 
-    await api.mantenimientos.create(body);
+    const result = await api.mantenimientos.create(body);
     setShowForm(false);
     setEsProgramado(false);
     setPeriodicidad("mensual");
     setFormProveedorId(null);
     (e.target as HTMLFormElement).reset();
     load();
+    // Change 1: show conflict alert if warning returned
+    if (result?.warning === "fecha_conflicto") setShowConflictoAlert(true);
   };
 
   const handleCrearAlerta = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -340,6 +370,20 @@ export default function MantenimientoPage() {
                 placeholder="Buscar solicitud…"
                 className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
+            </div>
+
+            {/* Change 3: Date range filters */}
+            <div className="flex gap-2 flex-wrap items-center">
+              <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Desde" title="Fecha desde" />
+              <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Hasta" title="Fecha hasta" />
+              {(fechaDesde || fechaHasta) && (
+                <button onClick={() => { setFechaDesde(""); setFechaHasta(""); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline">Limpiar fechas</button>
+              )}
             </div>
 
             {/* Filters */}
@@ -535,33 +579,54 @@ export default function MantenimientoPage() {
                   </div>
                 )}
 
-                {/* Archivos */}
+                {/* Change 5: FileUploadGenerico replaces foto/factura buttons */}
                 <div>
                   <p className="text-xs text-gray-400 mb-2">Archivos adjuntos</p>
-                  {(selected.archivos ?? []).length === 0 ? (
-                    <p className="text-xs text-gray-400">Sin archivos</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {(selected.archivos ?? []).map((a: any) => (
-                        <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
-                          className="flex items-center gap-2 text-xs text-primary hover:underline">
-                          {a.tipo === "foto" ? "📷" : "📄"} {a.nombre}
-                        </a>
-                      ))}
+                  <FileUploadGenerico
+                    endpoint={`/api/mantenimientos/${selected.id}/archivos`}
+                    archivos={(selected.archivos ?? []).map((a: any) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre }))}
+                    onUploaded={async () => {
+                      const updated = await api.mantenimientos.get(selected.id);
+                      setSelected(updated);
+                    }}
+                    label="Subir archivo"
+                    multiple
+                    disabled={!canEdit}
+                  />
+                </div>
+
+                {/* Change 4: Crear hijos para programados */}
+                {selected.es_programado && canEdit && (
+                  <div className="border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 font-medium">Registros recurrentes</p>
+                      <button
+                        onClick={async () => {
+                          setCreandoHijos(true);
+                          try {
+                            const API = process.env.NEXT_PUBLIC_API_URL || "";
+                            const res = await fetch(`${API}/api/mantenimientos/${selected.id}/crear-hijos`, { method: "POST" });
+                            const data = await res.json();
+                            setHijosCreados(data?.creados ?? 0);
+                            load();
+                          } finally { setCreandoHijos(false); }
+                        }}
+                        disabled={creandoHijos}
+                        className="text-xs px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                      >
+                        {creandoHijos ? "Generando…" : "📅 Generar registros"}
+                      </button>
                     </div>
-                  )}
-                  {canEdit && (
-                    <div className="flex gap-2 mt-3">
-                      <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-                        📷 Subir foto
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadArchivo(e, "foto")} />
-                      </label>
-                      <label className="cursor-pointer px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
-                        📄 Subir factura
-                        <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={(e) => handleUploadArchivo(e, "factura")} />
-                      </label>
-                    </div>
-                  )}
+                    {hijosCreados !== null && (
+                      <p className="text-xs text-teal-600 mt-1">{hijosCreados} registro(s) generado(s)</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Change 2: Bitácora */}
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs text-gray-400 mb-2 font-medium">Historial</p>
+                  <Bitacora eventos={bitacora} loading={loadingBitacora} />
                 </div>
               </div>
             </div>
@@ -938,6 +1003,27 @@ export default function MantenimientoPage() {
                 <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Programar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change 1: Conflict alert modal */}
+      {showConflictoAlert && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="font-semibold text-gray-900">Conflicto de fechas</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              La fecha de vencimiento es anterior a la próxima ejecución programada. El registro fue guardado, pero revisa las fechas para evitar conflictos.
+            </p>
+            <div className="flex justify-end">
+              <button onClick={() => setShowConflictoAlert(false)}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
+                Entendido
+              </button>
+            </div>
           </div>
         </div>
       )}

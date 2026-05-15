@@ -1120,6 +1120,87 @@ ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS descripcion TEXT;
 
 -- v10.0 — Contratos: documento de aprobación de asamblea
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS aprobacion_asamblea_url TEXT;
+
+-- v11.0 — Bitácoras, Consejo, Reservas extendidas, Archivos genéricos, Paquetería
+
+-- Mantenimientos: soporte para hijos recurrentes
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);
+
+-- Zonas comunes: intervalo configurable por zona (minutos: 15, 30, 60)
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS intervalo_reserva INTEGER DEFAULT 60;
+
+-- Paquetes: nombre del residente destinatario (sin usuario registrado)
+ALTER TABLE paquetes ADD COLUMN IF NOT EXISTS residente_nombre VARCHAR(255);
+
+-- Reservas: ampliar estados disponibles
+ALTER TABLE reservas DROP CONSTRAINT IF EXISTS reservas_estado_check;
+ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check
+    CHECK (estado IN (
+        'confirmada','pendiente','cancelada','no_usada',
+        'en_revision','lista_espera','pago_pendiente','pagada',
+        'deposito_devuelto','en_curso','finalizada','no_presentado'
+    ));
+
+-- Mantenimiento archivos: permitir tipo genérico (no solo foto/factura)
+ALTER TABLE mantenimiento_archivos DROP CONSTRAINT IF EXISTS mantenimiento_archivos_tipo_check;
+
+-- Órdenes de compra: actividades individuales y aprobación por consejo
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS es_individual BOOLEAN DEFAULT FALSE;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE;
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_estado TEXT
+    CHECK (consejo_estado IN ('pendiente','aprobada','rechazada'));
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_comentario TEXT;
+
+-- Nueva tabla: bitácora de mantenimientos
+CREATE TABLE IF NOT EXISTS mantenimiento_bitacora (
+    id                  SERIAL PRIMARY KEY,
+    mantenimiento_id    INTEGER NOT NULL REFERENCES mantenimientos(id) ON DELETE CASCADE,
+    evento              VARCHAR(100) NOT NULL,
+    descripcion         TEXT,
+    estado_anterior     VARCHAR(50),
+    estado_nuevo        VARCHAR(50),
+    usuario_id          INTEGER REFERENCES usuarios(id),
+    usuario_nombre      VARCHAR(255),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mant_bitacora ON mantenimiento_bitacora(mantenimiento_id);
+
+-- Nueva tabla: bitácora de reservas
+CREATE TABLE IF NOT EXISTS reserva_bitacora (
+    id              SERIAL PRIMARY KEY,
+    reserva_id      INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
+    estado_anterior VARCHAR(50),
+    estado_nuevo    VARCHAR(50),
+    observacion     TEXT,
+    archivos        JSONB NOT NULL DEFAULT '[]',
+    usuario_id      INTEGER REFERENCES usuarios(id),
+    usuario_nombre  VARCHAR(255),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reserva_bitacora ON reserva_bitacora(reserva_id);
+
+-- Nueva tabla: archivos adjuntos de reservas
+CREATE TABLE IF NOT EXISTS reserva_archivos (
+    id          SERIAL PRIMARY KEY,
+    reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
+    url         TEXT NOT NULL,
+    nombre      VARCHAR(255),
+    subido_por  INTEGER REFERENCES usuarios(id),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reserva_archivos ON reserva_archivos(reserva_id);
+
+-- Nueva tabla: miembros del consejo por edificio
+CREATE TABLE IF NOT EXISTS consejo_miembros (
+    id          SERIAL PRIMARY KEY,
+    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    nombre      VARCHAR(255) NOT NULL,
+    cargo       VARCHAR(100) NOT NULL,
+    tipo        VARCHAR(20) NOT NULL DEFAULT 'activo',
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);
 """
 
 

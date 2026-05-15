@@ -114,7 +114,7 @@ class EvidenciaIn(BaseModel):
 class OrdenCreate(BaseModel):
     titulo: str
     tipo_orden: str
-    clasificacion: Optional[str] = None  # proyecto | mantenimiento_preventivo | mantenimiento_correctivo | actividad
+    clasificacion: Optional[str] = None  # proyecto | actividad (mantenimiento_* ya no aplica)
     proveedor_id: Optional[int] = None
     descripcion: Optional[str] = None
     justificacion: Optional[str] = None
@@ -125,6 +125,8 @@ class OrdenCreate(BaseModel):
     items: list[ItemIn] = []
     evidencias: list[EvidenciaIn] = []
     requiere_cotizaciones: bool = False
+    es_individual: bool = False
+    requiere_aprobacion_consejo: bool = False
 
 
 class OrdenUpdate(BaseModel):
@@ -140,6 +142,13 @@ class OrdenUpdate(BaseModel):
     items: Optional[list[ItemIn]] = None
     evidencias: Optional[list[EvidenciaIn]] = None
     requiere_cotizaciones: Optional[bool] = None
+    es_individual: Optional[bool] = None
+    requiere_aprobacion_consejo: Optional[bool] = None
+
+
+class ConsejoDecision(BaseModel):
+    decision: str  # aprobada | rechazada
+    comentario: Optional[str] = None
 
 
 class EstadoAction(BaseModel):
@@ -301,13 +310,14 @@ def create_orden(data: OrdenCreate, current_user: dict = Depends(_require_procur
                 INSERT INTO ordenes_compra
                     (numero_orden, titulo, tipo_orden, clasificacion, proveedor_id,
                      descripcion, justificacion, cantidad, monto_estimado,
-                     fecha_necesidad, edificio_id, solicitante_id, evidencias, requiere_cotizaciones)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s) RETURNING id
+                     fecha_necesidad, edificio_id, solicitante_id, evidencias,
+                     requiere_cotizaciones, es_individual, requiere_aprobacion_consejo)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s) RETURNING id
             """, (
                 numero, data.titulo, data.tipo_orden, data.clasificacion, data.proveedor_id,
                 data.descripcion, data.justificacion, data.cantidad, data.monto_estimado,
                 data.fecha_necesidad, data.edificio_id, solicitante_id, evidencias_json,
-                data.requiere_cotizaciones,
+                data.requiere_cotizaciones, data.es_individual, data.requiere_aprobacion_consejo,
             ))
             orden_id = cur.fetchone()["id"]
 
@@ -420,43 +430,14 @@ def cambiar_estado(orden_id: int, data: EstadoAction, current_user: dict = Depen
                     detail=f"Estado actual '{orden['estado']}' no permite la acción '{data.accion}'"
                 )
 
-            # Validar permisos para aprobar/rechazar
+            # Registrar la acción en aprobaciones para trazabilidad
             if data.accion in ("aprobar", "rechazar"):
-                cur.execute(
-                    "SELECT * FROM orden_aprobaciones WHERE orden_id=%s AND estado='pendiente' ORDER BY nivel LIMIT 1",
-                    (orden_id,),
-                )
-                aprobacion = cur.fetchone()
-                if not aprobacion:
-                    raise HTTPException(status_code=400, detail="No hay aprobación pendiente para esta orden")
-                if aprobacion["approver_rol"] and aprobacion["approver_rol"] != rol:
-                    raise HTTPException(
-                        status_code=403,
-                        detail=f"Esta orden requiere aprobación de '{aprobacion['approver_rol']}'"
-                    )
-                new_ap_estado = "aprobada" if data.accion == "aprobar" else "rechazada"
+                ap_estado = "aprobada" if data.accion == "aprobar" else "rechazada"
                 cur.execute("""
-                    UPDATE orden_aprobaciones
-                    SET estado=%s, approver_id=%s, comentario=%s, fecha_decision=NOW()
-                    WHERE id=%s
-                """, (new_ap_estado, uid, data.comentario, aprobacion["id"]))
-
-            # Lógica especial para submit: auto-aprobar si admin con monto < 1M
-            if data.accion == "submit":
-                monto = float(orden["monto_estimado"] or 0)
-                needs_sa = _needs_superadmin(monto, orden["edificio_id"], cur)
-                if needs_sa:
-                    cur.execute("""
-                        INSERT INTO orden_aprobaciones (orden_id, approver_rol, nivel, estado)
-                        VALUES (%s, 'superadmin', 1, 'pendiente')
-                    """, (orden_id,))
-                else:
-                    # Auto-aprobación para admin con montos pequeños
-                    new_estado = "aprobada"
-                    cur.execute("""
-                        INSERT INTO orden_aprobaciones (orden_id, approver_id, approver_rol, nivel, estado, fecha_decision, comentario)
-                        VALUES (%s, %s, %s, 1, 'aprobada', NOW(), 'Auto-aprobada por monto')
-                    """, (orden_id, uid, rol))
+                    INSERT INTO orden_aprobaciones
+                        (orden_id, approver_id, approver_rol, nivel, estado, fecha_decision, comentario)
+                    VALUES (%s,%s,%s,1,%s,NOW(),%s)
+                """, (orden_id, uid, rol, ap_estado, data.comentario))
 
             cur.execute(
                 "UPDATE ordenes_compra SET estado=%s, updated_at=NOW() WHERE id=%s",
@@ -859,3 +840,28 @@ def delete_cotizacion(cot_id: int, _: dict = Depends(_require_procurement)):
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Cotización no encontrada")
             return {"ok": True}
+
+
+# ─── Consejo ──────────────────────────────────────────────────────────────────
+
+@router.patch("/ordenes/{orden_id}/consejo/decision")
+def consejo_decision(
+    orden_id: int, data: ConsejoDecision, current_user: dict = Depends(_require_procurement)
+):
+    """Registra la decisión del consejo sobre una orden."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, requiere_aprobacion_consejo FROM ordenes_compra WHERE id=%s", (orden_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Orden no encontrada")
+            if not row["requiere_aprobacion_consejo"]:
+                raise HTTPException(status_code=400, detail="Esta orden no requiere aprobación del consejo")
+            if data.decision not in ("aprobada", "rechazada"):
+                raise HTTPException(status_code=400, detail="decision debe ser 'aprobada' o 'rechazada'")
+            cur.execute("""
+                UPDATE ordenes_compra
+                SET consejo_estado=%s, consejo_comentario=%s, updated_at=NOW()
+                WHERE id=%s
+            """, (data.decision, data.comentario, orden_id))
+            return _fetch_orden_detail(cur, orden_id)

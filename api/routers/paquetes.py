@@ -86,6 +86,7 @@ async def registrar_paquete(
     edificio_id: int = Form(...),
     unidad_id: Optional[int] = Form(None),
     destinatario_id: Optional[int] = Form(None),
+    residente_nombre: Optional[str] = Form(None),
     remitente: Optional[str] = Form(None),
     descripcion: Optional[str] = Form(None),
     empresa_mensajeria: Optional[str] = Form(None),
@@ -105,10 +106,10 @@ async def registrar_paquete(
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO paquetes
-                    (edificio_id, destinatario_id, unidad_id, remitente, descripcion,
+                    (edificio_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
                      empresa_mensajeria, numero_guia, recibido_por, notas, foto_url, estado)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'recibido') RETURNING *
-            """, (edificio_id, destinatario_id, unidad_id, remitente, descripcion,
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'recibido') RETURNING *
+            """, (edificio_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
                   empresa_mensajeria, numero_guia, recibido_por, notas, foto_url))
             paquete = cur.fetchone()
 
@@ -137,6 +138,66 @@ def registrar_entrega(paquete_id: int, data: EntregaRegistro):
                 SET estado = 'entregado', fecha_entrega = NOW(), entregado_a = %s, notas = COALESCE(%s, notas)
                 WHERE id = %s RETURNING *
             """, (data.entregado_a, data.notas, paquete_id))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Paquete no encontrado")
+            return row
+
+
+class NotificarRegistro(BaseModel):
+    notas: Optional[str] = None
+
+
+class PaqueteUpdate(BaseModel):
+    unidad_id: Optional[int] = None
+    residente_nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    remitente: Optional[str] = None
+    empresa_mensajeria: Optional[str] = None
+    numero_guia: Optional[str] = None
+    notas: Optional[str] = None
+
+
+@router.patch("/{paquete_id}/notificar")
+def notificar_paquete(paquete_id: int, data: NotificarRegistro = NotificarRegistro()):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE paquetes SET estado = 'notificado', notas = COALESCE(%s, notas) WHERE id = %s RETURNING *",
+                (data.notas, paquete_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Paquete no encontrado")
+            return row
+
+
+@router.patch("/{paquete_id}")
+def editar_paquete(paquete_id: int, data: PaqueteUpdate):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            fields, params = [], []
+            if data.unidad_id is not None:
+                fields.append("unidad_id = %s"); params.append(data.unidad_id)
+            if data.residente_nombre is not None:
+                fields.append("residente_nombre = %s"); params.append(data.residente_nombre)
+            if data.descripcion is not None:
+                fields.append("descripcion = %s"); params.append(data.descripcion)
+            if data.remitente is not None:
+                fields.append("remitente = %s"); params.append(data.remitente)
+            if data.empresa_mensajeria is not None:
+                fields.append("empresa_mensajeria = %s"); params.append(data.empresa_mensajeria)
+            if data.numero_guia is not None:
+                fields.append("numero_guia = %s"); params.append(data.numero_guia)
+            if data.notas is not None:
+                fields.append("notas = %s"); params.append(data.notas)
+            if not fields:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            params.append(paquete_id)
+            cur.execute(
+                f"UPDATE paquetes SET {', '.join(fields)} WHERE id = %s RETURNING *",
+                params,
+            )
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Paquete no encontrado")

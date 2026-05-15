@@ -18,6 +18,7 @@ class ComunicadoCreate(BaseModel):
     fecha_programada: Optional[str] = None
     imagen_url: Optional[str] = None
     unidades_destino: Optional[str] = None  # None=todos, JSON array de unidad_ids
+    destinatario_tipo: Optional[str] = None  # 'consejo' | None
 
 
 class MarcarLeidoData(BaseModel):
@@ -127,8 +128,19 @@ def create_comunicado(data: ComunicadoCreate):
             ))
             comunicado = cur.fetchone()
 
-            # Registrar envíos para auditoría, filtrando por unidades_destino si se indicó
-            if data.edificio_id:
+            # Registrar envíos para auditoría, filtrando por unidades_destino o consejo
+            if data.destinatario_tipo == "consejo" and data.edificio_id:
+                # Enviar a miembros activos del consejo del edificio
+                cur.execute("""
+                    SELECT DISTINCT u.id FROM usuarios u
+                    JOIN consejo_miembros cm ON cm.nombre = u.nombre
+                    WHERE cm.edificio_id = %s AND cm.activo = TRUE AND u.activo = TRUE
+                """, (data.edificio_id,))
+                usuarios = cur.fetchall()
+                if not usuarios:
+                    # Fallback: consejo sin usuarios registrados — devolver lista vacía
+                    usuarios = []
+            elif data.edificio_id:
                 if data.unidades_destino:
                     try:
                         unidad_ids = json.loads(data.unidades_destino)
@@ -156,9 +168,10 @@ def create_comunicado(data: ComunicadoCreate):
                         JOIN torres t ON t.id = un.torre_id
                         WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
                     """, (data.edificio_id,))
+                usuarios = cur.fetchall()
             else:
                 cur.execute("SELECT id FROM usuarios WHERE activo = TRUE")
-            usuarios = cur.fetchall()
+                usuarios = cur.fetchall()
 
             canales = data.canales or ["sistema"]
             for usr in usuarios:

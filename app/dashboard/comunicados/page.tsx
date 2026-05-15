@@ -72,9 +72,11 @@ function formatFecha(raw: string) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function UnidadesSelector({
   unidades, todasUnidades, setTodasUnidades, selected, setSelected,
+  consejo, setConsejo,
 }: {
   unidades: any[]; todasUnidades: boolean; setTodasUnidades: (v: boolean) => void;
   selected: number[]; setSelected: (v: number[]) => void;
+  consejo?: boolean; setConsejo?: (v: boolean) => void;
 }) {
   function toggle(id: number) {
     setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
@@ -85,19 +87,21 @@ function UnidadesSelector({
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <label className="flex items-center gap-2 px-3 py-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
           <input
-            type="radio" checked={todasUnidades} onChange={() => setTodasUnidades(true)}
+            type="radio" checked={todasUnidades && !consejo}
+            onChange={() => { setTodasUnidades(true); setConsejo?.(false); }}
             className="text-primary"
           />
           <span className="text-sm text-gray-700 font-medium">Todos los apartamentos</span>
         </label>
         <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors border-t border-gray-100">
           <input
-            type="radio" checked={!todasUnidades} onChange={() => setTodasUnidades(false)}
+            type="radio" checked={!todasUnidades && !consejo}
+            onChange={() => { setTodasUnidades(false); setConsejo?.(false); }}
             className="text-primary"
           />
           <span className="text-sm text-gray-700 font-medium">Seleccionar apartamentos específicos</span>
         </label>
-        {!todasUnidades && (
+        {!todasUnidades && !consejo && (
           <div className="border-t border-gray-100 p-2 max-h-40 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1">
             {unidades.length === 0
               ? <p className="text-xs text-gray-400 col-span-3 py-2 text-center">Cargando unidades…</p>
@@ -113,10 +117,20 @@ function UnidadesSelector({
             }
           </div>
         )}
-        {!todasUnidades && selected.length > 0 && (
+        {!todasUnidades && !consejo && selected.length > 0 && (
           <div className="border-t border-gray-100 px-3 py-1.5 bg-blue-50 text-xs text-blue-700">
             {selected.length} apartamento{selected.length !== 1 ? "s" : ""} seleccionado{selected.length !== 1 ? "s" : ""}
           </div>
+        )}
+        {setConsejo !== undefined && (
+          <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors border-t border-gray-100">
+            <input
+              type="radio" checked={!!consejo}
+              onChange={() => { setTodasUnidades(false); setConsejo(true); }}
+              className="text-primary"
+            />
+            <span className="text-sm text-gray-700 font-medium">Consejo de administración</span>
+          </label>
         )}
       </div>
     </div>
@@ -223,6 +237,7 @@ export default function ComunicadosPage() {
   const [unidades, setUnidades]           = useState<any[]>([]);
   const [comTodasUnidades, setComTodasUnidades] = useState(true);
   const [comSelectedUnidades, setComSelectedUnidades] = useState<number[]>([]);
+  const [comDestinatarioConsejo, setComDestinatarioConsejo] = useState(false);
 
   // ── Encuestas state ────────────────────────────────────────────────────────
   const [encuestas, setEncuestas]         = useState<any[]>([]);
@@ -305,7 +320,7 @@ export default function ComunicadosPage() {
           reader.readAsDataURL(imagenFile);
         });
       }
-      const unidades_destino = comTodasUnidades
+      const unidades_destino = comDestinatarioConsejo || comTodasUnidades
         ? null
         : comSelectedUnidades.length > 0 ? JSON.stringify(comSelectedUnidades) : null;
       await api.comunicados.create({
@@ -313,10 +328,11 @@ export default function ComunicadosPage() {
         tipo: form.tipo, canales: form.canales,
         fecha_programada: form.fecha_programada || undefined,
         imagen_url, unidades_destino,
+        ...(comDestinatarioConsejo ? { destinatario_tipo: "consejo" } : {}),
       });
       setForm({ titulo: "", contenido: "", tipo: "informativo", canales: ["sistema"], fecha_programada: "" });
       setImagenFile(null);
-      setComTodasUnidades(true); setComSelectedUnidades([]);
+      setComTodasUnidades(true); setComSelectedUnidades([]); setComDestinatarioConsejo(false);
       if (fileRef.current) fileRef.current.value = "";
       setShowForm(false);
       await loadComunicados();
@@ -593,6 +609,7 @@ export default function ComunicadosPage() {
                   unidades={unidades} todasUnidades={comTodasUnidades}
                   setTodasUnidades={setComTodasUnidades}
                   selected={comSelectedUnidades} setSelected={setComSelectedUnidades}
+                  consejo={comDestinatarioConsejo} setConsejo={setComDestinatarioConsejo}
                 />
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Contenido *</label>

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from db import get_db
+import base64
 
 router = APIRouter()
 
@@ -38,6 +39,14 @@ class ZonaConfigUpdate(BaseModel):
     requiere_inventario: Optional[bool] = None
     costo_arriendo: Optional[float] = None
     costo_deposito: Optional[float] = None
+    intervalo_reserva: Optional[int] = None   # minutos: 15, 30, 60
+
+
+class ReservaCambioEstado(BaseModel):
+    estado: str
+    observacion: Optional[str] = None
+    usuario_id: Optional[int] = None
+    usuario_nombre: Optional[str] = None
 
 
 class ReservaCreate(BaseModel):
@@ -335,7 +344,7 @@ def check_disponibilidad(zona_id: int, fecha: str):
             ocupados = cur.fetchall()
 
             cur.execute("""
-                SELECT horario_inicio, horario_fin, duracion_min_horas, capacidad_hora
+                SELECT horario_inicio, horario_fin, duracion_min_horas, capacidad_hora, intervalo_reserva
                 FROM zonas_comunes WHERE id = %s
             """, (zona_id,))
             config = cur.fetchone()
@@ -350,3 +359,65 @@ def check_disponibilidad(zona_id: int, fecha: str):
             conteo_hora = {str(r["hora_inicio"])[:5]: r["cantidad"] for r in cur.fetchall()}
 
             return {"ocupados": ocupados, "config": config, "conteo_hora": conteo_hora}
+
+
+# ── Reserva: cambio de estado con bitácora ────────────────────────────────────
+
+@router.patch("/reservas/{reserva_id}/estado")
+def cambiar_estado_reserva(reserva_id: int, data: ReservaCambioEstado):
+    """Cambia el estado de una reserva y registra el evento en la bitácora."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT estado FROM reservas WHERE id = %s", (reserva_id,))
+            reserva = cur.fetchone()
+            if not reserva:
+                raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+            estado_anterior = reserva["estado"]
+            cur.execute(
+                "UPDATE reservas SET estado = %s WHERE id = %s RETURNING *",
+                (data.estado, reserva_id),
+            )
+            row = cur.fetchone()
+
+            cur.execute("""
+                INSERT INTO reserva_bitacora
+                    (reserva_id, estado_anterior, estado_nuevo, observacion, usuario_id, usuario_nombre)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (reserva_id, estado_anterior, data.estado, data.observacion, data.usuario_id, data.usuario_nombre))
+
+            return row
+
+
+@router.get("/reservas/{reserva_id}/bitacora")
+def get_reserva_bitacora(reserva_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT * FROM reserva_bitacora
+                WHERE reserva_id = %s
+                ORDER BY created_at DESC
+            """, (reserva_id,))
+            return cur.fetchall()
+
+
+@router.post("/reservas/{reserva_id}/archivos", status_code=201)
+async def upload_reserva_archivo(
+    reserva_id: int,
+    nombre: str = Form(...),
+    subido_por: Optional[int] = Form(None),
+    file: UploadFile = File(...),
+):
+    """Sube un archivo asociado a una reserva."""
+    content = await file.read()
+    b64 = base64.b64encode(content).decode()
+    mime = file.content_type or "application/octet-stream"
+    data_url = f"data:{mime};base64,{b64}"
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO reserva_archivos (reserva_id, url, nombre, subido_por)
+                VALUES (%s,%s,%s,%s) RETURNING *
+            """, (reserva_id, data_url, nombre, subido_por))
+            return cur.fetchone()

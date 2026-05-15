@@ -230,6 +230,8 @@ def list_mantenimientos(
     estado: Optional[str] = None,
     prioridad: Optional[str] = None,
     es_programado: Optional[bool] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -247,6 +249,12 @@ def list_mantenimientos(
             if es_programado is not None:
                 query += " AND m.es_programado = %s"
                 params.append(es_programado)
+            if fecha_desde:
+                query += " AND DATE(m.created_at) >= %s"
+                params.append(fecha_desde)
+            if fecha_hasta:
+                query += " AND DATE(m.created_at) <= %s"
+                params.append(fecha_hasta)
             query += " ORDER BY m.created_at DESC"
             cur.execute(query, params)
             return cur.fetchall()
@@ -299,13 +307,40 @@ def create_mantenimiento(data: MantenimientoCreate):
                         data.fecha_proxima_ejecucion, dias,
                     ))
 
-            return row
+            # Log creation in bitácora
+            cur.execute("""
+                INSERT INTO mantenimiento_bitacora (mantenimiento_id, evento, descripcion, estado_nuevo)
+                VALUES (%s, 'creacion', %s, 'pendiente')
+            """, (row["id"], f"Solicitud creada: {data.titulo}"))
+
+            # Detect date conflict and include warning in response
+            warning = None
+            if (data.es_programado and data.fecha_vencimiento and data.fecha_proxima_ejecucion
+                    and data.fecha_vencimiento < data.fecha_proxima_ejecucion):
+                warning = "fecha_conflicto"
+
+            result = dict(row)
+            if warning:
+                result["warning"] = warning
+            return result
+
+
+class MantenimientoUpdateWithUser(MantenimientoUpdate):
+    usuario_id: Optional[int] = None
+    usuario_nombre: Optional[str] = None
 
 
 @router.patch("/{mantenimiento_id}")
-def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
+def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdateWithUser):
     with get_db() as conn:
         with conn.cursor() as cur:
+            # Capture current estado before update
+            cur.execute("SELECT estado, fecha_vencimiento, fecha_proxima_ejecucion FROM mantenimientos WHERE id = %s", (mantenimiento_id,))
+            current = cur.fetchone()
+            if not current:
+                raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+            estado_anterior = current["estado"]
+
             fields, params = [], []
             if data.titulo is not None:
                 fields.append("titulo = %s"); params.append(data.titulo)
@@ -365,8 +400,6 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
                 params,
             )
             row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
             # Auto-create alerts if fecha_proxima_ejecucion was updated for trimestral/anual
             if (data.fecha_proxima_ejecucion and data.es_programado
@@ -383,7 +416,30 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdate):
                         data.fecha_proxima_ejecucion, dias,
                     ))
 
-            return row
+            # Log state change to bitácora
+            if data.estado is not None and data.estado != estado_anterior:
+                cur.execute("""
+                    INSERT INTO mantenimiento_bitacora
+                        (mantenimiento_id, evento, descripcion, estado_anterior, estado_nuevo, usuario_id, usuario_nombre)
+                    VALUES (%s, 'cambio_estado', %s, %s, %s, %s, %s)
+                """, (
+                    mantenimiento_id,
+                    f"Estado cambiado de {estado_anterior} a {data.estado}",
+                    estado_anterior, data.estado,
+                    data.usuario_id, data.usuario_nombre,
+                ))
+
+            # Detect date conflict
+            fv = data.fecha_vencimiento or (str(current["fecha_vencimiento"]) if current["fecha_vencimiento"] else None)
+            fpe = data.fecha_proxima_ejecucion or (str(current["fecha_proxima_ejecucion"]) if current["fecha_proxima_ejecucion"] else None)
+            warning = None
+            if fv and fpe and fv < fpe:
+                warning = "fecha_conflicto"
+
+            result = dict(row)
+            if warning:
+                result["warning"] = warning
+            return result
 
 
 @router.post("/{mantenimiento_id}/clonar", status_code=201)
@@ -418,15 +474,99 @@ def clonar_mantenimiento(mantenimiento_id: int):
             return cur.fetchone()
 
 
+@router.get("/{mantenimiento_id}/bitacora")
+def get_bitacora(mantenimiento_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT * FROM mantenimiento_bitacora
+                WHERE mantenimiento_id = %s
+                ORDER BY created_at DESC
+            """, (mantenimiento_id,))
+            return cur.fetchall()
+
+
+class BitacoraEvento(BaseModel):
+    evento: str
+    descripcion: Optional[str] = None
+    usuario_id: Optional[int] = None
+    usuario_nombre: Optional[str] = None
+
+
+@router.post("/{mantenimiento_id}/bitacora", status_code=201)
+def add_bitacora(mantenimiento_id: int, data: BitacoraEvento):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO mantenimiento_bitacora
+                    (mantenimiento_id, evento, descripcion, usuario_id, usuario_nombre)
+                VALUES (%s,%s,%s,%s,%s) RETURNING *
+            """, (mantenimiento_id, data.evento, data.descripcion, data.usuario_id, data.usuario_nombre))
+            return cur.fetchone()
+
+
+@router.post("/{mantenimiento_id}/crear-hijos", status_code=201)
+def crear_hijos_recurrentes(mantenimiento_id: int):
+    """Genera registros hijos en estado pendiente basados en la periodicidad del padre."""
+    from datetime import date, timedelta
+
+    periodos = {
+        "diario": 1, "semanal": 7, "mensual": 30,
+        "trimestral": 90, "anual": 365,
+    }
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM mantenimientos WHERE id = %s", (mantenimiento_id,))
+            padre = cur.fetchone()
+            if not padre:
+                raise HTTPException(status_code=404, detail="Mantenimiento no encontrado")
+            if not padre["es_programado"] or not padre["periodicidad"]:
+                raise HTTPException(status_code=400, detail="El mantenimiento no es programado o no tiene periodicidad")
+
+            dias = periodos.get(padre["periodicidad"], 30)
+            hoy = date.today()
+            hijos_creados = []
+
+            # Crear 3 instancias futuras
+            for i in range(1, 4):
+                fecha_hijo = hoy + timedelta(days=dias * i)
+                cur.execute("""
+                    INSERT INTO mantenimientos
+                        (edificio_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
+                         solicitante_id, es_programado, periodicidad, proveedor_id,
+                         contrato_url, contrato_id, inventario_id, presupuesto, padre_id,
+                         fecha_proxima_ejecucion)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id, titulo, fecha_proxima_ejecucion
+                """, (
+                    padre["edificio_id"], padre["unidad_id"], padre["torre_id"],
+                    f"{padre['titulo']} (instancia {i})", padre["descripcion"],
+                    padre["categoria"], padre["prioridad"], padre["solicitante_id"],
+                    True, padre["periodicidad"], padre["proveedor_id"],
+                    padre["contrato_url"], padre["contrato_id"], padre["inventario_id"],
+                    padre["presupuesto"], mantenimiento_id,
+                    str(fecha_hijo),
+                ))
+                hijo = cur.fetchone()
+                hijos_creados.append(hijo)
+                cur.execute("""
+                    INSERT INTO mantenimiento_bitacora (mantenimiento_id, evento, descripcion, estado_nuevo)
+                    VALUES (%s, 'hijo_creado', %s, 'pendiente')
+                """, (hijo["id"], f"Instancia generada automáticamente desde mantenimiento #{mantenimiento_id}"))
+
+            return {"creados": len(hijos_creados), "hijos": hijos_creados}
+
+
 @router.post("/{mantenimiento_id}/archivos", status_code=201)
 async def upload_archivo(
     mantenimiento_id: int,
-    tipo: str = Form(...),
+    tipo: str = Form("archivo"),
     nombre_archivo: str = Form(...),
     subido_por: Optional[int] = Form(None),
     file: UploadFile = File(...),
 ):
-    """Upload photo or invoice. Stores as base64 data URL for POC."""
+    """Upload a generic file. Stores as base64 data URL for POC."""
     content = await file.read()
     b64 = base64.b64encode(content).decode()
     mime = file.content_type or "application/octet-stream"
@@ -438,4 +578,10 @@ async def upload_archivo(
                 INSERT INTO mantenimiento_archivos (mantenimiento_id, tipo, url, nombre_archivo, subido_por)
                 VALUES (%s,%s,%s,%s,%s) RETURNING *
             """, (mantenimiento_id, tipo, data_url, nombre_archivo, subido_por))
-            return cur.fetchone()
+            row = cur.fetchone()
+            # Log upload in bitácora
+            cur.execute("""
+                INSERT INTO mantenimiento_bitacora (mantenimiento_id, evento, descripcion, usuario_id)
+                VALUES (%s, 'archivo_subido', %s, %s)
+            """, (mantenimiento_id, f"Archivo subido: {nombre_archivo}", subido_por))
+            return row

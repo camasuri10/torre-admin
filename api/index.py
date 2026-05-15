@@ -18,7 +18,7 @@ from routers import (
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
     conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
-    procurement, contratos,
+    procurement, contratos, consejo,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -82,6 +82,112 @@ app.include_router(backoffice.router,     prefix="/api/backoffice",      tags=["
 app.include_router(encuestas.router,      prefix="/api/encuestas",        tags=["Encuestas"])
 app.include_router(procurement.router,    prefix="/api/procurement",      tags=["Procurement"])
 app.include_router(contratos.router,      prefix="/api/contratos",         tags=["Contratos"])
+app.include_router(consejo.router,        prefix="/api/consejo",           tags=["Consejo"])
+
+
+@app.get("/api/migrate-v11")
+def migrate_v11():
+    """Apply v11 migrations: bitácoras, consejo, reservas extendidas, archivos genéricos."""
+    from db import get_db
+    migrations = [
+        ("mantenimientos padre_id",
+         "ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);"),
+        ("zonas_comunes intervalo_reserva",
+         "ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS intervalo_reserva INTEGER DEFAULT 60;"),
+        ("paquetes residente_nombre",
+         "ALTER TABLE paquetes ADD COLUMN IF NOT EXISTS residente_nombre VARCHAR(255);"),
+        ("reservas estado check drop",
+         "ALTER TABLE reservas DROP CONSTRAINT IF EXISTS reservas_estado_check;"),
+        ("reservas estado check add", """
+            ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check
+              CHECK (estado IN (
+                'confirmada','pendiente','cancelada','no_usada',
+                'en_revision','lista_espera','pago_pendiente','pagada',
+                'deposito_devuelto','en_curso','finalizada','no_presentado'
+              ));
+        """),
+        ("mantenimiento_archivos tipo check drop",
+         "ALTER TABLE mantenimiento_archivos DROP CONSTRAINT IF EXISTS mantenimiento_archivos_tipo_check;"),
+        ("ordenes es_individual",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS es_individual BOOLEAN DEFAULT FALSE;"),
+        ("ordenes requiere_consejo",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE;"),
+        ("ordenes consejo_estado",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_estado TEXT CHECK (consejo_estado IN ('pendiente','aprobada','rechazada'));"),
+        ("ordenes consejo_comentario",
+         "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_comentario TEXT;"),
+        ("mantenimiento_bitacora table", """
+            CREATE TABLE IF NOT EXISTS mantenimiento_bitacora (
+                id                  SERIAL PRIMARY KEY,
+                mantenimiento_id    INTEGER NOT NULL REFERENCES mantenimientos(id) ON DELETE CASCADE,
+                evento              VARCHAR(100) NOT NULL,
+                descripcion         TEXT,
+                estado_anterior     VARCHAR(50),
+                estado_nuevo        VARCHAR(50),
+                usuario_id          INTEGER REFERENCES usuarios(id),
+                usuario_nombre      VARCHAR(255),
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("mantenimiento_bitacora index",
+         "CREATE INDEX IF NOT EXISTS idx_mant_bitacora ON mantenimiento_bitacora(mantenimiento_id);"),
+        ("reserva_bitacora table", """
+            CREATE TABLE IF NOT EXISTS reserva_bitacora (
+                id              SERIAL PRIMARY KEY,
+                reserva_id      INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
+                estado_anterior VARCHAR(50),
+                estado_nuevo    VARCHAR(50),
+                observacion     TEXT,
+                archivos        JSONB NOT NULL DEFAULT '[]',
+                usuario_id      INTEGER REFERENCES usuarios(id),
+                usuario_nombre  VARCHAR(255),
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("reserva_bitacora index",
+         "CREATE INDEX IF NOT EXISTS idx_reserva_bitacora ON reserva_bitacora(reserva_id);"),
+        ("reserva_archivos table", """
+            CREATE TABLE IF NOT EXISTS reserva_archivos (
+                id          SERIAL PRIMARY KEY,
+                reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
+                url         TEXT NOT NULL,
+                nombre      VARCHAR(255),
+                subido_por  INTEGER REFERENCES usuarios(id),
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("reserva_archivos index",
+         "CREATE INDEX IF NOT EXISTS idx_reserva_archivos ON reserva_archivos(reserva_id);"),
+        ("consejo_miembros table", """
+            CREATE TABLE IF NOT EXISTS consejo_miembros (
+                id          SERIAL PRIMARY KEY,
+                edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                nombre      VARCHAR(255) NOT NULL,
+                cargo       VARCHAR(100) NOT NULL,
+                tipo        VARCHAR(20) NOT NULL DEFAULT 'activo',
+                activo      BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """),
+        ("consejo_miembros index",
+         "CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);"),
+    ]
+    results = []
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                for name, sql in migrations:
+                    try:
+                        for stmt in sql.strip().split(";"):
+                            stmt = stmt.strip()
+                            if stmt:
+                                cur.execute(stmt)
+                        results.append({"migration": name, "status": "ok"})
+                    except Exception as e:
+                        results.append({"migration": name, "status": "error", "detail": str(e)})
+        return {"status": "ok", "migrations": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/health")

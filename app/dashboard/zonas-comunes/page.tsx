@@ -3,13 +3,36 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import Bitacora from "@/components/Bitacora";
+import FileUploadGenerico from "@/components/FileUploadGenerico";
 
 const ESTADO_BADGE: Record<string, string> = {
   confirmada: "bg-green-100 text-green-700",
   pendiente: "bg-amber-100 text-amber-700",
   cancelada: "bg-gray-100 text-gray-500",
   no_usada: "bg-orange-100 text-orange-700",
+  en_revision: "bg-blue-100 text-blue-700",
+  lista_espera: "bg-purple-100 text-purple-700",
+  pago_pendiente: "bg-yellow-100 text-yellow-700",
+  pagada: "bg-emerald-100 text-emerald-700",
+  deposito_devuelto: "bg-teal-100 text-teal-700",
+  en_curso: "bg-indigo-100 text-indigo-700",
+  finalizada: "bg-slate-100 text-slate-700",
+  no_presentado: "bg-red-100 text-red-700",
 };
+
+const ESTADO_LABELS: Record<string, string> = {
+  confirmada: "Confirmada", pendiente: "Pendiente", cancelada: "Cancelada",
+  no_usada: "No usada", en_revision: "En revisión", lista_espera: "Lista de espera",
+  pago_pendiente: "Pago pendiente", pagada: "Pagada", deposito_devuelto: "Depósito devuelto",
+  en_curso: "En curso", finalizada: "Finalizada", no_presentado: "No presentado",
+};
+
+const TODOS_ESTADOS = [
+  "", "pendiente", "confirmada", "cancelada", "no_usada",
+  "en_revision", "lista_espera", "pago_pendiente", "pagada",
+  "deposito_devuelto", "en_curso", "finalizada", "no_presentado",
+];
 
 const ENTREGA_BADGE: Record<string, string> = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -67,6 +90,13 @@ export default function ZonasComunesPage() {
   const [incluirInactivas, setIncluirInactivas] = useState(false);
   const [showEntregaModal, setShowEntregaModal] = useState(false);
   const [entregaReserva, setEntregaReserva] = useState<any | null>(null);
+  const [showCambioEstadoModal, setShowCambioEstadoModal] = useState(false);
+  const [cambioEstadoReserva, setCambioEstadoReserva] = useState<any | null>(null);
+  const [cambioEstadoForm, setCambioEstadoForm] = useState({ estado: "", observacion: "" });
+  const [savingCambioEstado, setSavingCambioEstado] = useState(false);
+  const [bitacoraReservaId, setBitacoraReservaId] = useState<number | null>(null);
+  const [bitacoraReserva, setBitacoraReserva] = useState<any[]>([]);
+  const [loadingBitacora, setLoadingBitacora] = useState(false);
 
   function timeToMin(t: string) {
     const [h, m] = String(t).slice(0, 5).split(":").map(Number);
@@ -75,12 +105,13 @@ export default function ZonasComunesPage() {
   function minToTime(m: number) {
     return `${Math.floor(m / 60).toString().padStart(2, "0")}:${(m % 60).toString().padStart(2, "0")}`;
   }
-  function generarSlots(horarioInicio: string, horarioFin: string, durMinHoras: number) {
+  function generarSlots(horarioInicio: string, horarioFin: string, durMinHoras: number, intervalo: number = 60) {
     const start = timeToMin(horarioInicio);
     const end = timeToMin(horarioFin);
     const dur = Math.round(Number(durMinHoras) * 60);
+    const step = Math.max(intervalo, 15);
     const result: { inicio: string; fin: string }[] = [];
-    for (let t = start; t + dur <= end; t += 15) {
+    for (let t = start; t + dur <= end; t += step) {
       result.push({ inicio: minToTime(t), fin: minToTime(t + dur) });
     }
     return result;
@@ -99,10 +130,12 @@ export default function ZonasComunesPage() {
     setSlots([]);
     try {
       const { ocupados, config, conteo_hora } = await api.zonas.disponibilidad(zona.id, fecha);
+      const intervalo = config?.intervalo_reserva ?? zona.intervalo_reserva ?? 60;
       const raw = generarSlots(
         config?.horario_inicio ?? zona.horario_inicio,
         config?.horario_fin ?? zona.horario_fin,
         config?.duracion_min_horas ?? zona.duracion_min_horas,
+        intervalo,
       );
       const capacidadHora: number | null = config?.capacidad_hora ?? zona.capacidad_hora ?? null;
       const libres = raw.filter((s) => {
@@ -195,6 +228,7 @@ export default function ZonasComunesPage() {
         requiere_inventario:   fd.get("requiere_inventario") === "true",
         costo_arriendo:        costoArriendo ? Number(costoArriendo) : null,
         costo_deposito:        costoDeposito ? Number(costoDeposito) : null,
+        intervalo_reserva:     Number(fd.get("intervalo_reserva")) || 60,
       });
       setShowConfigForm(false);
       load();
@@ -220,6 +254,48 @@ export default function ZonasComunesPage() {
       setSaving(false);
     }
   };
+
+  const handleCambioEstado = async () => {
+    if (!cambioEstadoReserva || !cambioEstadoForm.estado) return;
+    setSavingCambioEstado(true);
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
+    try {
+      await fetch(`${API}/api/zonas-comunes/reservas/${cambioEstadoReserva.id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: cambioEstadoForm.estado,
+          observacion: cambioEstadoForm.observacion || undefined,
+        }),
+      });
+      setShowCambioEstadoModal(false);
+      setCambioEstadoReserva(null);
+      setCambioEstadoForm({ estado: "", observacion: "" });
+      setBitacoraReserva([]);
+      setBitacoraReservaId(null);
+      load();
+    } catch (err: any) {
+      alert("Error al cambiar estado: " + (err?.message ?? "Intenta de nuevo"));
+    } finally {
+      setSavingCambioEstado(false);
+    }
+  };
+
+  async function loadBitacoraReserva(id: number) {
+    if (bitacoraReservaId === id) return;
+    setBitacoraReservaId(id);
+    setLoadingBitacora(true);
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
+    try {
+      const r = await fetch(`${API}/api/zonas-comunes/reservas/${id}/bitacora`);
+      const data = await r.json();
+      setBitacoraReserva(Array.isArray(data) ? data : []);
+    } catch {
+      setBitacoraReserva([]);
+    } finally {
+      setLoadingBitacora(false);
+    }
+  }
 
   const handleConfirmar = async (id: number) => {
     await api.zonas.reservas.update(id, "confirmada");
@@ -427,12 +503,12 @@ export default function ZonasComunesPage() {
       {tab === "reservas" && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {["", "pendiente", "confirmada", "cancelada", "no_usada"].map((e) => (
+            {TODOS_ESTADOS.map((e) => (
               <button key={e} onClick={() => setFiltroEstado(e)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   filtroEstado === e ? "bg-primary text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}>
-                {e === "" ? "Todas" : e.replace("_", " ")}
+                {e === "" ? "Todas" : (ESTADO_LABELS[e] ?? e)}
               </button>
             ))}
           </div>
@@ -442,16 +518,16 @@ export default function ZonasComunesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {["Zona / Costo", "Residente / Apto", "Registrado por", "Fecha", "Horario", "Estado", "Acciones"].map((h) => (
+                    {["Zona / Costo", "Residente / Apto", "Registrado por", "Fecha", "Horario", "Estado", "Última acción", "Acciones"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
                   ) : filteredReservas.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No hay reservas</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No hay reservas</td></tr>
                   ) : filteredReservas.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
@@ -489,8 +565,31 @@ export default function ZonasComunesPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-xs text-gray-400">
+                        {r.ultima_accion ? (
+                          <div>
+                            <div className="font-medium text-gray-600">{ESTADO_LABELS[r.ultima_accion.estado_nuevo] ?? r.ultima_accion.estado_nuevo}</div>
+                            <div>{r.ultima_accion.usuario_nombre ?? "—"}</div>
+                            <div>{new Date(r.ultima_accion.created_at).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}</div>
+                          </div>
+                        ) : "—"}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5 flex-wrap">
+                          {isAdmin && (
+                            <button
+                              onClick={() => {
+                                setCambioEstadoReserva(r);
+                                setCambioEstadoForm({ estado: r.estado, observacion: "" });
+                                setBitacoraReserva([]);
+                                setBitacoraReservaId(null);
+                                setShowCambioEstadoModal(true);
+                                loadBitacoraReserva(r.id);
+                              }}
+                              className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded hover:bg-blue-200 font-medium">
+                              Cambiar estado
+                            </button>
+                          )}
                           {isAdmin && r.estado === "pendiente" && (
                             <button onClick={() => handleConfirmar(r.id)}
                               className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded hover:bg-green-200 font-medium">
@@ -505,7 +604,6 @@ export default function ZonasComunesPage() {
                               Cancelar
                             </button>
                           )}
-                          {/* Entrega inventario: solo para confirmadas con requiere_inventario y no completadas */}
                           {isAdmin && r.requiere_inventario && r.estado === "confirmada" && r.estado_entrega !== "completada" && (
                             <button
                               onClick={() => { setEntregaReserva(r); setShowEntregaModal(true); }}
@@ -812,6 +910,14 @@ export default function ZonasComunesPage() {
                   <input name="capacidad_hora" type="number" min="1" placeholder="Ej: 5 reservas por hora"
                     defaultValue={selectedZona.capacidad_hora ?? ""} className={INPUT} />
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Intervalo entre reservas</label>
+                  <select name="intervalo_reserva" defaultValue={selectedZona.intervalo_reserva ?? 60} className={INPUT}>
+                    <option value={15}>15 minutos</option>
+                    <option value={30}>30 minutos</option>
+                    <option value={60}>60 minutos (1 hora)</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Costo arriendo</label>
                   <input name="costo_arriendo" type="number" step="0.01" min="0" placeholder="0.00"
@@ -846,6 +952,73 @@ export default function ZonasComunesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cambio de estado modal */}
+      {showCambioEstadoModal && cambioEstadoReserva && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-gray-900">Cambiar estado de reserva</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {cambioEstadoReserva.zona_nombre} · {cambioEstadoReserva.usuario_nombre} · {cambioEstadoReserva.fecha}
+                </p>
+              </div>
+              <button onClick={() => { setShowCambioEstadoModal(false); setCambioEstadoReserva(null); setBitacoraReserva([]); setBitacoraReservaId(null); }}
+                className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+
+            <div className="space-y-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo estado</label>
+                <select
+                  value={cambioEstadoForm.estado}
+                  onChange={(e) => setCambioEstadoForm({ ...cambioEstadoForm, estado: e.target.value })}
+                  className={INPUT}
+                >
+                  <option value="">— Seleccionar estado —</option>
+                  {TODOS_ESTADOS.filter(Boolean).map((e) => (
+                    <option key={e} value={e}>{ESTADO_LABELS[e] ?? e}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observación (opcional)</label>
+                <textarea
+                  rows={2} value={cambioEstadoForm.observacion}
+                  onChange={(e) => setCambioEstadoForm({ ...cambioEstadoForm, observacion: e.target.value })}
+                  placeholder="Ej: Residente solicitó cambio por motivo de viaje…"
+                  className={INPUT}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Archivos de soporte</label>
+                <FileUploadGenerico
+                  endpoint={`/api/zonas-comunes/reservas/${cambioEstadoReserva.id}/archivos`}
+                  archivos={[]}
+                  onUploaded={() => loadBitacoraReserva(cambioEstadoReserva.id)}
+                  label="Subir archivo de soporte"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mb-6">
+              <button onClick={() => { setShowCambioEstadoModal(false); setCambioEstadoReserva(null); setBitacoraReserva([]); setBitacoraReservaId(null); }}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
+              <button onClick={handleCambioEstado} disabled={savingCambioEstado || !cambioEstadoForm.estado}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                {savingCambioEstado ? "Guardando…" : "Confirmar cambio"}
+              </button>
+            </div>
+
+            {/* Historial */}
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-500 mb-3">Historial de cambios</p>
+              <Bitacora eventos={bitacoraReserva} loading={loadingBitacora} />
+            </div>
           </div>
         </div>
       )}

@@ -25,6 +25,11 @@ export default function PaquetesPage() {
   const [entregandoId, setEntregandoId] = useState<number | null>(null);
   const [entregadoA, setEntregadoA]   = useState("");
   const [notificadoA, setNotificadoA] = useState("");
+  const [notificandoId, setNotificandoId] = useState<number | null>(null);
+  const [notificadoNombre, setNotificadoNombre] = useState("");
+  const [editPaquete, setEditPaquete] = useState<any | null>(null);
+  const [editForm, setEditForm]       = useState({ unidad_id: "", descripcion: "", residente_nombre: "" });
+  const [savingEdit, setSavingEdit]   = useState(false);
   const formRef                       = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
@@ -56,6 +61,39 @@ export default function PaquetesPage() {
     form.reset();
     setShowForm(false);
     load();
+  };
+
+  const handleNotificar = async (id: number) => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
+    await fetch(`${API}/api/paquetes/${id}/notificar`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notas: notificadoNombre || undefined }),
+    });
+    setNotificandoId(null);
+    setNotificadoNombre("");
+    load();
+  };
+
+  const handleEditar = async () => {
+    if (!editPaquete) return;
+    setSavingEdit(true);
+    const API = process.env.NEXT_PUBLIC_API_URL || "";
+    try {
+      await fetch(`${API}/api/paquetes/${editPaquete.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(editForm.unidad_id ? { unidad_id: Number(editForm.unidad_id) } : {}),
+          descripcion: editForm.descripcion,
+          residente_nombre: editForm.residente_nombre,
+        }),
+      });
+      setEditPaquete(null);
+      load();
+    } catch { /**/ } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleEntregar = async (id: number) => {
@@ -181,6 +219,14 @@ export default function PaquetesPage() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del residente (opcional)</label>
+              <input
+                name="residente_nombre"
+                placeholder="A quién va dirigido el paquete"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Foto del paquete (opcional)</label>
               <input
                 name="foto"
@@ -229,7 +275,10 @@ export default function PaquetesPage() {
               ) : filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">#{p.id}</td>
-                  <td className="px-4 py-3 font-medium">{p.unidad_numero ?? "—"}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {p.unidad_numero ?? "—"}
+                    {p.residente_nombre && <div className="text-xs text-gray-400 font-normal">{p.residente_nombre}</div>}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{p.remitente ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{p.empresa_mensajeria ?? "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs">{p.numero_guia ?? "—"}</td>
@@ -252,41 +301,70 @@ export default function PaquetesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {p.estado !== "entregado" && p.estado !== "devuelto" && (
-                      entregandoId === p.id ? (
-                        <div className="space-y-1.5">
-                          <input
-                            value={entregadoA}
-                            onChange={(e) => setEntregadoA(e.target.value)}
-                            placeholder="Quien recibe el paquete"
-                            className="border border-gray-300 rounded px-2 py-1 text-xs w-40"
-                          />
-                          <input
-                            value={notificadoA}
-                            onChange={(e) => setNotificadoA(e.target.value)}
-                            placeholder="A quién se notificó (opcional)"
-                            className="border border-gray-300 rounded px-2 py-1 text-xs w-40"
-                          />
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEntregar(p.id)}
-                              disabled={!entregadoA.trim()}
-                              className="text-xs bg-green-600 text-white px-2 py-1 rounded disabled:opacity-50"
-                            >✓ Confirmar</button>
-                            <button
-                              onClick={() => { setEntregandoId(null); setEntregadoA(""); setNotificadoA(""); }}
-                              className="text-xs text-gray-400 px-1"
-                            >✕</button>
-                          </div>
+                    {notificandoId === p.id ? (
+                      <div className="space-y-1.5">
+                        <input
+                          value={notificadoNombre}
+                          onChange={(e) => setNotificadoNombre(e.target.value)}
+                          placeholder="A quién se notificó"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-40"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleNotificar(p.id)}
+                            className="text-xs bg-amber-500 text-white px-2 py-1 rounded"
+                          >✓ Notificar</button>
+                          <button
+                            onClick={() => { setNotificandoId(null); setNotificadoNombre(""); }}
+                            className="text-xs text-gray-400 px-1"
+                          >✕</button>
                         </div>
-                      ) : (
+                      </div>
+                    ) : entregandoId === p.id ? (
+                      <div className="space-y-1.5">
+                        <input
+                          value={entregadoA}
+                          onChange={(e) => setEntregadoA(e.target.value)}
+                          placeholder="Quien recibe el paquete"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-40"
+                        />
+                        <input
+                          value={notificadoA}
+                          onChange={(e) => setNotificadoA(e.target.value)}
+                          placeholder="A quién se notificó (opcional)"
+                          className="border border-gray-300 rounded px-2 py-1 text-xs w-40"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEntregar(p.id)}
+                            disabled={!entregadoA.trim()}
+                            className="text-xs bg-green-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                          >✓ Confirmar</button>
+                          <button
+                            onClick={() => { setEntregandoId(null); setEntregadoA(""); setNotificadoA(""); }}
+                            className="text-xs text-gray-400 px-1"
+                          >✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 flex-wrap items-center">
+                        {p.estado !== "entregado" && p.estado !== "devuelto" && (
+                          <button
+                            onClick={() => { setEntregandoId(p.id); setNotificandoId(null); }}
+                            className="text-xs text-primary font-medium hover:underline"
+                          >Entregar</button>
+                        )}
+                        {p.estado === "recibido" && (
+                          <button
+                            onClick={() => { setNotificandoId(p.id); setEntregandoId(null); setEntregadoA(""); }}
+                            className="text-xs text-amber-600 font-medium hover:underline"
+                          >Notificar</button>
+                        )}
                         <button
-                          onClick={() => setEntregandoId(p.id)}
-                          className="text-xs text-primary font-medium hover:underline"
-                        >
-                          Entregar
-                        </button>
-                      )
+                          onClick={() => { setEditPaquete(p); setEditForm({ unidad_id: String(p.unidad_id ?? ""), descripcion: p.descripcion ?? "", residente_nombre: p.residente_nombre ?? "" }); }}
+                          className="text-xs text-gray-500 font-medium hover:underline"
+                        >Editar</button>
+                      </div>
                     )}
                     {p.foto_url && (
                       <a href={p.foto_url} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-gray-400 hover:text-gray-600">
@@ -300,6 +378,60 @@ export default function PaquetesPage() {
           </table>
         </div>
       </div>
+      {/* Edit paquete modal */}
+      {editPaquete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Editar paquete #{editPaquete.id}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unidad destinataria</label>
+                <select
+                  value={editForm.unidad_id}
+                  onChange={(e) => setEditForm({ ...editForm, unidad_id: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">— Sin cambio —</option>
+                  {unidades.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <input
+                  value={editForm.descripcion}
+                  onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })}
+                  placeholder="Ej: Caja mediana, sobre..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del residente</label>
+                <input
+                  value={editForm.residente_nombre}
+                  onChange={(e) => setEditForm({ ...editForm, residente_nombre: e.target.value })}
+                  placeholder="A quién va dirigido el paquete"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => setEditPaquete(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >Cancelar</button>
+              <button
+                onClick={handleEditar}
+                disabled={savingEdit}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60"
+              >{savingEdit ? "Guardando…" : "Guardar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
