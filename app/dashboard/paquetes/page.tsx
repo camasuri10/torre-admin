@@ -18,31 +18,36 @@ export default function PaquetesPage() {
   const [paquetes, setPaquetes]       = useState<any[]>([]);
   const [stats, setStats]             = useState<any>(null);
   const [unidades, setUnidades]       = useState<any[]>([]);
+  const [usuarios, setUsuarios]       = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
   const [filtroEstado, setFiltroEstado] = useState("");
   const [search, setSearch]           = useState("");
   const [showForm, setShowForm]       = useState(false);
+  const [formUnidadId, setFormUnidadId]     = useState("");
+  const [formResidenteId, setFormResidenteId] = useState("");
   const [entregandoId, setEntregandoId] = useState<number | null>(null);
   const [entregadoA, setEntregadoA]   = useState("");
   const [notificadoA, setNotificadoA] = useState("");
   const [notificandoId, setNotificandoId] = useState<number | null>(null);
   const [notificadoNombre, setNotificadoNombre] = useState("");
   const [editPaquete, setEditPaquete] = useState<any | null>(null);
-  const [editForm, setEditForm]       = useState({ unidad_id: "", descripcion: "", residente_nombre: "" });
+  const [editForm, setEditForm]       = useState({ unidad_id: "", residente_id: "", descripcion: "", residente_nombre: "" });
   const [savingEdit, setSavingEdit]   = useState(false);
   const formRef                       = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, s, uns] = await Promise.all([
+      const [p, s, uns, usrs] = await Promise.all([
         api.paquetes.list({ edificio_id: edificioId, ...(filtroEstado ? { estado: filtroEstado } : {}) }),
         api.paquetes.stats(edificioId),
         api.edificios.unidades(edificioId),
+        api.usuarios.list({ edificio_id: edificioId }),
       ]);
       setPaquetes(p);
       setStats(s);
       setUnidades(uns);
+      setUsuarios(Array.isArray(usrs) ? usrs : []);
     } catch {
       // ignore
     } finally {
@@ -57,8 +62,15 @@ export default function PaquetesPage() {
     const form = formRef.current!;
     const fd = new FormData(form);
     fd.append("edificio_id", String(edificioId));
+    if (formResidenteId) {
+      fd.append("destinatario_id", formResidenteId);
+      const res = usuarios.find((u: any) => u.id === Number(formResidenteId));
+      if (res) fd.append("residente_nombre", res.nombre);
+    }
     await api.paquetes.registrar(fd);
     form.reset();
+    setFormUnidadId("");
+    setFormResidenteId("");
     setShowForm(false);
     load();
   };
@@ -80,13 +92,15 @@ export default function PaquetesPage() {
     setSavingEdit(true);
     const API = process.env.NEXT_PUBLIC_API_URL || "";
     try {
+      const residente = editForm.residente_id ? usuarios.find((u: any) => u.id === Number(editForm.residente_id)) : null;
       await fetch(`${API}/api/paquetes/${editPaquete.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(editForm.unidad_id ? { unidad_id: Number(editForm.unidad_id) } : {}),
+          ...(editForm.residente_id ? { destinatario_id: Number(editForm.residente_id) } : {}),
+          ...(residente ? { residente_nombre: residente.nombre } : editForm.residente_nombre ? { residente_nombre: editForm.residente_nombre } : {}),
           descripcion: editForm.descripcion,
-          residente_nombre: editForm.residente_nombre,
         }),
       });
       setEditPaquete(null);
@@ -173,12 +187,14 @@ export default function PaquetesPage() {
           <h3 className="font-semibold text-gray-900 mb-4">Registrar nuevo paquete</h3>
           <form ref={formRef} onSubmit={handleRegistrar} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unidad destinataria</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Apartamento / Unidad</label>
               <select
                 name="unidad_id"
+                value={formUnidadId}
+                onChange={(e) => { setFormUnidadId(e.target.value); setFormResidenteId(""); }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                <option value="">— Selecciona unidad —</option>
+                <option value="">— Selecciona apto —</option>
                 {unidades.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}
@@ -219,12 +235,32 @@ export default function PaquetesPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del residente (opcional)</label>
-              <input
-                name="residente_nombre"
-                placeholder="A quién va dirigido el paquete"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Residente destinatario</label>
+              <select
+                value={formResidenteId}
+                onChange={(e) => setFormResidenteId(e.target.value)}
+                disabled={!formUnidadId}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">
+                  {formUnidadId ? "— Seleccionar residente —" : "Primero selecciona un apto"}
+                </option>
+                {usuarios
+                  .filter((u: any) =>
+                    ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                    String(u.unidad_id) === formUnidadId
+                  )
+                  .map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.nombre}</option>
+                  ))}
+              </select>
+              {formUnidadId &&
+                usuarios.filter((u: any) =>
+                  ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                  String(u.unidad_id) === formUnidadId
+                ).length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Este apto no tiene residentes registrados.</p>
+                )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Foto del paquete (opcional)</label>
@@ -361,7 +397,7 @@ export default function PaquetesPage() {
                           >Notificar</button>
                         )}
                         <button
-                          onClick={() => { setEditPaquete(p); setEditForm({ unidad_id: String(p.unidad_id ?? ""), descripcion: p.descripcion ?? "", residente_nombre: p.residente_nombre ?? "" }); }}
+                          onClick={() => { setEditPaquete(p); setEditForm({ unidad_id: String(p.unidad_id ?? ""), residente_id: String(p.destinatario_id ?? ""), descripcion: p.descripcion ?? "", residente_nombre: p.residente_nombre ?? "" }); }}
                           className="text-xs text-gray-500 font-medium hover:underline"
                         >Editar</button>
                       </div>
@@ -385,13 +421,13 @@ export default function PaquetesPage() {
             <h3 className="font-semibold text-gray-900 mb-4">Editar paquete #{editPaquete.id}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unidad destinataria</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Apartamento / Unidad</label>
                 <select
                   value={editForm.unidad_id}
-                  onChange={(e) => setEditForm({ ...editForm, unidad_id: e.target.value })}
+                  onChange={(e) => setEditForm({ ...editForm, unidad_id: e.target.value, residente_id: "" })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
-                  <option value="">— Sin cambio —</option>
+                  <option value="">— Selecciona apto —</option>
                   {unidades.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.numero} {u.torre_nombre ? `(${u.torre_nombre})` : ""}
@@ -400,20 +436,39 @@ export default function PaquetesPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Residente destinatario</label>
+                <select
+                  value={editForm.residente_id}
+                  onChange={(e) => setEditForm({ ...editForm, residente_id: e.target.value })}
+                  disabled={!editForm.unidad_id}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:bg-gray-50 disabled:text-gray-400"
+                >
+                  <option value="">
+                    {editForm.unidad_id ? "— Seleccionar residente —" : "Primero selecciona un apto"}
+                  </option>
+                  {usuarios
+                    .filter((u: any) =>
+                      ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                      String(u.unidad_id) === editForm.unidad_id
+                    )
+                    .map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.nombre}</option>
+                    ))}
+                </select>
+                {editForm.unidad_id &&
+                  usuarios.filter((u: any) =>
+                    ["propietario", "inquilino"].includes(u.rol ?? "") &&
+                    String(u.unidad_id) === editForm.unidad_id
+                  ).length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">Este apto no tiene residentes registrados.</p>
+                  )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                 <input
                   value={editForm.descripcion}
                   onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })}
                   placeholder="Ej: Caja mediana, sobre..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del residente</label>
-                <input
-                  value={editForm.residente_nombre}
-                  onChange={(e) => setEditForm({ ...editForm, residente_nombre: e.target.value })}
-                  placeholder="A quién va dirigido el paquete"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>

@@ -150,6 +150,7 @@ class NotificarRegistro(BaseModel):
 
 class PaqueteUpdate(BaseModel):
     unidad_id: Optional[int] = None
+    destinatario_id: Optional[int] = None
     residente_nombre: Optional[str] = None
     descripcion: Optional[str] = None
     remitente: Optional[str] = None
@@ -179,6 +180,8 @@ def editar_paquete(paquete_id: int, data: PaqueteUpdate):
             fields, params = [], []
             if data.unidad_id is not None:
                 fields.append("unidad_id = %s"); params.append(data.unidad_id)
+            if data.destinatario_id is not None:
+                fields.append("destinatario_id = %s"); params.append(data.destinatario_id)
             if data.residente_nombre is not None:
                 fields.append("residente_nombre = %s"); params.append(data.residente_nombre)
             if data.descripcion is not None:
