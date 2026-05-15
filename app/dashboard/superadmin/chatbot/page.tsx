@@ -4,18 +4,36 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 const PROVEEDORES = [
-  { value: "claude",      label: "Claude (Anthropic)",   needsKey: true,  needsUrl: false },
-  { value: "openai",      label: "OpenAI (GPT)",         needsKey: true,  needsUrl: false },
-  { value: "gemini",      label: "Gemini (Google)",      needsKey: true,  needsUrl: false },
-  { value: "openrouter",  label: "OpenRouter",           needsKey: true,  needsUrl: true  },
-  { value: "ollama",      label: "Ollama (local)",       needsKey: false, needsUrl: true  },
+  { value: "claude",      label: "Claude (Anthropic)",   needsKey: true,  needsUrl: false, defaultUrl: "" },
+  { value: "openai",      label: "OpenAI (GPT)",         needsKey: true,  needsUrl: false, defaultUrl: "" },
+  { value: "gemini",      label: "Gemini (Google)",      needsKey: true,  needsUrl: false, defaultUrl: "" },
+  { value: "openrouter",  label: "OpenRouter",           needsKey: true,  needsUrl: true,  defaultUrl: "https://openrouter.ai/api/v1" },
+  { value: "ollama",      label: "Ollama (local)",       needsKey: false, needsUrl: true,  defaultUrl: "http://localhost:11434/v1" },
+];
+
+// OpenRouter free models sourced from https://openrouter.ai/models?max_price=0
+const OPENROUTER_FREE_MODELS = [
+  "deepseek/deepseek-v4-flash:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "arcee-ai/trinity-large-thinking:free",
+];
+
+const OPENROUTER_PAID_MODELS = [
+  "anthropic/claude-sonnet-4-5",
+  "anthropic/claude-3.5-sonnet",
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "google/gemini-pro-1.5",
 ];
 
 const MODELOS_DEFAULT: Record<string, string[]> = {
   claude:     ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"],
   openai:     ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
   gemini:     ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"],
-  openrouter: ["anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-pro-1.5"],
+  openrouter: [...OPENROUTER_FREE_MODELS, ...OPENROUTER_PAID_MODELS],
   ollama:     ["llama3.1", "llama3.2", "mistral", "gemma2"],
 };
 
@@ -108,7 +126,7 @@ export default function ChatbotConfigPage() {
             {PROVEEDORES.map((p) => (
               <button
                 key={p.value}
-                onClick={() => setForm((f) => ({ ...f, proveedor: p.value, modelo: "", api_key: "", base_url: "" }))}
+                onClick={() => setForm((f) => ({ ...f, proveedor: p.value, modelo: "", api_key: "", base_url: p.defaultUrl }))}
                 className={`px-3 py-2.5 rounded-xl border text-sm font-medium text-left transition-colors ${
                   form.proveedor === p.value
                     ? "border-primary bg-primary/5 text-primary"
@@ -142,8 +160,8 @@ export default function ChatbotConfigPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               URL Base
-              {form.proveedor === "ollama" && (
-                <span className="text-gray-400 font-normal ml-1">(ej: http://localhost:11434/v1)</span>
+              {form.proveedor === "openrouter" && (
+                <span className="text-gray-400 font-normal ml-1">— pre-configurada automáticamente</span>
               )}
             </label>
             <input
@@ -166,9 +184,24 @@ export default function ChatbotConfigPage() {
               className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">— Default del proveedor —</option>
-              {modelosDisponibles.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
+              {form.proveedor === "openrouter" ? (
+                <>
+                  <optgroup label="🆓 Modelos gratuitos (para pruebas)">
+                    {OPENROUTER_FREE_MODELS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💳 Modelos de pago">
+                    {OPENROUTER_PAID_MODELS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </optgroup>
+                </>
+              ) : (
+                modelosDisponibles.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))
+              )}
             </select>
             <input
               type="text"
@@ -178,7 +211,17 @@ export default function ChatbotConfigPage() {
               className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
-          <p className="text-xs text-gray-400 mt-1">Usa el selector o escribe un ID de modelo personalizado.</p>
+          {form.proveedor === "openrouter" && (
+            <p className="text-xs text-emerald-600 mt-1">
+              Los modelos gratuitos tienen rate limits bajos — ideales para pruebas. Ver todos en{" "}
+              <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-700">
+                openrouter.ai/models?max_price=0
+              </a>
+            </p>
+          )}
+          {form.proveedor !== "openrouter" && (
+            <p className="text-xs text-gray-400 mt-1">Usa el selector o escribe un ID de modelo personalizado.</p>
+          )}
         </div>
 
         {/* Temperatura */}
