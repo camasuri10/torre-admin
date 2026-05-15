@@ -1201,6 +1201,10 @@ CREATE TABLE IF NOT EXISTS consejo_miembros (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);
+
+-- v11.0 — Consejo: link a unidad y residente propietario
+ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS unidad_id    INTEGER REFERENCES unidades(id);
+ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFERENCES usuarios(id);
 """
 
 

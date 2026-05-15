@@ -3,7 +3,28 @@
 import { useEffect, useState } from "react";
 import { getUser, type AuthUser } from "@/lib/auth";
 
-const CARGOS = ["presidente", "vicepresidente", "secretario", "vocal", "fiscal"];
+const CARGOS_FIJOS = ["presidente", "vicepresidente", "secretario", "vocal", "fiscal"];
+const CARGOS = [...CARGOS_FIJOS, "otro"];
+
+type FormState = {
+  nombre: string;
+  cargo: string;
+  tipo: string;
+  es_propietario: boolean;
+  unidad_id: number | null;
+  residente_id: number | null;
+  cargo_otro: string;
+};
+
+const FORM_INIT: FormState = {
+  nombre: "",
+  cargo: "presidente",
+  tipo: "activo",
+  es_propietario: false,
+  unidad_id: null,
+  residente_id: null,
+  cargo_otro: "",
+};
 
 export default function ConsejoPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -12,8 +33,10 @@ export default function ConsejoPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingMiembro, setEditingMiembro] = useState<any>(null);
-  const [form, setForm] = useState({ nombre: "", cargo: "presidente", tipo: "activo" });
+  const [form, setForm] = useState<FormState>(FORM_INIT);
   const [saving, setSaving] = useState(false);
+  const [unidades, setUnidades] = useState<any[]>([]);
+  const [residentes, setResidentes] = useState<any[]>([]);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "";
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
@@ -41,33 +64,87 @@ export default function ConsejoPage() {
     }
   }
 
-  function openCreate() {
-    setEditingMiembro(null);
-    setForm({ nombre: "", cargo: "presidente", tipo: "activo" });
-    setShowModal(true);
+  async function loadUnidades(edificioId?: number): Promise<any[]> {
+    const id = edificioId ?? eid;
+    if (!id) return [];
+    const res = await fetch(`${API}/api/consejo/unidades/${id}`);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : [];
+    setUnidades(list);
+    return list;
   }
 
-  function openEdit(m: any) {
-    setEditingMiembro(m);
-    setForm({ nombre: m.nombre, cargo: m.cargo, tipo: m.tipo });
+  async function openCreate() {
+    setEditingMiembro(null);
+    setForm(FORM_INIT);
+    setResidentes([]);
     setShowModal(true);
+    await loadUnidades();
+  }
+
+  async function openEdit(m: any) {
+    setEditingMiembro(m);
+    const cargo = CARGOS_FIJOS.includes(m.cargo) ? m.cargo : "otro";
+    setForm({
+      nombre: m.nombre,
+      cargo,
+      tipo: m.tipo,
+      es_propietario: !!m.unidad_id,
+      unidad_id: m.unidad_id ?? null,
+      residente_id: m.residente_id ?? null,
+      cargo_otro: cargo === "otro" ? m.cargo : "",
+    });
+    setResidentes([]);
+    setShowModal(true);
+    const uList = await loadUnidades();
+    if (m.unidad_id) {
+      const unidad = uList.find((u: any) => u.id === m.unidad_id);
+      setResidentes(unidad?.residentes ?? []);
+    }
+  }
+
+  function onUnidadChange(val: string) {
+    const unidadId = val ? parseInt(val) : null;
+    const unidad = unidades.find((u: any) => u.id === unidadId);
+    setResidentes(unidad?.residentes ?? []);
+    setForm((f) => ({ ...f, unidad_id: unidadId, residente_id: null, nombre: "" }));
+  }
+
+  function onResidenteChange(val: string) {
+    const residenteId = val ? parseInt(val) : null;
+    const residente = residentes.find((r: any) => r.id === residenteId);
+    setForm((f) => ({ ...f, residente_id: residenteId, nombre: residente?.nombre ?? "" }));
+  }
+
+  function toggleEsPropietario(checked: boolean) {
+    setResidentes([]);
+    setForm((f) => ({ ...f, es_propietario: checked, unidad_id: null, residente_id: null, nombre: "" }));
   }
 
   async function save() {
     if (!eid) return;
+    const cargoFinal = form.cargo === "otro" ? form.cargo_otro.trim() : form.cargo;
+    if (!form.nombre.trim() || !cargoFinal) return;
     setSaving(true);
+    const body = {
+      nombre: form.nombre,
+      cargo: cargoFinal,
+      tipo: form.tipo,
+      unidad_id: form.es_propietario ? form.unidad_id : null,
+      residente_id: form.es_propietario ? form.residente_id : null,
+    };
     try {
       if (editingMiembro) {
         await fetch(`${API}/api/consejo/miembros/${editingMiembro.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         });
       } else {
         await fetch(`${API}/api/consejo/${eid}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         });
       }
       setShowModal(false);
@@ -94,6 +171,8 @@ export default function ConsejoPage() {
 
   const activos = miembros.filter((m) => m.tipo === "activo");
   const suplentes = miembros.filter((m) => m.tipo === "suplente");
+  const cargoFinal = form.cargo === "otro" ? form.cargo_otro.trim() : form.cargo;
+  const canSave = !!form.nombre.trim() && !!cargoFinal;
 
   return (
     <div className="space-y-6">
@@ -127,15 +206,12 @@ export default function ConsejoPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Miembros activos */}
           {activos.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Miembros Activos</h3>
               <MiembroTable miembros={activos} isAdmin={isAdmin} onEdit={openEdit} onDelete={deleteMiembro} onToggle={toggleActivo} />
             </div>
           )}
-
-          {/* Suplentes */}
           {suplentes.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Miembros Suplentes</h3>
@@ -156,26 +232,87 @@ export default function ConsejoPage() {
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
             <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Nombre completo *</label>
+
+              {/* Checkbox propietario */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
-                  value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Nombre del miembro"
-                  autoFocus
+                  type="checkbox"
+                  checked={form.es_propietario}
+                  onChange={(e) => toggleEsPropietario(e.target.checked)}
+                  className="w-4 h-4 accent-primary rounded"
                 />
-              </div>
+                <span className="text-sm font-medium text-gray-700">Es propietario/a de una unidad</span>
+              </label>
+
+              {form.es_propietario ? (
+                /* Selección unidad + residente */
+                <div className="space-y-3 pl-1">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Unidad *</label>
+                    <select
+                      value={form.unidad_id ?? ""}
+                      onChange={(e) => onUnidadChange(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Seleccionar unidad…</option>
+                      {unidades.map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.torre} — Apto {u.numero}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {form.unidad_id && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Persona *</label>
+                      {residentes.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic px-1">Sin residentes registrados en esta unidad.</p>
+                      ) : (
+                        <select
+                          value={form.residente_id ?? ""}
+                          onChange={(e) => onResidenteChange(e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="">Seleccionar persona…</option>
+                          {residentes.map((r: any) => (
+                            <option key={r.id} value={r.id}>{r.nombre}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+                  {form.nombre && (
+                    <p className="text-xs text-gray-500 px-1">
+                      Nombre: <span className="font-medium text-gray-800">{form.nombre}</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                /* Nombre libre */
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Nombre completo *</label>
+                  <input
+                    value={form.nombre}
+                    onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Nombre del miembro"
+                    autoFocus
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Cargo</label>
                   <select
                     value={form.cargo}
-                    onChange={(e) => setForm((f) => ({ ...f, cargo: e.target.value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, cargo: e.target.value, cargo_otro: "" }))}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {CARGOS.map((c) => (
-                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                      <option key={c} value={c}>
+                        {c === "otro" ? "Otro…" : c.charAt(0).toUpperCase() + c.slice(1)}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -191,6 +328,19 @@ export default function ConsejoPage() {
                   </select>
                 </div>
               </div>
+
+              {form.cargo === "otro" && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Especifique el cargo *</label>
+                  <input
+                    value={form.cargo_otro}
+                    onChange={(e) => setForm((f) => ({ ...f, cargo_otro: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Ej: tesorero, revisor fiscal…"
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">
@@ -198,7 +348,7 @@ export default function ConsejoPage() {
               </button>
               <button
                 onClick={save}
-                disabled={saving || !form.nombre.trim()}
+                disabled={saving || !canSave}
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
               >
                 {saving ? "Guardando…" : editingMiembro ? "Guardar cambios" : "Agregar miembro"}
@@ -238,7 +388,14 @@ function MiembroTable({
         <tbody className="divide-y divide-gray-100">
           {miembros.map((m) => (
             <tr key={m.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium text-gray-900">{m.nombre}</td>
+              <td className="px-4 py-3 font-medium text-gray-900">
+                {m.nombre}
+                {m.unidad_numero && (
+                  <span className="ml-2 text-xs text-gray-400 font-normal">
+                    ({m.unidad_torre} – {m.unidad_numero})
+                  </span>
+                )}
+              </td>
               <td className="px-4 py-3 text-gray-700 capitalize">{m.cargo}</td>
               <td className="px-4 py-3 text-center">
                 <span
