@@ -112,6 +112,11 @@ export default function GestionPage() {
   const [oProyectoId, setOProyectoId] = useState("");
   const [savingO, setSavingO] = useState(false);
 
+  // Quick tarea creation
+  const [showQuickTarea, setShowQuickTarea] = useState(false);
+  const [quickTareaTitulo, setQuickTareaTitulo] = useState("");
+  const [savingQuickTarea, setSavingQuickTarea] = useState(false);
+
   // Consejo decision state (for approving/rejecting individual orders)
   const [showConsejoDecisionModal, setShowConsejoDecisionModal] = useState(false);
   const [consejoTarget, setConsejoTarget] = useState<any>(null);
@@ -324,6 +329,27 @@ export default function GestionPage() {
       if (eid) api.procurement.stats(eid).then(setStats).catch(() => {});
     } finally {
       setSavingO(false);
+    }
+  }
+
+  async function saveQuickTarea() {
+    if (!eid || !selectedOrden || !quickTareaTitulo.trim()) return;
+    setSavingQuickTarea(true);
+    try {
+      await api.procurement.ordenes.create({
+        titulo: quickTareaTitulo.trim(),
+        tipo_orden: selectedOrden.tipo_orden ?? "compra_bienes",
+        clasificacion: "actividad",
+        proyecto_id: selectedOrden.id,
+        edificio_id: eid,
+        es_individual: false,
+        monto_estimado: 0,
+      });
+      setQuickTareaTitulo("");
+      setShowQuickTarea(false);
+      await loadOrdenes();
+    } finally {
+      setSavingQuickTarea(false);
     }
   }
 
@@ -560,6 +586,83 @@ export default function GestionPage() {
                 </table>
               )}
             </div>
+          {/* Quick-tareas panel — visible when selected order is a project */}
+          {selectedOrden?.clasificacion === "proyecto" && (() => {
+            const tareas = ordenes.filter((o: any) => o.proyecto_id === selectedOrden.id);
+            return (
+              <div className="bg-white border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <span className="text-xs text-gray-400 font-mono mr-2">{selectedOrden.numero_orden}</span>
+                    <span className="text-sm font-semibold text-gray-800 truncate">{selectedOrden.titulo}</span>
+                    <span className="ml-2 text-xs text-gray-400">— {tareas.length} tarea{tareas.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  {isAdmin && !showQuickTarea && (
+                    <button
+                      onClick={() => setShowQuickTarea(true)}
+                      className="shrink-0 text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      + Tarea
+                    </button>
+                  )}
+                </div>
+
+                {tareas.length === 0 && !showQuickTarea && (
+                  <div className="px-4 py-6 text-center text-sm text-gray-400">
+                    Sin tareas. {isAdmin && <button onClick={() => setShowQuickTarea(true)} className="text-primary underline hover:text-primary/80">Crear la primera</button>}
+                  </div>
+                )}
+
+                {tareas.length > 0 && (
+                  <div className="divide-y divide-gray-50">
+                    {tareas.map((t: any) => (
+                      <div
+                        key={t.id}
+                        onClick={() => selectOrden(t)}
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors ${selectedOrden?.id === t.id ? "bg-blue-50" : ""}`}
+                      >
+                        <Badge estado={t.estado} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-800 truncate">{t.titulo}</div>
+                          {t.proveedor_nombre && <div className="text-xs text-gray-400 truncate">{t.proveedor_nombre}</div>}
+                        </div>
+                        <div className="text-xs text-gray-400 shrink-0">{t.monto_estimado > 0 ? fmt(t.monto_estimado) : ""}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showQuickTarea && (
+                  <div className="px-4 py-3 border-t bg-gray-50 flex gap-2 items-center">
+                    <input
+                      value={quickTareaTitulo}
+                      onChange={(e) => setQuickTareaTitulo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveQuickTarea();
+                        if (e.key === "Escape") { setShowQuickTarea(false); setQuickTareaTitulo(""); }
+                      }}
+                      placeholder="Título de la tarea… (Enter para guardar)"
+                      className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                    <button
+                      onClick={saveQuickTarea}
+                      disabled={savingQuickTarea || !quickTareaTitulo.trim()}
+                      className="px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {savingQuickTarea ? "…" : "✓"}
+                    </button>
+                    <button
+                      onClick={() => { setShowQuickTarea(false); setQuickTareaTitulo(""); }}
+                      className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           </div>
 
           {/* Detail panel */}
