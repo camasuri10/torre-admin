@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from db import get_db
+from routers.auth import get_current_user
 import base64
 
 router = APIRouter()
@@ -144,6 +145,7 @@ def list_reservas(
     zona_id: Optional[int] = None,
     fecha: Optional[str] = None,
     estado: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -176,6 +178,9 @@ def list_reservas(
             if estado:
                 query += " AND r.estado = %s"
                 params.append(estado)
+            if current_user.get("rol") in ("propietario", "inquilino"):
+                query += " AND r.usuario_id = %s"
+                params.append(int(current_user["sub"]))
             query += " ORDER BY r.fecha DESC, r.hora_inicio"
             cur.execute(query, params)
             return cur.fetchall()

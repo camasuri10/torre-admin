@@ -327,6 +327,10 @@ export default function GestionPage() {
       setSelectedOrden(result);
       await loadOrdenes();
       if (eid) api.procurement.stats(eid).then(setStats).catch(() => {});
+    } catch (e: any) {
+      const msg = e?.message ?? "";
+      const detail = msg.match(/"detail":"([^"]+)"/)?.[1] ?? msg;
+      alert(detail || "Error al guardar la orden. Intente de nuevo.");
     } finally {
       setSavingO(false);
     }

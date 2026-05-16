@@ -247,6 +247,7 @@ export default function ComunicadosPage() {
   const [resultados, setResultados]       = useState<any | null>(null);
   const [savingEnc, setSavingEnc]         = useState(false);
   const [submitResp, setSubmitResp]       = useState(false);
+  const [editingEnc, setEditingEnc]       = useState<any | null>(null);
 
   const [formEnc, setFormEnc] = useState({
     titulo: "", descripcion: "", anonima: false, fecha_cierre: "",
@@ -403,22 +404,70 @@ export default function ComunicadosPage() {
       const unidades_destino = encTodasUnidades
         ? null
         : encSelectedUnidades.length > 0 ? JSON.stringify(encSelectedUnidades) : null;
-      await api.encuestas.create({
-        edificio_id: edificioId, titulo: formEnc.titulo,
-        descripcion: formEnc.descripcion || null,
-        anonima: formEnc.anonima,
-        fecha_cierre: formEnc.fecha_cierre || null,
-        unidades_destino, preguntas,
-      });
+      if (editingEnc) {
+        await api.encuestas.update(editingEnc.id, {
+          titulo: formEnc.titulo,
+          descripcion: formEnc.descripcion || null,
+          anonima: formEnc.anonima,
+          fecha_cierre: formEnc.fecha_cierre || null,
+          unidades_destino, preguntas,
+        });
+      } else {
+        await api.encuestas.create({
+          edificio_id: edificioId, titulo: formEnc.titulo,
+          descripcion: formEnc.descripcion || null,
+          anonima: formEnc.anonima,
+          fecha_cierre: formEnc.fecha_cierre || null,
+          unidades_destino, preguntas,
+        });
+      }
       setFormEnc({ titulo: "", descripcion: "", anonima: false, fecha_cierre: "" });
       setEncPreguntas([mkPregunta()]);
       setEncTodasUnidades(true); setEncSelectedUnidades([]);
+      setEditingEnc(null);
       setEncView("lista");
       await loadEncuestas();
-    } catch (err) {
-      console.error("Error creando encuesta", err);
+    } catch (err: any) {
+      alert(err?.message ?? "Error al guardar la encuesta");
     } finally {
       setSavingEnc(false);
+    }
+  }
+
+  async function handleOpenEditEnc(enc: any) {
+    try {
+      const data = await api.encuestas.get(enc.id);
+      setEditingEnc(data);
+      setFormEnc({
+        titulo: data.titulo ?? "",
+        descripcion: data.descripcion ?? "",
+        anonima: data.anonima ?? false,
+        fecha_cierre: data.fecha_cierre ?? "",
+      });
+      setEncPreguntas((data.preguntas ?? []).map((p: any) => ({
+        texto: p.texto ?? "",
+        tipo: p.tipo ?? "unica",
+        requerida: p.requerida ?? true,
+        escala_max: p.escala_max ?? 5,
+        opciones: (p.opciones ?? []).map((o: any) => o.texto ?? o),
+      })));
+      if (data.unidades_destino) {
+        try {
+          const ids = JSON.parse(data.unidades_destino);
+          setEncTodasUnidades(false);
+          setEncSelectedUnidades(ids);
+        } catch {
+          setEncTodasUnidades(true);
+          setEncSelectedUnidades([]);
+        }
+      } else {
+        setEncTodasUnidades(true);
+        setEncSelectedUnidades([]);
+      }
+      loadUnidades();
+      setEncView("form");
+    } catch {
+      alert("Error cargando la encuesta para editar");
     }
   }
 
@@ -874,6 +923,9 @@ export default function ComunicadosPage() {
                                   <button onClick={() => handleCambiarEstado(enc.id, "activa")} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-green-700 transition-colors">
                                     Activar
                                   </button>
+                                  <button onClick={() => handleOpenEditEnc(enc)} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                                    Editar
+                                  </button>
                                   <button onClick={() => handleDeleteEncuesta(enc.id)} className="text-xs text-red-500 hover:underline">
                                     Eliminar
                                   </button>
@@ -884,15 +936,23 @@ export default function ComunicadosPage() {
                                   <button onClick={() => handleVerResultados(enc)} className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary/90 transition-colors">
                                     Ver resultados
                                   </button>
+                                  <button onClick={() => handleResponder(enc)} className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                                    Ver preguntas
+                                  </button>
                                   <button onClick={() => handleCambiarEstado(enc.id, "cerrada")} className="text-xs text-gray-500 hover:underline">
                                     Cerrar
                                   </button>
                                 </>
                               )}
                               {enc.estado === "cerrada" && (
-                                <button onClick={() => handleVerResultados(enc)} className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary/90 transition-colors">
-                                  Ver resultados
-                                </button>
+                                <>
+                                  <button onClick={() => handleVerResultados(enc)} className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary/90 transition-colors">
+                                    Ver resultados
+                                  </button>
+                                  <button onClick={() => handleResponder(enc)} className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                                    Ver preguntas
+                                  </button>
+                                </>
                               )}
                             </>
                           )}
@@ -916,10 +976,10 @@ export default function ComunicadosPage() {
           {encView === "form" && canEdit && (
             <form onSubmit={handleCreateEncuesta} className="space-y-6">
               <div className="flex items-center gap-4">
-                <button type="button" onClick={() => setEncView("lista")} className="text-gray-400 hover:text-gray-600 text-sm">
+                <button type="button" onClick={() => { setEncView("lista"); setEditingEnc(null); setFormEnc({ titulo: "", descripcion: "", anonima: false, fecha_cierre: "" }); setEncPreguntas([mkPregunta()]); }} className="text-gray-400 hover:text-gray-600 text-sm">
                   ← Volver
                 </button>
-                <h3 className="font-semibold text-gray-900">Nueva encuesta</h3>
+                <h3 className="font-semibold text-gray-900">{editingEnc ? "Editar encuesta" : "Nueva encuesta"}</h3>
               </div>
 
               {/* Datos generales */}
@@ -1080,7 +1140,7 @@ export default function ComunicadosPage() {
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setEncView("lista")} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
                 <button type="submit" disabled={savingEnc} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
-                  {savingEnc ? "Guardando…" : "Guardar como borrador"}
+                  {savingEnc ? "Guardando…" : editingEnc ? "Guardar cambios" : "Guardar como borrador"}
                 </button>
               </div>
             </form>
@@ -1202,10 +1262,14 @@ export default function ComunicadosPage() {
                 ))}
 
                 <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setEncView("lista")} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
-                  <button type="submit" disabled={submitResp} className="bg-primary text-white text-sm px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
-                    {submitResp ? "Enviando…" : "Enviar respuesta"}
+                  <button type="button" onClick={() => setEncView("lista")} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">
+                    {canEdit ? "Cerrar vista previa" : "Cancelar"}
                   </button>
+                  {!canEdit && (
+                    <button type="submit" disabled={submitResp} className="bg-primary text-white text-sm px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+                      {submitResp ? "Enviando…" : "Enviar respuesta"}
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
