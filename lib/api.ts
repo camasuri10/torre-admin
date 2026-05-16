@@ -392,11 +392,15 @@ export const api = {
 
   // ── Chat ───────────────────────────────────────────────────────────────────
   chat: {
-    mensajes: (edificio_id: number, limit = 50) =>
+    mensajes: (edificio_id: number, limit = 100) =>
       request<any[]>(`/api/chat/${edificio_id}?limit=${limit}`),
-    enviar: (data: any) => request<any>("/api/chat/", { method: "POST", body: JSON.stringify(data) }),
-    marcarLeidos: (edificio_id: number, usuario_id: number) =>
-      request<any>(`/api/chat/${edificio_id}/marcar-leidos?usuario_id=${usuario_id}`, { method: "PATCH" }),
+    mensajesDM: (edificio_id: number, usuario_a: number, usuario_b: number, limit = 100) =>
+      request<any[]>(`/api/chat/${edificio_id}?usuario_a=${usuario_a}&usuario_b=${usuario_b}&limit=${limit}`),
+    enviar: (data: any) => request<any>("/api/chat", { method: "POST", body: JSON.stringify(data) }),
+    conversaciones: (edificio_id: number, usuario_id: number) =>
+      request<any[]>(`/api/chat/${edificio_id}/conversaciones/${usuario_id}`),
+    marcarLeidos: (edificio_id: number, usuario_id: number, otro_id?: number) =>
+      request<any>(`/api/chat/${edificio_id}/marcar-leidos?usuario_id=${usuario_id}${otro_id !== undefined ? `&otro_id=${otro_id}` : ""}`, { method: "PATCH" }),
     noLeidos: (edificio_id: number, usuario_id: number) =>
       request<any>(`/api/chat/${edificio_id}/no-leidos?usuario_id=${usuario_id}`),
   },

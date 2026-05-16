@@ -59,6 +59,7 @@ def list_usuarios(
                            u.id, u.nombre, u.email, u.cedula, u.telefono, u.rol, u.activo,
                            u.notif_sistema, u.notif_email, u.notif_whatsapp,
                            o.tipo as tipo_ocupacion,
+                           o.unidad_id,
                            un.numero as unidad_numero,
                            COALESCE(eu.nombre, ed.nombre) as edificio_nombre
                     FROM usuarios u

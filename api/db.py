@@ -349,6 +349,7 @@ CREATE TABLE IF NOT EXISTS chat_mensajes (
     id              SERIAL PRIMARY KEY,
     edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
     remitente_id    INTEGER NOT NULL REFERENCES usuarios(id),
+    receptor_id     INTEGER REFERENCES usuarios(id),  -- NULL = grupo, valor = mensaje directo
     contenido       TEXT NOT NULL,
     tipo            TEXT NOT NULL DEFAULT 'texto' CHECK (tipo IN ('texto','imagen','alerta')),
     leido           BOOLEAN NOT NULL DEFAULT FALSE,
@@ -931,6 +932,10 @@ ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_req
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS unidad_id    INTEGER REFERENCES unidades(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFERENCES usuarios(id);
+
+-- v16.0 — Chat mensajes directos (DM)
+ALTER TABLE chat_mensajes ADD COLUMN IF NOT EXISTS receptor_id INTEGER REFERENCES usuarios(id);
+CREATE INDEX IF NOT EXISTS idx_chat_receptor ON chat_mensajes(receptor_id);
 
 -- v10.0 — ordenes_compra columnas adicionales (requiere_cotizaciones, clasificacion con actividad)
 ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_cotizaciones BOOLEAN NOT NULL DEFAULT FALSE;
