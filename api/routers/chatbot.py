@@ -1,6 +1,6 @@
 import os
 import time
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
@@ -81,6 +81,7 @@ def _require_superadmin(current_user: dict = Depends(get_current_user)):
 
 @router.post("/message")
 async def chat_message(
+    request: Request,
     body: ChatRequest,
     current_user: dict = Depends(get_current_user),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
@@ -99,7 +100,8 @@ async def chat_message(
     from chatbot_engine import ChatbotEngine
 
     engine = ChatbotEngine(config)
-    api_base = os.environ.get("INTERNAL_API_BASE") or os.environ.get("NEXT_PUBLIC_API_URL", "")
+    # Derive api_base from the incoming request so tool calls work both locally and on Vercel
+    api_base = os.environ.get("INTERNAL_API_BASE") or str(request.base_url).rstrip("/")
     raw_token = credentials.credentials if credentials else ""
 
     context = {
