@@ -53,8 +53,10 @@ class GeminiProvider(BaseProvider):
             generation_config={"temperature": temperatura},
         )
 
-        chat = genai_model.start_chat(history=history[:-1] if history else [])
-        response = chat.send_message(last_user_msg)
+        # history[-1] is always the current user message; pass the rest as prior turns.
+        prior_history = history[:-1] if len(history) > 1 else []
+        chat = genai_model.start_chat(history=prior_history)
+        response = chat.send_message(last_user_msg or " ")
 
         tool_calls: list[dict] = []
         text_parts: list[str] = []

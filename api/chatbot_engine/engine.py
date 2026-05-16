@@ -106,6 +106,15 @@ class ChatbotEngine:
             temperatura=self._temperatura,
         )
 
+        # Some free models return the tool name as text instead of calling it —
+        # detect and convert to an actual tool call so the result gets executed.
+        if not tool_calls and response_text:
+            tool_names = {t["name"] for t in tools}
+            stripped = response_text.strip()
+            if stripped in tool_names:
+                tool_calls = [{"name": stripped, "input": {}}]
+                response_text = ""
+
         actions: list[dict] = []
 
         if tool_calls:
@@ -135,11 +144,16 @@ class ChatbotEngine:
             synthesis_messages = messages + [
                 {
                     "role": "assistant",
-                    "content": f"Ejecuté las siguientes herramientas:\n{tool_context}",
+                    "content": f"Ejecuté las siguientes herramientas y obtuve estos resultados:\n{tool_context}",
                 },
                 {
                     "role": "user",
-                    "content": "Con base en esos resultados, responde al usuario de forma clara y amigable en español.",
+                    "content": (
+                        f"El usuario preguntó: \"{message}\"\n\n"
+                        "Con base en los resultados anteriores, responde de forma clara, concisa y amigable en español. "
+                        "Si los datos incluyen listas, preséntales con formato legible (usa viñetas o numeración). "
+                        "No menciones nombres de herramientas técnicas ni JSON crudo."
+                    ),
                 },
             ]
             final_text, _ = await self._provider.chat_with_tools(
@@ -148,7 +162,9 @@ class ChatbotEngine:
                 model=self._model,
                 temperatura=self._temperatura,
             )
-            response_text = final_text or response_text
+            response_text = final_text or response_text or (
+                "Obtuve los datos pero no pude generar una respuesta. Por favor intenta de nuevo."
+            )
 
         return {
             "message": response_text,
