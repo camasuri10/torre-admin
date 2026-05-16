@@ -100,7 +100,7 @@ def _org_stats(cur, org_id: int) -> dict:
     }
 
 
-@router.get("/")
+@router.get("")
 def list_orgs(_: dict = Depends(_require_backoffice)):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -111,7 +111,7 @@ def list_orgs(_: dict = Depends(_require_backoffice)):
     return {"organizaciones": orgs}
 
 
-@router.post("/")
+@router.post("")
 def create_org(data: OrgCreate, _: dict = Depends(_require_backoffice)):
     with get_db() as conn:
         with conn.cursor() as cur:

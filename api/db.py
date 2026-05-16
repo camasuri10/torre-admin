@@ -881,9 +881,6 @@ CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(org
 
 # Incremental migrations for existing databases (safety net)
 MIGRATION_SQL = """
--- v15.0 — tipo_documento para usuarios, chatbot_config global (sin NOT NULL en org)
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC';
-
 -- v14.0 — Organizaciones (multi-tenancy top-level entity)
 ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE edificios  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
@@ -903,6 +900,10 @@ CREATE TABLE IF NOT EXISTS organizacion_superadmins (
 ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(100);
 UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;
+
+-- v15.0 — tipo_documento para usuarios, chatbot_config global (sin NOT NULL en org)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC';
+ALTER TABLE chatbot_config ALTER COLUMN organizacion_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org  ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user ON organizacion_superadmins(usuario_id);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, organizacionesApi } from "@/lib/api";
 
 const ROL_LABELS: Record<string, string> = {
   superadmin: "Super Administrador",
@@ -24,6 +24,8 @@ type BoUser = {
   created_at: string;
 };
 
+type OrgOption = { id: number; nombre: string };
+
 type FormData = {
   nombre: string;
   cedula: string;
@@ -31,9 +33,13 @@ type FormData = {
   telefono: string;
   password: string;
   rol: "superadmin" | "backoffice";
+  organizacion_id: number | "";
 };
 
-const EMPTY_FORM: FormData = { nombre: "", cedula: "", email: "", telefono: "", password: "", rol: "superadmin" };
+const EMPTY_FORM: FormData = {
+  nombre: "", cedula: "", email: "", telefono: "",
+  password: "", rol: "superadmin", organizacion_id: "",
+};
 
 export default function BackofficeUsuariosPage() {
   const [usuarios, setUsuarios] = useState<BoUser[]>([]);
@@ -44,6 +50,7 @@ export default function BackofficeUsuariosPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDesactivar, setConfirmDesactivar] = useState<BoUser | null>(null);
+  const [orgs, setOrgs] = useState<OrgOption[]>([]);
 
   function loadUsuarios() {
     setLoading(true);
@@ -53,7 +60,12 @@ export default function BackofficeUsuariosPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadUsuarios(); }, []);
+  useEffect(() => {
+    loadUsuarios();
+    organizacionesApi.list()
+      .then((d: any) => setOrgs(d.organizaciones ?? []))
+      .catch(() => setOrgs([]));
+  }, []);
 
   function openCreate() {
     setEditUser(null);
@@ -64,12 +76,14 @@ export default function BackofficeUsuariosPage() {
 
   function openEdit(u: BoUser) {
     setEditUser(u);
-    setForm({ nombre: u.nombre, cedula: u.cedula ?? "", email: u.email, telefono: u.telefono ?? "", password: "", rol: u.rol as any });
+    setForm({
+      nombre: u.nombre, cedula: u.cedula ?? "", email: u.email,
+      telefono: u.telefono ?? "", password: "", rol: u.rol as any,
+      organizacion_id: "",
+    });
     setError("");
     setShowModal(true);
   }
-
-  const [saCreatedWarning, setSaCreatedWarning] = useState(false);
 
   async function handleSave() {
     if (!form.nombre.trim() || !form.email.trim()) {
@@ -78,6 +92,10 @@ export default function BackofficeUsuariosPage() {
     }
     if (!editUser && !form.password.trim()) {
       setError("La contraseña es obligatoria al crear un usuario.");
+      return;
+    }
+    if (!editUser && form.rol === "superadmin" && !form.organizacion_id) {
+      setError("Debes asignar una organización al crear un Super Administrador.");
       return;
     }
     setSaving(true);
@@ -91,16 +109,24 @@ export default function BackofficeUsuariosPage() {
           telefono: form.telefono || undefined,
         });
       } else {
-        await api.backoffice.usuarios.create({
-          nombre: form.nombre,
-          cedula: form.cedula || undefined,
-          email: form.email,
-          telefono: form.telefono || undefined,
-          password: form.password,
-          rol: form.rol,
-        });
-        if (form.rol === "superadmin") {
-          setSaCreatedWarning(true);
+        if (form.rol === "superadmin" && form.organizacion_id) {
+          // Create SA and assign to org in one step
+          await organizacionesApi.crearYAsignarSA(Number(form.organizacion_id), {
+            nombre: form.nombre,
+            email: form.email,
+            password: form.password,
+            cedula: form.cedula || undefined,
+            telefono: form.telefono || undefined,
+          });
+        } else {
+          await api.backoffice.usuarios.create({
+            nombre: form.nombre,
+            cedula: form.cedula || undefined,
+            email: form.email,
+            telefono: form.telefono || undefined,
+            password: form.password,
+            rol: form.rol,
+          });
         }
       }
       setShowModal(false);
@@ -129,21 +155,6 @@ export default function BackofficeUsuariosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Warning SA sin org */}
-      {saCreatedWarning && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-          <span className="text-xl mt-0.5">⚠️</span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-800">SuperAdmin creado — asígnalo a una organización</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              El SuperAdmin no puede iniciar sesión hasta ser asignado a una organización.
-              Ve a <strong>Organizaciones</strong>, abre el detalle de la org y usa <em>Crear SA</em> o <em>Asignar existente</em>.
-            </p>
-          </div>
-          <button onClick={() => setSaCreatedWarning(false)} className="text-amber-500 hover:text-amber-700 text-lg leading-none">×</button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -327,13 +338,35 @@ export default function BackofficeUsuariosPage() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">Rol *</label>
                     <select
                       value={form.rol}
-                      onChange={(e) => setForm({ ...form, rol: e.target.value as any })}
+                      onChange={(e) => setForm({ ...form, rol: e.target.value as any, organizacion_id: "" })}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
                       <option value="superadmin">Super Administrador</option>
                       <option value="backoffice">Backoffice</option>
                     </select>
                   </div>
+                  {form.rol === "superadmin" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Organización *
+                      </label>
+                      <select
+                        value={form.organizacion_id}
+                        onChange={(e) => setForm({ ...form, organizacion_id: e.target.value ? Number(e.target.value) : "" })}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">— Selecciona una organización —</option>
+                        {orgs.map((o) => (
+                          <option key={o.id} value={o.id}>{o.nombre}</option>
+                        ))}
+                      </select>
+                      {orgs.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          No hay organizaciones disponibles. Crea una primero en la pestaña Organizaciones.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>

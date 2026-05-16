@@ -622,8 +622,8 @@ export const api = {
 
 // ── Organizaciones (Backoffice) ────────────────────────────────────────────────
 export const organizacionesApi = {
-  list: () => request<any>("/api/organizaciones/"),
-  create: (data: any) => request<any>("/api/organizaciones/", { method: "POST", body: JSON.stringify(data) }),
+  list: () => request<any>("/api/organizaciones"),
+  create: (data: any) => request<any>("/api/organizaciones", { method: "POST", body: JSON.stringify(data) }),
   get: (id: number) => request<any>(`/api/organizaciones/${id}`),
   update: (id: number, data: any) => request<any>(`/api/organizaciones/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   asignarSA: (orgId: number, usuario_id: number) =>
