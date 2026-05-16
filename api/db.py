@@ -621,6 +621,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     asamblea_cotizacion_url     TEXT,
     asamblea_fecha              TIMESTAMPTZ,
     asamblea_comentario         TEXT,
+    requiere_cotizaciones       BOOLEAN NOT NULL DEFAULT FALSE,
     es_individual               BOOLEAN DEFAULT FALSE,
     requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE,
     consejo_estado              TEXT CHECK (consejo_estado IN ('pendiente','aprobada','rechazada')),
@@ -930,6 +931,12 @@ ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_req
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS unidad_id    INTEGER REFERENCES unidades(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFERENCES usuarios(id);
+
+-- v10.0 — ordenes_compra columnas adicionales (requiere_cotizaciones, clasificacion con actividad)
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_cotizaciones BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ordenes_compra DROP CONSTRAINT IF EXISTS ordenes_compra_clasificacion_check;
+ALTER TABLE ordenes_compra ADD CONSTRAINT ordenes_compra_clasificacion_check
+    CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo','actividad'));
 
 INSERT INTO modulos (clave, nombre, icono)
 VALUES ('chatbot', 'Asistente IA', '🤖')

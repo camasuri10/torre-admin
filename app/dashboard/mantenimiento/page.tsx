@@ -96,10 +96,10 @@ export default function MantenimientoPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    proveedoresApi.list(edificioId ? { edificio_id: edificioId } : undefined)
+    proveedoresApi.list()
       .then((p: any) => setProveedores(Array.isArray(p) ? p : (p?.proveedores ?? [])))
       .catch(() => {});
-  }, [edificioId]);
+  }, []);
 
   // Load contracts when proveedor changes in create form
   useEffect(() => {

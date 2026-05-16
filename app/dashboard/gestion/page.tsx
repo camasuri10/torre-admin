@@ -184,7 +184,7 @@ export default function GestionPage() {
     const [statsR, ordenesR, provsR] = await Promise.allSettled([
       api.procurement.stats(edificioId),
       api.procurement.ordenes.list({ edificio_id: edificioId }),
-      proveedoresApi.list({ edificio_id: edificioId }),
+      proveedoresApi.list(),
     ]);
     if (statsR.status === "fulfilled") setStats(statsR.value);
     if (ordenesR.status === "fulfilled") setOrdenes(ordenesR.value);
