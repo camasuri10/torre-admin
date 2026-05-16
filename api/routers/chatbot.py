@@ -51,13 +51,19 @@ class TestRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _get_config() -> dict:
-    """Returns the currently active config, or a safe default."""
+def _get_config(org_id: Optional[int] = None) -> dict:
+    """Returns the currently active config for the org, or a safe default."""
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM chatbot_config WHERE activo = TRUE ORDER BY id DESC LIMIT 1"
-            )
+            if org_id:
+                cur.execute(
+                    "SELECT * FROM chatbot_config WHERE activo = TRUE AND organizacion_id = %s ORDER BY id DESC LIMIT 1",
+                    (org_id,),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM chatbot_config WHERE activo = TRUE ORDER BY id DESC LIMIT 1"
+                )
             row = cur.fetchone()
             if row:
                 return dict(row)
@@ -74,6 +80,8 @@ def _mask_key(config: dict) -> dict:
 def _require_superadmin(current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "superadmin":
         raise HTTPException(status_code=403, detail="Solo superadmin puede gestionar la configuración del chatbot")
+    if not current_user.get("organizacion_id"):
+        raise HTTPException(status_code=403, detail="SuperAdmin sin organización activa.")
     return current_user
 
 
@@ -90,7 +98,8 @@ async def chat_message(
     if rol not in {"superadmin", "administrador", "propietario"}:
         raise HTTPException(status_code=403, detail="Tu rol no tiene acceso al asistente IA.")
 
-    config = _get_config()
+    org_id = current_user.get("organizacion_id")
+    config = _get_config(org_id)
     if not config.get("api_key") and config.get("proveedor") != "ollama":
         raise HTTPException(
             status_code=503,
@@ -126,17 +135,21 @@ async def chat_message(
 @router.get("/config")
 def get_active_config(sa=Depends(_require_superadmin)):
     """Returns the currently active config (api_key masked)."""
-    return _mask_key(_get_config())
+    return _mask_key(_get_config(sa.get("organizacion_id")))
 
 
 # ── Multi-config CRUD ─────────────────────────────────────────────────────────
 
 @router.get("/configs")
 def list_configs(sa=Depends(_require_superadmin)):
-    """List all saved configurations."""
+    """List all saved configurations for this org."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chatbot_config ORDER BY activo DESC, id ASC")
+            cur.execute(
+                "SELECT * FROM chatbot_config WHERE organizacion_id = %s ORDER BY activo DESC, id ASC",
+                (org_id,),
+            )
             rows = cur.fetchall()
     return [_mask_key(dict(r)) for r in rows]
 
@@ -144,22 +157,24 @@ def list_configs(sa=Depends(_require_superadmin)):
 @router.post("/configs")
 def create_config(body: ConfigCreate, sa=Depends(_require_superadmin)):
     """Create a new configuration (inactive by default)."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO chatbot_config (nombre, proveedor, api_key, modelo, base_url, temperatura, activo, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())
+                INSERT INTO chatbot_config (nombre, proveedor, api_key, modelo, base_url, temperatura, activo, organizacion_id, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
                 RETURNING *
-            """, (body.nombre, body.proveedor, body.api_key, body.modelo, body.base_url, body.temperatura))
+            """, (body.nombre, body.proveedor, body.api_key, body.modelo, body.base_url, body.temperatura, org_id))
             return _mask_key(dict(cur.fetchone()))
 
 
 @router.put("/configs/{config_id}")
 def update_config(config_id: int, body: ConfigUpdate, sa=Depends(_require_superadmin)):
     """Update an existing configuration. Only provided fields are changed."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chatbot_config WHERE id = %s", (config_id,))
+            cur.execute("SELECT * FROM chatbot_config WHERE id = %s AND organizacion_id = %s", (config_id, org_id))
             existing = cur.fetchone()
             if not existing:
                 raise HTTPException(status_code=404, detail="Configuración no encontrada")
@@ -194,9 +209,10 @@ def update_config(config_id: int, body: ConfigUpdate, sa=Depends(_require_supera
 @router.delete("/configs/{config_id}")
 def delete_config(config_id: int, sa=Depends(_require_superadmin)):
     """Delete a configuration. Cannot delete the active one."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT activo FROM chatbot_config WHERE id = %s", (config_id,))
+            cur.execute("SELECT activo FROM chatbot_config WHERE id = %s AND organizacion_id = %s", (config_id, org_id))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Configuración no encontrada")
@@ -208,13 +224,14 @@ def delete_config(config_id: int, sa=Depends(_require_superadmin)):
 
 @router.post("/configs/{config_id}/activate")
 def activate_config(config_id: int, sa=Depends(_require_superadmin)):
-    """Set a configuration as the active one (deactivates all others)."""
+    """Set a configuration as the active one (deactivates all others for this org)."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM chatbot_config WHERE id = %s", (config_id,))
+            cur.execute("SELECT id FROM chatbot_config WHERE id = %s AND organizacion_id = %s", (config_id, org_id))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Configuración no encontrada")
-            cur.execute("UPDATE chatbot_config SET activo = FALSE")
+            cur.execute("UPDATE chatbot_config SET activo = FALSE WHERE organizacion_id = %s", (org_id,))
             cur.execute(
                 "UPDATE chatbot_config SET activo = TRUE, updated_at = NOW() WHERE id = %s RETURNING *",
                 (config_id,),

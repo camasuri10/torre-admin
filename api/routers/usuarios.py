@@ -155,7 +155,8 @@ def get_usuario(usuario_id: int):
 
 
 @router.post("", status_code=201)
-def create_usuario(data: UsuarioCreate):
+def create_usuario(data: UsuarioCreate, current_user: dict = Depends(get_current_user)):
+    org_id = current_user.get("organizacion_id")
     password_hash = None
     if data.password:
         try:
@@ -167,9 +168,9 @@ def create_usuario(data: UsuarioCreate):
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, tipo_documento, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
-                    (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash),
+                    "INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash, organizacion_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, tipo_documento, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
+                    (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash, org_id),
                 )
                 new_user = cur.fetchone()
                 # Auto-asociar al edificio del admin que lo crea

@@ -101,7 +101,11 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
     uid = int(user.get("sub", 0))
 
     if rol == "superadmin":
-        return None  # sin filtro
+        org_id = user.get("organizacion_id")
+        if org_id:
+            cur.execute("SELECT id FROM proveedores WHERE activo = TRUE AND organizacion_id = %s", (org_id,))
+            return [r["id"] for r in cur.fetchall()]
+        return []
 
     if rol == "administrador":
         cur.execute("""
@@ -205,14 +209,15 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
 
     creado_por = int(current_user.get("sub", 0))
     edificio_id = current_user.get("edificio_id")
+    org_id = current_user.get("organizacion_id")
 
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO proveedores (nombre, contacto, telefono, email, especialidad, nit, descripcion, creado_por)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                """INSERT INTO proveedores (nombre, contacto, telefono, email, especialidad, nit, descripcion, creado_por, organizacion_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (data.nombre, data.contacto, data.telefono, data.email,
-                 data.especialidad, data.nit, data.descripcion, creado_por),
+                 data.especialidad, data.nit, data.descripcion, creado_por, org_id),
             )
             proveedor = dict(cur.fetchone())
 

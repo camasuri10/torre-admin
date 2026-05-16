@@ -31,8 +31,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Backoffice",
     items: [
-      { href: "/dashboard/backoffice",          label: "Dashboard Global",   icon: "🌐", exact: true,  roles: ["backoffice"] },
-      { href: "/dashboard/backoffice/usuarios", label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice",                   label: "Dashboard Global",    icon: "🌐", exact: true,  roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/usuarios",          label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/organizaciones",    label: "Organizaciones",       icon: "🏢", exact: false, roles: ["backoffice"] },
     ],
   },
   {
@@ -237,6 +238,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </Link>
         </div>
+
+        {/* Org badge for SA */}
+        {isSuperAdmin && user?.organizacion_nombre && (
+          <div className="px-4 py-2 border-b border-white/10">
+            <div className="bg-white/10 rounded-lg px-3 py-2">
+              <div className="text-blue-300 text-xs mb-0.5">Organización</div>
+              <div className="text-white text-sm font-medium truncate">{user.organizacion_nombre}</div>
+            </div>
+          </div>
+        )}
 
         {/* Building selector */}
         <div className="px-4 py-3 border-b border-white/10" ref={switcherRef}>

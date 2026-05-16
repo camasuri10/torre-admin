@@ -44,24 +44,40 @@ def get_db():
 
 
 # ─── Schema SQL ────────────────────────────────────────────────────────────────
-# Hierarchy: Conjunto (optional) → Edificio → Torre → Unidad (apto/local/oficina)
-#            Conjunto (optional) → Unidad (casa, tipo='casa')
+# Top-level hierarchy: Organizacion (tenant) → Conjunto → Edificio → Torre → Unidad
 SCHEMA_SQL = """
--- Conjuntos Residenciales (agrupan edificios y/o casas)
-CREATE TABLE IF NOT EXISTS conjuntos (
+-- ── Organizaciones (top-level tenants) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS organizaciones (
     id          SERIAL PRIMARY KEY,
     nombre      TEXT NOT NULL,
-    nit         TEXT,
+    nit         TEXT UNIQUE,
+    email       TEXT,
     telefono    TEXT,
     direccion   TEXT,
     ciudad      TEXT,
     pais        TEXT NOT NULL DEFAULT 'Colombia',
+    logo_url    TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Edificios (pueden pertenecer a un conjunto o ser independientes)
+-- Conjuntos Residenciales (agrupan edificios y/o casas — pertenecen a una organización)
+CREATE TABLE IF NOT EXISTS conjuntos (
+    id              SERIAL PRIMARY KEY,
+    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+    nombre          TEXT NOT NULL,
+    nit             TEXT,
+    telefono        TEXT,
+    direccion       TEXT,
+    ciudad          TEXT,
+    pais            TEXT NOT NULL DEFAULT 'Colombia',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Edificios (pertenecen a una organización; pueden estar dentro de un conjunto)
 CREATE TABLE IF NOT EXISTS edificios (
     id              SERIAL PRIMARY KEY,
+    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
     direccion       TEXT NOT NULL,
     pisos           INTEGER NOT NULL DEFAULT 1,
@@ -77,16 +93,14 @@ ALTER TABLE edificios ADD COLUMN IF NOT EXISTS telefono TEXT;
 CREATE TABLE IF NOT EXISTS torres (
     id              SERIAL PRIMARY KEY,
     edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    nombre          TEXT NOT NULL,          -- "Torre A", "Torre Norte", "Torre Principal"
-    numero          TEXT,                   -- identificador corto: "A", "1", "B"
+    nombre          TEXT NOT NULL,
+    numero          TEXT,
     pisos           INTEGER,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Unidades privadas (apartamentos, locales, oficinas, casas)
--- torre_id  → unidad dentro de una torre (aptos, locales, oficinas)
--- conjunto_id → casa directamente en el conjunto (sin edificio/torre)
 CREATE TABLE IF NOT EXISTS unidades (
     id              SERIAL PRIMARY KEY,
     torre_id        INTEGER REFERENCES torres(id) ON DELETE CASCADE,
@@ -106,8 +120,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unidades_casa_numero
     ON unidades(conjunto_id, numero) WHERE conjunto_id IS NOT NULL AND tipo = 'casa';
 
 -- Usuarios (todos los roles del sistema)
+-- organizacion_id: NULL para backoffice (platform-level) y superadmin (org via M:M)
 CREATE TABLE IF NOT EXISTS usuarios (
     id                  SERIAL PRIMARY KEY,
+    organizacion_id     INTEGER REFERENCES organizaciones(id),
     nombre              TEXT NOT NULL,
     cedula              TEXT UNIQUE,
     email               TEXT UNIQUE,
@@ -122,7 +138,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     notif_whatsapp      BOOLEAN NOT NULL DEFAULT FALSE,
     eps                 TEXT,
     aseguradora_riesgo  TEXT,
-    proveedor_id        INTEGER,            -- FK to proveedores added after that table exists
+    proveedor_id        INTEGER,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -142,7 +158,7 @@ CREATE TABLE IF NOT EXISTS ocupaciones (
 CREATE TABLE IF NOT EXISTS cuotas (
     id                  SERIAL PRIMARY KEY,
     unidad_id           INTEGER NOT NULL REFERENCES unidades(id) ON DELETE CASCADE,
-    mes                 TEXT NOT NULL,          -- "2025-07"
+    mes                 TEXT NOT NULL,
     monto               NUMERIC(12,2) NOT NULL,
     estado              TEXT NOT NULL DEFAULT 'pendiente'
                             CHECK (estado IN ('pagado','pendiente','vencido')),
@@ -177,11 +193,10 @@ CREATE TABLE IF NOT EXISTS mascotas (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Proveedores de servicios
--- La asociación a conjuntos/edificios se hace vía contratos_servicio.
--- Los campos edificio_id/conjunto_id son legacy, se mantienen como nullable.
+-- Proveedores de servicios (pertenecen a una organización)
 CREATE TABLE IF NOT EXISTS proveedores (
     id              SERIAL PRIMARY KEY,
+    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
     contacto        TEXT,
     telefono        TEXT,
@@ -192,13 +207,14 @@ CREATE TABLE IF NOT EXISTS proveedores (
     creado_por      INTEGER REFERENCES usuarios(id),
     edificio_id     INTEGER REFERENCES edificios(id),
     conjunto_id     INTEGER REFERENCES conjuntos(id),
+    descripcion     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- FK diferido: usuarios.proveedor_id → proveedores (tabla creada después)
+-- FK diferido: usuarios.proveedor_id → proveedores
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
 
--- Asociación muchos-a-muchos: proveedor ↔ edificio o conjunto
+-- Asociación M:M: proveedor ↔ edificio o conjunto
 CREATE TABLE IF NOT EXISTS proveedor_edificios (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
@@ -216,13 +232,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
     ON proveedor_edificios(proveedor_id, conjunto_id) WHERE conjunto_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
 
--- Contratos de servicio (vinculan proveedor con conjunto o edificio)
+-- Contratos de servicio
 CREATE TABLE IF NOT EXISTS contratos_servicio (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
     conjunto_id     INTEGER REFERENCES conjuntos(id),
     edificio_id     INTEGER REFERENCES edificios(id),
-    tipo_servicio   TEXT NOT NULL,  -- 'seguridad','aseo','jardineria','mantenimiento','otro'
+    tipo_servicio   TEXT NOT NULL,
     descripcion     TEXT,
     fecha_inicio    DATE,
     fecha_fin       DATE,
@@ -264,7 +280,6 @@ CREATE TABLE IF NOT EXISTS mantenimientos (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Archivos adjuntos de mantenimiento
 CREATE TABLE IF NOT EXISTS mantenimiento_archivos (
     id                  SERIAL PRIMARY KEY,
     mantenimiento_id    INTEGER NOT NULL REFERENCES mantenimientos(id) ON DELETE CASCADE,
@@ -275,7 +290,6 @@ CREATE TABLE IF NOT EXISTS mantenimiento_archivos (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Alertas de mantenimiento preventivo
 CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
     id                  SERIAL PRIMARY KEY,
     edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
@@ -288,7 +302,6 @@ CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Inventario de zonas y componentes para mantenimiento
 CREATE TABLE IF NOT EXISTS inventario_mantenimiento (
     id          SERIAL PRIMARY KEY,
     edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
@@ -299,7 +312,6 @@ CREATE TABLE IF NOT EXISTS inventario_mantenimiento (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Columnas adicionales en mantenimientos
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS inventario_id INTEGER REFERENCES inventario_mantenimiento(id);
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS contrato_id INTEGER REFERENCES contratos_servicio(id);
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_proxima_ejecucion DATE;
@@ -307,7 +319,7 @@ ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_proxima_ejecucion DATE
 -- Comunicados
 CREATE TABLE IF NOT EXISTS comunicados (
     id                SERIAL PRIMARY KEY,
-    edificio_id       INTEGER REFERENCES edificios(id),   -- NULL = todos
+    edificio_id       INTEGER REFERENCES edificios(id),
     titulo            TEXT NOT NULL,
     contenido         TEXT NOT NULL,
     tipo              TEXT NOT NULL CHECK (tipo IN ('informativo','urgente','convocatoria','recordatorio')),
@@ -319,7 +331,6 @@ CREATE TABLE IF NOT EXISTS comunicados (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Auditoría de envíos de comunicados por usuario y canal
 CREATE TABLE IF NOT EXISTS comunicado_envios (
     id              SERIAL PRIMARY KEY,
     comunicado_id   INTEGER NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
@@ -347,7 +358,7 @@ CREATE TABLE IF NOT EXISTS chat_mensajes (
 CREATE TABLE IF NOT EXISTS zonas_comunes (
     id                      SERIAL PRIMARY KEY,
     edificio_id             INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    torre_id                INTEGER REFERENCES torres(id),  -- NULL = aplica a todo el edificio
+    torre_id                INTEGER REFERENCES torres(id),
     nombre                  TEXT NOT NULL,
     descripcion             TEXT,
     capacidad               INTEGER,
@@ -361,6 +372,10 @@ CREATE TABLE IF NOT EXISTS zonas_comunes (
     horario_inicio          TIME NOT NULL DEFAULT '07:00',
     horario_fin             TIME NOT NULL DEFAULT '22:00',
     capacidad_hora          INTEGER,
+    requiere_inventario     BOOLEAN NOT NULL DEFAULT FALSE,
+    costo_arriendo          NUMERIC(12,2),
+    costo_deposito          NUMERIC(12,2),
+    intervalo_reserva       INTEGER DEFAULT 60,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -375,11 +390,18 @@ CREATE TABLE IF NOT EXISTS reservas (
     hora_inicio         TIME NOT NULL,
     hora_fin            TIME NOT NULL,
     estado              TEXT NOT NULL DEFAULT 'pendiente'
-                            CHECK (estado IN ('confirmada','pendiente','cancelada','no_usada')),
+                            CHECK (estado IN (
+                                'confirmada','pendiente','cancelada','no_usada',
+                                'en_revision','lista_espera','pago_pendiente','pagada',
+                                'deposito_devuelto','en_curso','finalizada','no_presentado'
+                            )),
     notas               TEXT,
     cancelada_por       TEXT,
     motivo_cancelacion  TEXT,
     alerta_enviada      BOOLEAN NOT NULL DEFAULT FALSE,
+    inventario_url      TEXT,
+    deposito_devuelto   BOOLEAN,
+    estado_entrega      TEXT CHECK (estado_entrega IN ('pendiente','inventario_adjunto','completada')),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -417,10 +439,10 @@ CREATE TABLE IF NOT EXISTS paquetes (
     fecha_entrega       TIMESTAMPTZ,
     entregado_a         TEXT,
     notas               TEXT,
+    residente_nombre    VARCHAR(255),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Notificaciones de paquetes
 CREATE TABLE IF NOT EXISTS paquete_notificaciones (
     id          SERIAL PRIMARY KEY,
     paquete_id  INTEGER NOT NULL REFERENCES paquetes(id) ON DELETE CASCADE,
@@ -439,7 +461,6 @@ CREATE TABLE IF NOT EXISTS guardias (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Turnos de guardias
 CREATE TABLE IF NOT EXISTS turnos (
     id              SERIAL PRIMARY KEY,
     guardia_id      INTEGER NOT NULL REFERENCES guardias(id) ON DELETE CASCADE,
@@ -453,7 +474,6 @@ CREATE TABLE IF NOT EXISTS turnos (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Eventos de guardias durante el turno
 CREATE TABLE IF NOT EXISTS guardia_eventos (
     id          SERIAL PRIMARY KEY,
     turno_id    INTEGER NOT NULL REFERENCES turnos(id) ON DELETE CASCADE,
@@ -480,7 +500,7 @@ CREATE TABLE IF NOT EXISTS edificio_modulos (
     PRIMARY KEY (edificio_id, modulo_id)
 );
 
--- Admins/staff asociados a edificios (con fechas de vigencia)
+-- Admins/staff asociados a edificios
 CREATE TABLE IF NOT EXISTS usuario_edificios (
     usuario_id  INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
     edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
@@ -490,7 +510,7 @@ CREATE TABLE IF NOT EXISTS usuario_edificios (
     PRIMARY KEY (usuario_id, edificio_id)
 );
 
--- Admins/staff asociados a conjuntos (con fechas de vigencia)
+-- Admins/staff asociados a conjuntos
 CREATE TABLE IF NOT EXISTS usuario_conjuntos (
     id              SERIAL PRIMARY KEY,
     usuario_id      INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
@@ -499,6 +519,16 @@ CREATE TABLE IF NOT EXISTS usuario_conjuntos (
     fecha_inicio    DATE,
     fecha_fin       DATE,
     UNIQUE(usuario_id, conjunto_id)
+);
+
+-- SuperAdmins asignados a organizaciones (M:M)
+CREATE TABLE IF NOT EXISTS organizacion_superadmins (
+    id               SERIAL PRIMARY KEY,
+    organizacion_id  INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+    usuario_id       INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    activo           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(organizacion_id, usuario_id)
 );
 
 -- Registro de uso de módulos (analytics)
@@ -563,25 +593,40 @@ CREATE TABLE IF NOT EXISTS encuesta_respuestas (
 
 -- Procurement
 CREATE TABLE IF NOT EXISTS ordenes_compra (
-    id                  SERIAL PRIMARY KEY,
-    numero_orden        TEXT UNIQUE NOT NULL,
-    titulo              TEXT NOT NULL,
-    tipo_orden          TEXT NOT NULL CHECK (tipo_orden IN (
-                            'compra_bienes','servicio_mantenimiento','servicio_seguridad',
-                            'servicio_aseo','obra_civil','otro')),
-    proveedor_id        INTEGER REFERENCES proveedores(id),
-    descripcion         TEXT,
-    monto_estimado      NUMERIC(15,2) NOT NULL DEFAULT 0,
-    monto_final         NUMERIC(15,2),
-    estado              TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
-                            'borrador','pendiente_aprobacion','aprobada',
-                            'rechazada','en_ejecucion','completada','cancelada')),
-    fecha_necesidad     DATE,
-    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    solicitante_id      INTEGER REFERENCES usuarios(id),
-    motivo_cancelacion  TEXT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                          SERIAL PRIMARY KEY,
+    numero_orden                TEXT UNIQUE NOT NULL,
+    titulo                      TEXT NOT NULL,
+    tipo_orden                  TEXT NOT NULL CHECK (tipo_orden IN (
+                                    'compra_bienes','servicio_mantenimiento','servicio_seguridad',
+                                    'servicio_aseo','obra_civil','otro')),
+    proveedor_id                INTEGER REFERENCES proveedores(id),
+    descripcion                 TEXT,
+    monto_estimado              NUMERIC(15,2) NOT NULL DEFAULT 0,
+    monto_final                 NUMERIC(15,2),
+    estado                      TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
+                                    'borrador','pendiente_aprobacion','aprobada',
+                                    'rechazada','en_ejecucion','completada','cancelada')),
+    fecha_necesidad             DATE,
+    edificio_id                 INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    solicitante_id              INTEGER REFERENCES usuarios(id),
+    motivo_cancelacion          TEXT,
+    clasificacion               TEXT CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo','actividad')),
+    cantidad                    NUMERIC(10,2),
+    justificacion               TEXT,
+    evidencias                  JSONB DEFAULT '[]',
+    requiere_asamblea           BOOLEAN NOT NULL DEFAULT FALSE,
+    asamblea_estado             TEXT CHECK (asamblea_estado IN ('pendiente','aprobada','rechazada')),
+    asamblea_acta_url           TEXT,
+    asamblea_cotizacion_url     TEXT,
+    asamblea_fecha              TIMESTAMPTZ,
+    asamblea_comentario         TEXT,
+    es_individual               BOOLEAN DEFAULT FALSE,
+    requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE,
+    consejo_estado              TEXT CHECK (consejo_estado IN ('pendiente','aprobada','rechazada')),
+    consejo_comentario          TEXT,
+    proyecto_id                 INTEGER REFERENCES ordenes_compra(id),
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS orden_items (
@@ -595,16 +640,17 @@ CREATE TABLE IF NOT EXISTS orden_items (
 );
 
 CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
-    id                   SERIAL PRIMARY KEY,
-    titulo               TEXT NOT NULL,
-    tipo                 TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
-    descripcion          TEXT,
-    fecha_limite         DATE,
-    criterios_evaluacion TEXT,
-    estado               TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
-    edificio_id          INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    created_by           INTEGER REFERENCES usuarios(id),
-    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                          SERIAL PRIMARY KEY,
+    titulo                      TEXT NOT NULL,
+    tipo                        TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
+    descripcion                 TEXT,
+    fecha_limite                DATE,
+    criterios_evaluacion        TEXT,
+    estado                      TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
+    edificio_id                 INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    created_by                  INTEGER REFERENCES usuarios(id),
+    num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS cotizaciones (
@@ -651,7 +697,7 @@ CREATE TABLE IF NOT EXISTS orden_aprobaciones (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Empleados de proveedores (contratistas con personal en sitio)
+-- Empleados de proveedores
 CREATE TABLE IF NOT EXISTS proveedor_empleados (
     id            SERIAL PRIMARY KEY,
     proveedor_id  INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
@@ -663,7 +709,6 @@ CREATE TABLE IF NOT EXISTS proveedor_empleados (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Documentos de seguridad social por empleado (salud, pensión, ARL)
 CREATE TABLE IF NOT EXISTS empleado_documentos (
     id                SERIAL PRIMARY KEY,
     empleado_id       INTEGER NOT NULL REFERENCES proveedor_empleados(id) ON DELETE CASCADE,
@@ -674,7 +719,6 @@ CREATE TABLE IF NOT EXISTS empleado_documentos (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Tareas/hitos de la línea de tiempo de gestión de contratos
 CREATE TABLE IF NOT EXISTS contrato_tareas (
     id               SERIAL PRIMARY KEY,
     contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
@@ -690,7 +734,6 @@ CREATE TABLE IF NOT EXISTS contrato_tareas (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Comentarios de avance por tarea o por contrato
 CREATE TABLE IF NOT EXISTS contrato_comentarios (
     id          SERIAL PRIMARY KEY,
     contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
@@ -700,7 +743,6 @@ CREATE TABLE IF NOT EXISTS contrato_comentarios (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Registro de pagos del contrato (comprobantes adjuntos como URL)
 CREATE TABLE IF NOT EXISTS contrato_pagos (
     id               SERIAL PRIMARY KEY,
     contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
@@ -712,446 +754,7 @@ CREATE TABLE IF NOT EXISTS contrato_pagos (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ─── Índices ────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_torres_edificio         ON torres(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_unidades_torre          ON unidades(torre_id);
-CREATE INDEX IF NOT EXISTS idx_unidades_conjunto       ON unidades(conjunto_id);
-CREATE INDEX IF NOT EXISTS idx_ocupaciones_unidad      ON ocupaciones(unidad_id);
-CREATE INDEX IF NOT EXISTS idx_ocupaciones_usuario     ON ocupaciones(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_cuotas_unidad           ON cuotas(unidad_id);
-CREATE INDEX IF NOT EXISTS idx_cuotas_estado           ON cuotas(estado);
-CREATE INDEX IF NOT EXISTS idx_mantenimientos_edificio ON mantenimientos(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_mantenimientos_estado   ON mantenimientos(estado);
-CREATE INDEX IF NOT EXISTS idx_accesos_edificio        ON accesos(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_accesos_fecha           ON accesos(fecha_entrada);
-CREATE INDEX IF NOT EXISTS idx_paquetes_unidad         ON paquetes(unidad_id);
-CREATE INDEX IF NOT EXISTS idx_paquetes_estado         ON paquetes(estado);
-CREATE INDEX IF NOT EXISTS idx_chat_edificio           ON chat_mensajes(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_turnos_guardia          ON turnos(guardia_id);
-CREATE INDEX IF NOT EXISTS idx_reservas_zona           ON reservas(zona_id);
-CREATE INDEX IF NOT EXISTS idx_reservas_fecha          ON reservas(fecha);
-CREATE INDEX IF NOT EXISTS idx_edificio_modulos        ON edificio_modulos(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_usuario_edificios       ON usuario_edificios(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario       ON vehiculos(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_mascotas_usuario        ON mascotas(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_proveedores_creado_por  ON proveedores(creado_por);
-CREATE INDEX IF NOT EXISTS idx_contratos_proveedor     ON contratos_servicio(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos       ON usuario_conjuntos(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio    ON modulos_uso(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha       ON modulos_uso(fecha);
-CREATE INDEX IF NOT EXISTS idx_edificios_conjunto      ON edificios(conjunto_id);
-CREATE INDEX IF NOT EXISTS idx_encuestas_edificio      ON encuestas(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas      ON encuesta_preguntas(encuesta_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones       ON encuesta_sesiones(encuesta_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas     ON encuesta_respuestas(sesion_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_edificio        ON ordenes_compra(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_estado          ON ordenes_compra(estado);
-CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor       ON ordenes_compra(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_orden_items             ON orden_items(orden_id);
-CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol        ON cotizaciones(solicitud_id);
-CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden      ON cotizaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_orden_aprob             ON orden_aprobaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_flujos_edificio         ON flujos_aprobacion(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio    ON solicitudes_cotizacion(edificio_id);
-"""
-
-
-# Incremental migrations for upgrading existing databases
-MIGRATION_SQL = """
--- v3.6 — NIT y teléfono en conjuntos
-ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS nit      TEXT;
-ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS telefono TEXT;
-
--- v3.5 — Jerarquía Conjunto → Edificio → Torre → Unidad
-
--- Nuevas columnas en edificios (si vienen de versión anterior)
-ALTER TABLE edificios DROP COLUMN IF EXISTS unidades;
-ALTER TABLE edificios ADD COLUMN IF NOT EXISTS conjunto_id INTEGER REFERENCES conjuntos(id);
-CREATE INDEX IF NOT EXISTS idx_edificios_conjunto ON edificios(conjunto_id);
-
--- Torres (nueva tabla)
-CREATE TABLE IF NOT EXISTS torres (
-    id          SERIAL PRIMARY KEY,
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    nombre      TEXT NOT NULL,
-    numero      TEXT,
-    pisos       INTEGER,
-    activo      BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_torres_edificio ON torres(edificio_id);
-
--- Unidades: agregar torre_id y campos nuevos (NO se elimina edificio_id para no romper datos)
-ALTER TABLE unidades ADD COLUMN IF NOT EXISTS torre_id     INTEGER REFERENCES torres(id);
-ALTER TABLE unidades ADD COLUMN IF NOT EXISTS conjunto_id  INTEGER REFERENCES conjuntos(id);
-ALTER TABLE unidades ADD COLUMN IF NOT EXISTS tipo         TEXT DEFAULT 'apartamento'
-    CHECK (tipo IN ('apartamento','local','oficina','casa','otro'));
-ALTER TABLE unidades ADD COLUMN IF NOT EXISTS activo       BOOLEAN DEFAULT TRUE;
-CREATE INDEX IF NOT EXISTS idx_unidades_torre    ON unidades(torre_id);
-CREATE INDEX IF NOT EXISTS idx_unidades_conjunto ON unidades(conjunto_id);
-
--- Nuevas columnas en usuarios
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eps                TEXT;
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aseguradora_riesgo TEXT;
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_sistema   BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_email     BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS notif_whatsapp  BOOLEAN NOT NULL DEFAULT FALSE;
-
--- Actualizar constraint de rol (incluye todos los roles actuales)
-ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
-ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
-    CHECK (rol IN ('superadmin','administrador','propietario','inquilino','portero','servicios','backoffice'));
-
--- Proveedores: hacer edificio_id nullable, agregar creado_por y conjunto_id
-ALTER TABLE proveedores ALTER COLUMN edificio_id DROP NOT NULL;
-ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS conjunto_id INTEGER REFERENCES conjuntos(id);
-ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS creado_por  INTEGER REFERENCES usuarios(id);
-CREATE INDEX IF NOT EXISTS idx_proveedores_conjunto    ON proveedores(conjunto_id);
-CREATE INDEX IF NOT EXISTS idx_proveedores_creado_por  ON proveedores(creado_por);
-
--- Contratos de servicio (nueva tabla)
-CREATE TABLE IF NOT EXISTS contratos_servicio (
-    id              SERIAL PRIMARY KEY,
-    proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    conjunto_id     INTEGER REFERENCES conjuntos(id),
-    edificio_id     INTEGER REFERENCES edificios(id),
-    tipo_servicio   TEXT NOT NULL,
-    descripcion     TEXT,
-    fecha_inicio    DATE,
-    fecha_fin       DATE,
-    condiciones     TEXT,
-    archivo_url     TEXT,
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_contratos_proveedor ON contratos_servicio(proveedor_id);
-
--- Usuarios asociados a conjuntos (nueva tabla)
-CREATE TABLE IF NOT EXISTS usuario_conjuntos (
-    id          SERIAL PRIMARY KEY,
-    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
-    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
-    activo      BOOLEAN NOT NULL DEFAULT TRUE,
-    fecha_inicio DATE,
-    fecha_fin    DATE,
-    UNIQUE(usuario_id, conjunto_id)
-);
-CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos ON usuario_conjuntos(usuario_id);
-
--- Fechas de vigencia en usuario_edificios
-ALTER TABLE usuario_edificios ADD COLUMN IF NOT EXISTS fecha_inicio DATE;
-ALTER TABLE usuario_edificios ADD COLUMN IF NOT EXISTS fecha_fin    DATE;
-
--- FK de usuarios.proveedor_id
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
-
--- proveedor_edificios (muchos-a-muchos proveedor ↔ edificio/conjunto)
-CREATE TABLE IF NOT EXISTS proveedor_edificios (
-    id              SERIAL PRIMARY KEY,
-    proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
-    conjunto_id     INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT pe_one_target CHECK (
-        (edificio_id IS NOT NULL)::int + (conjunto_id IS NOT NULL)::int = 1
-    )
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_edificio
-    ON proveedor_edificios(proveedor_id, edificio_id) WHERE edificio_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
-    ON proveedor_edificios(proveedor_id, conjunto_id) WHERE conjunto_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
-
--- Mantenimientos: columnas adicionales
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS es_programado     BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS periodicidad       TEXT
-    CHECK (periodicidad IN ('diario','semanal','mensual','trimestral','anual'));
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS proveedor_id      INTEGER REFERENCES proveedores(id);
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS contrato_url      TEXT;
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE;
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS presupuesto       NUMERIC(12,2);
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS torre_id          INTEGER REFERENCES torres(id);
-ALTER TABLE mantenimientos DROP CONSTRAINT IF EXISTS mantenimientos_categoria_check;
-ALTER TABLE mantenimientos ADD CONSTRAINT mantenimientos_categoria_check
-    CHECK (categoria IN ('plomeria','electricidad','estructura','ascensor','zonas_comunes','piscina','otro'));
-
--- Zonas comunes: actualizar torre_id FK a apuntar a torres
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS torre_id_new INTEGER REFERENCES torres(id);
-
--- Reservas: columnas adicionales
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS registrado_por_id  INTEGER REFERENCES usuarios(id);
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS cancelada_por      TEXT;
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS motivo_cancelacion TEXT;
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS alerta_enviada     BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE reservas DROP CONSTRAINT IF EXISTS reservas_estado_check;
-ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check
-    CHECK (estado IN ('confirmada','pendiente','cancelada','no_usada'));
-
--- v4.0 — Comunicados mejorados (canales, programación, imagen, auditoría)
-ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS canales          TEXT DEFAULT '["sistema"]';
-ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS fecha_programada TIMESTAMPTZ;
-ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS imagen_url       TEXT;
-
-CREATE TABLE IF NOT EXISTS comunicado_envios (
-    id              SERIAL PRIMARY KEY,
-    comunicado_id   INTEGER NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
-    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    canal           TEXT NOT NULL CHECK (canal IN ('sistema','email','whatsapp')),
-    enviado_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    leido           BOOLEAN NOT NULL DEFAULT FALSE,
-    UNIQUE (comunicado_id, usuario_id, canal)
-);
-CREATE INDEX IF NOT EXISTS idx_comunicado_envios_comunicado ON comunicado_envios(comunicado_id);
-CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios(usuario_id);
-
--- v4.0 — Capacidad por hora en zonas comunes
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS capacidad_hora INTEGER;
-
--- v8.0 — Zonas: inventario, costo arriendo y depósito
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS requiere_inventario BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_arriendo NUMERIC(12,2);
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_deposito NUMERIC(12,2);
-
--- v8.0 — Reservas: entrega de inventario firmado y devolución depósito
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS inventario_url TEXT;
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS deposito_devuelto BOOLEAN;
-ALTER TABLE reservas ADD COLUMN IF NOT EXISTS estado_entrega TEXT CHECK (estado_entrega IN ('pendiente','inventario_adjunto','completada'));
-
--- v7.0 — Destinatarios selectivos en comunicados
-ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT DEFAULT NULL;
-
--- v7.0 — Encuestas
-CREATE TABLE IF NOT EXISTS encuestas (
-    id                SERIAL PRIMARY KEY,
-    edificio_id       INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    titulo            TEXT NOT NULL,
-    descripcion       TEXT,
-    estado            TEXT NOT NULL DEFAULT 'borrador'
-                          CHECK (estado IN ('borrador','activa','cerrada')),
-    anonima           BOOLEAN NOT NULL DEFAULT FALSE,
-    unidades_destino  TEXT DEFAULT NULL,
-    fecha_inicio      TIMESTAMPTZ,
-    fecha_cierre      TIMESTAMPTZ,
-    autor_id          INTEGER REFERENCES usuarios(id),
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS encuesta_preguntas (
-    id          SERIAL PRIMARY KEY,
-    encuesta_id INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
-    orden       INTEGER NOT NULL DEFAULT 1,
-    texto       TEXT NOT NULL,
-    tipo        TEXT NOT NULL CHECK (tipo IN ('unica','multiple','escala','texto')),
-    requerida   BOOLEAN NOT NULL DEFAULT TRUE,
-    escala_max  INTEGER NOT NULL DEFAULT 5
-);
-CREATE TABLE IF NOT EXISTS encuesta_opciones (
-    id          SERIAL PRIMARY KEY,
-    pregunta_id INTEGER NOT NULL REFERENCES encuesta_preguntas(id) ON DELETE CASCADE,
-    orden       INTEGER NOT NULL DEFAULT 1,
-    texto       TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS encuesta_sesiones (
-    id            SERIAL PRIMARY KEY,
-    encuesta_id   INTEGER NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
-    usuario_id    INTEGER REFERENCES usuarios(id),
-    unidad_id     INTEGER REFERENCES unidades(id),
-    respondida_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(encuesta_id, usuario_id)
-);
-CREATE TABLE IF NOT EXISTS encuesta_respuestas (
-    id           SERIAL PRIMARY KEY,
-    sesion_id    INTEGER NOT NULL REFERENCES encuesta_sesiones(id) ON DELETE CASCADE,
-    pregunta_id  INTEGER NOT NULL REFERENCES encuesta_preguntas(id),
-    opcion_id    INTEGER REFERENCES encuesta_opciones(id),
-    texto_libre  TEXT,
-    valor_escala INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_encuestas_edificio  ON encuestas(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
-CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
-
--- v8.0 — Módulo de Procurement
-CREATE TABLE IF NOT EXISTS ordenes_compra (
-    id SERIAL PRIMARY KEY, numero_orden TEXT UNIQUE NOT NULL, titulo TEXT NOT NULL,
-    tipo_orden TEXT NOT NULL CHECK (tipo_orden IN (
-        'compra_bienes','servicio_mantenimiento','servicio_seguridad','servicio_aseo','obra_civil','otro')),
-    proveedor_id INTEGER REFERENCES proveedores(id), descripcion TEXT,
-    monto_estimado NUMERIC(15,2) NOT NULL DEFAULT 0, monto_final NUMERIC(15,2),
-    estado TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN (
-        'borrador','pendiente_aprobacion','aprobada','rechazada','en_ejecucion','completada','cancelada')),
-    fecha_necesidad DATE, edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    solicitante_id INTEGER REFERENCES usuarios(id), motivo_cancelacion TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS orden_items (
-    id SERIAL PRIMARY KEY, orden_id INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
-    descripcion TEXT NOT NULL, cantidad NUMERIC(10,2) NOT NULL DEFAULT 1,
-    unidad_medida TEXT DEFAULT 'und', precio_unitario NUMERIC(15,2) NOT NULL DEFAULT 0,
-    subtotal NUMERIC(15,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED
-);
-CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
-    id SERIAL PRIMARY KEY, titulo TEXT NOT NULL, tipo TEXT NOT NULL CHECK (tipo IN ('RFP','RFQ')),
-    descripcion TEXT, fecha_limite DATE, criterios_evaluacion TEXT,
-    estado TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
-    created_by INTEGER REFERENCES usuarios(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS cotizaciones (
-    id SERIAL PRIMARY KEY, solicitud_id INTEGER REFERENCES solicitudes_cotizacion(id) ON DELETE SET NULL,
-    orden_id INTEGER REFERENCES ordenes_compra(id) ON DELETE SET NULL,
-    proveedor_id INTEGER NOT NULL REFERENCES proveedores(id), numero_cotizacion TEXT,
-    fecha_recepcion DATE NOT NULL DEFAULT CURRENT_DATE, monto NUMERIC(15,2) NOT NULL,
-    condiciones_pago TEXT, tiempo_entrega TEXT, vigencia DATE,
-    estado TEXT NOT NULL DEFAULT 'recibida' CHECK (estado IN ('recibida','ganadora','perdedora')),
-    observaciones TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS flujos_aprobacion (
-    id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, tipo_orden TEXT DEFAULT NULL,
-    monto_minimo NUMERIC(15,2) NOT NULL DEFAULT 0, monto_maximo NUMERIC(15,2),
-    nivel INTEGER NOT NULL DEFAULT 1, approver_rol TEXT NOT NULL,
-    approver_id INTEGER REFERENCES usuarios(id),
-    edificio_id INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
-    activo BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS orden_aprobaciones (
-    id SERIAL PRIMARY KEY, orden_id INTEGER NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
-    approver_id INTEGER REFERENCES usuarios(id), approver_rol TEXT,
-    nivel INTEGER NOT NULL DEFAULT 1,
-    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','aprobada','rechazada')),
-    comentario TEXT, fecha_decision TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_ordenes_edificio     ON ordenes_compra(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_estado       ON ordenes_compra(estado);
-CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor    ON ordenes_compra(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_orden_items          ON orden_items(orden_id);
-CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol     ON cotizaciones(solicitud_id);
-CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden   ON cotizaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_orden_aprob          ON orden_aprobaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_flujos_edificio          ON flujos_aprobacion(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio     ON solicitudes_cotizacion(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_prov_empleados_proveedor ON proveedor_empleados(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_empleado_docs_empleado   ON empleado_documentos(empleado_id);
-CREATE INDEX IF NOT EXISTS idx_contrato_tareas          ON contrato_tareas(contrato_id);
-CREATE INDEX IF NOT EXISTS idx_contrato_comentarios     ON contrato_comentarios(contrato_id);
-CREATE INDEX IF NOT EXISTS idx_contrato_pagos           ON contrato_pagos(contrato_id);
-
--- v9.0 — Procurement completo: clasificacion, asamblea, gestión contratos, empleados
-CREATE TABLE IF NOT EXISTS proveedor_empleados (
-    id            SERIAL PRIMARY KEY,
-    proveedor_id  INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    nombre        TEXT NOT NULL,
-    cedula        TEXT,
-    cargo         TEXT,
-    fecha_ingreso DATE,
-    activo        BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS empleado_documentos (
-    id                SERIAL PRIMARY KEY,
-    empleado_id       INTEGER NOT NULL REFERENCES proveedor_empleados(id) ON DELETE CASCADE,
-    tipo              TEXT NOT NULL CHECK (tipo IN ('salud','pension','arl','otro')),
-    url_documento     TEXT NOT NULL,
-    fecha_vencimiento DATE,
-    descripcion       TEXT,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS contrato_tareas (
-    id               SERIAL PRIMARY KEY,
-    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
-    titulo           TEXT NOT NULL,
-    descripcion      TEXT,
-    fecha_programada DATE,
-    fecha_completada DATE,
-    estado           TEXT NOT NULL DEFAULT 'pendiente'
-                         CHECK (estado IN ('pendiente','en_progreso','completada','vencida')),
-    tipo             TEXT NOT NULL DEFAULT 'personalizado'
-                         CHECK (tipo IN ('predefinido','personalizado')),
-    orden            INTEGER DEFAULT 0,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS contrato_comentarios (
-    id          SERIAL PRIMARY KEY,
-    contrato_id INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
-    tarea_id    INTEGER REFERENCES contrato_tareas(id) ON DELETE SET NULL,
-    comentario  TEXT NOT NULL,
-    autor_id    INTEGER REFERENCES usuarios(id),
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS contrato_pagos (
-    id               SERIAL PRIMARY KEY,
-    contrato_id      INTEGER NOT NULL REFERENCES contratos_servicio(id) ON DELETE CASCADE,
-    tipo_pago        TEXT NOT NULL CHECK (tipo_pago IN ('anticipo','finiquito','parcial')),
-    monto            NUMERIC(15,2) NOT NULL,
-    fecha_pago       DATE NOT NULL,
-    descripcion      TEXT,
-    url_comprobante  TEXT,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_prov_empleados_prv ON proveedor_empleados(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_empleado_docs      ON empleado_documentos(empleado_id);
-CREATE INDEX IF NOT EXISTS idx_ct_tareas          ON contrato_tareas(contrato_id);
-CREATE INDEX IF NOT EXISTS idx_ct_comentarios     ON contrato_comentarios(contrato_id);
-CREATE INDEX IF NOT EXISTS idx_ct_pagos           ON contrato_pagos(contrato_id);
-
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS clasificacion TEXT
-    CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo'));
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS cantidad NUMERIC(10,2);
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS justificacion TEXT;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS evidencias JSONB DEFAULT '[]';
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_asamblea BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_estado TEXT
-    CHECK (asamblea_estado IN ('pendiente','aprobada','rechazada'));
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_acta_url TEXT;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_cotizacion_url TEXT;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_fecha TIMESTAMPTZ;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS asamblea_comentario TEXT;
-CREATE INDEX IF NOT EXISTS idx_ordenes_clasificacion ON ordenes_compra(clasificacion);
-
-ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;
-ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);
-
-ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;
-
--- v10.0 — Proveedores: descripción libre
-ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS descripcion TEXT;
-
--- v10.0 — Contratos: documento de aprobación de asamblea
-ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS aprobacion_asamblea_url TEXT;
-
--- v11.0 — Bitácoras, Consejo, Reservas extendidas, Archivos genéricos, Paquetería
-
--- Mantenimientos: soporte para hijos recurrentes
-ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);
-
--- Zonas comunes: intervalo configurable por zona (minutos: 15, 30, 60)
-ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS intervalo_reserva INTEGER DEFAULT 60;
-
--- Paquetes: nombre del residente destinatario (sin usuario registrado)
-ALTER TABLE paquetes ADD COLUMN IF NOT EXISTS residente_nombre VARCHAR(255);
-
--- Reservas: ampliar estados disponibles
-ALTER TABLE reservas DROP CONSTRAINT IF EXISTS reservas_estado_check;
-ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check
-    CHECK (estado IN (
-        'confirmada','pendiente','cancelada','no_usada',
-        'en_revision','lista_espera','pago_pendiente','pagada',
-        'deposito_devuelto','en_curso','finalizada','no_presentado'
-    ));
-
--- Mantenimiento archivos: permitir tipo genérico (no solo foto/factura)
-ALTER TABLE mantenimiento_archivos DROP CONSTRAINT IF EXISTS mantenimiento_archivos_tipo_check;
-
--- Órdenes de compra: actividades individuales y aprobación por consejo
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS es_individual BOOLEAN DEFAULT FALSE;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE;
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_estado TEXT
-    CHECK (consejo_estado IN ('pendiente','aprobada','rechazada'));
-ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_comentario TEXT;
-
--- Nueva tabla: bitácora de mantenimientos
+-- Bitácora de mantenimientos
 CREATE TABLE IF NOT EXISTS mantenimiento_bitacora (
     id                  SERIAL PRIMARY KEY,
     mantenimiento_id    INTEGER NOT NULL REFERENCES mantenimientos(id) ON DELETE CASCADE,
@@ -1163,9 +766,8 @@ CREATE TABLE IF NOT EXISTS mantenimiento_bitacora (
     usuario_nombre      VARCHAR(255),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_mant_bitacora ON mantenimiento_bitacora(mantenimiento_id);
 
--- Nueva tabla: bitácora de reservas
+-- Bitácora de reservas
 CREATE TABLE IF NOT EXISTS reserva_bitacora (
     id              SERIAL PRIMARY KEY,
     reserva_id      INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
@@ -1177,9 +779,7 @@ CREATE TABLE IF NOT EXISTS reserva_bitacora (
     usuario_nombre  VARCHAR(255),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_reserva_bitacora ON reserva_bitacora(reserva_id);
 
--- Nueva tabla: archivos adjuntos de reservas
 CREATE TABLE IF NOT EXISTS reserva_archivos (
     id          SERIAL PRIMARY KEY,
     reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE CASCADE,
@@ -1188,9 +788,8 @@ CREATE TABLE IF NOT EXISTS reserva_archivos (
     subido_por  INTEGER REFERENCES usuarios(id),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_reserva_archivos ON reserva_archivos(reserva_id);
 
--- Nueva tabla: miembros del consejo por edificio
+-- Consejo de administración
 CREATE TABLE IF NOT EXISTS consejo_miembros (
     id          SERIAL PRIMARY KEY,
     edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
@@ -1198,33 +797,138 @@ CREATE TABLE IF NOT EXISTS consejo_miembros (
     cargo       VARCHAR(100) NOT NULL,
     tipo        VARCHAR(20) NOT NULL DEFAULT 'activo',
     activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    unidad_id   INTEGER REFERENCES unidades(id),
+    residente_id INTEGER REFERENCES usuarios(id),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);
 
--- v11.0 — Consejo: link a unidad y residente propietario
+-- Chatbot IA (configuración por organización)
+CREATE TABLE IF NOT EXISTS chatbot_config (
+    id              SERIAL PRIMARY KEY,
+    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+    nombre          VARCHAR(100) NOT NULL DEFAULT 'Principal',
+    proveedor       VARCHAR(50)  NOT NULL DEFAULT 'claude',
+    api_key         TEXT,
+    modelo          VARCHAR(100),
+    base_url        TEXT,
+    temperatura     FLOAT        NOT NULL DEFAULT 0.3,
+    activo          BOOLEAN      NOT NULL DEFAULT TRUE,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- ─── Índices ────────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_organizaciones_activo        ON organizaciones(activo);
+CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion       ON conjuntos(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_edificios_organizacion       ON edificios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_edificios_conjunto           ON edificios(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion        ON usuarios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion     ON proveedores(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_org_superadmins_org         ON organizacion_superadmins(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_org_superadmins_user        ON organizacion_superadmins(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_torres_edificio             ON torres(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_unidades_torre              ON unidades(torre_id);
+CREATE INDEX IF NOT EXISTS idx_unidades_conjunto           ON unidades(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_ocupaciones_unidad          ON ocupaciones(unidad_id);
+CREATE INDEX IF NOT EXISTS idx_ocupaciones_usuario         ON ocupaciones(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_cuotas_unidad               ON cuotas(unidad_id);
+CREATE INDEX IF NOT EXISTS idx_cuotas_estado               ON cuotas(estado);
+CREATE INDEX IF NOT EXISTS idx_mantenimientos_edificio     ON mantenimientos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_mantenimientos_estado       ON mantenimientos(estado);
+CREATE INDEX IF NOT EXISTS idx_accesos_edificio            ON accesos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_accesos_fecha               ON accesos(fecha_entrada);
+CREATE INDEX IF NOT EXISTS idx_paquetes_unidad             ON paquetes(unidad_id);
+CREATE INDEX IF NOT EXISTS idx_paquetes_estado             ON paquetes(estado);
+CREATE INDEX IF NOT EXISTS idx_chat_edificio               ON chat_mensajes(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_guardia              ON turnos(guardia_id);
+CREATE INDEX IF NOT EXISTS idx_reservas_zona               ON reservas(zona_id);
+CREATE INDEX IF NOT EXISTS idx_reservas_fecha              ON reservas(fecha);
+CREATE INDEX IF NOT EXISTS idx_edificio_modulos            ON edificio_modulos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_edificios           ON usuario_edificios(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario           ON vehiculos(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_mascotas_usuario            ON mascotas(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_creado_por      ON proveedores(creado_por);
+CREATE INDEX IF NOT EXISTS idx_contratos_proveedor         ON contratos_servicio(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos           ON usuario_conjuntos(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio        ON modulos_uso(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha           ON modulos_uso(fecha);
+CREATE INDEX IF NOT EXISTS idx_encuestas_edificio          ON encuestas(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas          ON encuesta_preguntas(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones           ON encuesta_sesiones(encuesta_id);
+CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas         ON encuesta_respuestas(sesion_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_edificio            ON ordenes_compra(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_estado              ON ordenes_compra(estado);
+CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor           ON ordenes_compra(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_proyecto            ON ordenes_compra(proyecto_id);
+CREATE INDEX IF NOT EXISTS idx_orden_items                 ON orden_items(orden_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol            ON cotizaciones(solicitud_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden          ON cotizaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_orden_aprob                 ON orden_aprobaciones(orden_id);
+CREATE INDEX IF NOT EXISTS idx_flujos_edificio             ON flujos_aprobacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio        ON solicitudes_cotizacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_prov_empleados              ON proveedor_empleados(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_empleado_docs               ON empleado_documentos(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_tareas             ON contrato_tareas(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_comentarios        ON contrato_comentarios(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_pagos              ON contrato_pagos(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_mant_bitacora               ON mantenimiento_bitacora(mantenimiento_id);
+CREATE INDEX IF NOT EXISTS idx_reserva_bitacora            ON reserva_bitacora(reserva_id);
+CREATE INDEX IF NOT EXISTS idx_reserva_archivos            ON reserva_archivos(reserva_id);
+CREATE INDEX IF NOT EXISTS idx_consejo_edificio            ON consejo_miembros(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(organizacion_id);
+"""
+
+
+# Incremental migrations for existing databases (safety net)
+MIGRATION_SQL = """
+-- v14.0 — Organizaciones (multi-tenancy top-level entity)
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE edificios  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE usuarios   ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS descripcion TEXT;
+
+CREATE TABLE IF NOT EXISTS organizacion_superadmins (
+    id               SERIAL PRIMARY KEY,
+    organizacion_id  INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+    usuario_id       INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    activo           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(organizacion_id, usuario_id)
+);
+
+ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(100);
+UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_org_superadmins_org  ON organizacion_superadmins(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_org_superadmins_user ON organizacion_superadmins(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion ON conjuntos(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_edificios_organizacion ON edificios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion  ON usuarios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion ON proveedores(organizacion_id);
+
+-- Reserve/zones extension (idempotent)
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS inventario_url TEXT;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS deposito_devuelto BOOLEAN;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS estado_entrega TEXT CHECK (estado_entrega IN ('pendiente','inventario_adjunto','completada'));
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS requiere_inventario BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_arriendo NUMERIC(12,2);
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS costo_deposito NUMERIC(12,2);
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS intervalo_reserva INTEGER DEFAULT 60;
+ALTER TABLE paquetes ADD COLUMN IF NOT EXISTS residente_nombre VARCHAR(255);
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS valor NUMERIC(15,2);
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP';
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);
+ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS aprobacion_asamblea_url TEXT;
+ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS unidad_id    INTEGER REFERENCES unidades(id);
 ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFERENCES usuarios(id);
-
--- v12.0 — Chatbot / Asistente IA
-CREATE TABLE IF NOT EXISTS chatbot_config (
-    id          SERIAL PRIMARY KEY,
-    proveedor   VARCHAR(50)  NOT NULL DEFAULT 'claude',
-    api_key     TEXT,
-    modelo      VARCHAR(100),
-    base_url    TEXT,
-    temperatura FLOAT        NOT NULL DEFAULT 0.3,
-    activo      BOOLEAN      NOT NULL DEFAULT TRUE,
-    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
 
 INSERT INTO modulos (clave, nombre, icono)
 VALUES ('chatbot', 'Asistente IA', '🤖')
 ON CONFLICT (clave) DO NOTHING;
-
--- v13.0 — Soporte multi-configuración chatbot
-ALTER TABLE chatbot_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(100);
-UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;
 """
 
 
@@ -1235,97 +939,6 @@ def init_db():
             cur.execute(SCHEMA_SQL)
             cur.execute(MIGRATION_SQL)
     print("✅ Database schema initialized")
-
-
-def _ensure_passwords(cur, pwd_context):
-    """Update password_hash for seeded users that don't have one yet."""
-    demo_passwords = {
-        "admin@torreadmin.co":        "Admin123!",
-        "superadmin@torreadmin.co":   "Super123!",
-        "backoffice@torreadmin.co":   "Back123!",
-        "guardia1@torreadmin.co":     "Guardia123!",
-        "c.martinez@gmail.com":       "Prop123!",
-        "mfgomez@hotmail.com":        "Torre123!",
-        "jsrojas@gmail.com":          "Torre123!",
-        "lv.herrera@outlook.com":     "Torre123!",
-    }
-    for email, pw in demo_passwords.items():
-        cur.execute(
-            "UPDATE usuarios SET password_hash = %s WHERE email = %s AND password_hash IS NULL",
-            (pwd_context.hash(pw), email),
-        )
-    print("✅ Demo passwords set")
-
-
-def _ensure_edificio_assignments(cur):
-    """Insert missing guardias, ocupaciones and usuario_edificios for demo users."""
-    cur.execute("SELECT id FROM edificios ORDER BY id LIMIT 1")
-    row = cur.fetchone()
-    if not row:
-        return
-    eid = row["id"]
-
-    cur.execute("SELECT id FROM usuarios WHERE email = 'guardia1@torreadmin.co'")
-    guardia_user = cur.fetchone()
-    if guardia_user:
-        cur.execute(
-            "INSERT INTO guardias (usuario_id, edificio_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-            (guardia_user["id"], eid),
-        )
-
-    cur.execute("SELECT id FROM usuarios WHERE email = 'admin@torreadmin.co'")
-    admin_user = cur.fetchone()
-    if admin_user:
-        cur.execute(
-            "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-            (admin_user["id"], eid),
-        )
-
-    # Ensure modules exist
-    modulos = [
-        ("finanzas",      "Finanzas",         "💰"),
-        ("mantenimiento", "Mantenimiento",     "🔧"),
-        ("comunicados",   "Comunicados",       "📢"),
-        ("zonas_comunes", "Zonas Comunes",     "🏊"),
-        ("accesos",       "Control de Acceso", "🔐"),
-        ("paquetes",      "Paquetería",        "📦"),
-        ("chat",          "Chat Seguridad",    "💬"),
-        ("guardias",      "Guardias y Turnos", "👮"),
-        ("reportes",      "Reportes",          "📈"),
-        ("procurement",   "Procurement",       "🛒"),
-    ]
-    for clave, nombre, icono in modulos:
-        cur.execute(
-            "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s) ON CONFLICT (clave) DO NOTHING",
-            (clave, nombre, icono),
-        )
-
-    cur.execute("SELECT id FROM edificios")
-    edificio_ids = [r["id"] for r in cur.fetchall()]
-    cur.execute("SELECT id FROM modulos")
-    modulo_ids = [r["id"] for r in cur.fetchall()]
-    for e in edificio_ids:
-        for m in modulo_ids:
-            cur.execute(
-                "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-                (e, m),
-            )
-
-    cur.execute("SELECT id FROM usuarios WHERE email = 'superadmin@torreadmin.co'")
-    if not cur.fetchone():
-        cur.execute(
-            "INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES (%s,%s,%s,%s,%s)",
-            ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin"),
-        )
-
-    cur.execute("SELECT id FROM usuarios WHERE email = 'backoffice@torreadmin.co'")
-    if not cur.fetchone():
-        cur.execute(
-            "INSERT INTO usuarios (nombre, cedula, email, telefono, rol) VALUES (%s,%s,%s,%s,%s)",
-            ("Admin Backoffice", "00.000.002", "backoffice@torreadmin.co", "300 000 0002", "backoffice"),
-        )
-
-    print("✅ Demo edificio assignments ensured")
 
 
 def seed_db():
@@ -1343,11 +956,11 @@ def seed_db():
             if cur.fetchone()["count"] > 0:
                 if pwd_context:
                     _ensure_passwords(cur, pwd_context)
-                _ensure_edificio_assignments(cur)
+                _ensure_base_data(cur)
                 print("ℹ️  Database already seeded, skipping.")
                 return
 
-            # ── Módulos ──────────────────────────────────────────────────────
+            # ── Módulos ───────────────────────────────────────────────────────
             modulos = [
                 ("finanzas",      "Finanzas",         "💰"),
                 ("mantenimiento", "Mantenimiento",     "🔧"),
@@ -1359,42 +972,84 @@ def seed_db():
                 ("guardias",      "Guardias y Turnos", "👮"),
                 ("reportes",      "Reportes",          "📈"),
                 ("procurement",   "Procurement",       "🛒"),
+                ("chatbot",       "Asistente IA",      "🤖"),
             ]
             cur.executemany(
-                "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s)",
+                "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s) ON CONFLICT (clave) DO NOTHING",
                 modulos,
             )
 
-            # ── Super Admin ──────────────────────────────────────────────────
-            sa_hash = pwd_context.hash("Super123!") if pwd_context else None
+            # ── Organizaciones ────────────────────────────────────────────────
             cur.execute(
-                "INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-                ("Super Admin", "00.000.001", "superadmin@torreadmin.co", "300 000 0000", "superadmin", sa_hash),
+                """INSERT INTO organizaciones (nombre, nit, email, telefono, direccion, ciudad)
+                   VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+                ("Propiedades Norte Ltda", "900.123.456-7",
+                 "contacto@propiedadesnorte.co", "601 300 1111",
+                 "Cra 15 #85-32", "Bogotá"),
             )
-            sa_id = cur.fetchone()["id"]
+            org1_id = cur.fetchone()["id"]
 
-            # ── Backoffice ───────────────────────────────────────────────────
+            cur.execute(
+                """INSERT INTO organizaciones (nombre, nit, email, telefono, direccion, ciudad)
+                   VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+                ("Inmobiliaria Sur SAS", "900.789.012-3",
+                 "info@inmobiliariasur.co", "601 400 2222",
+                 "Calle 100 #14-55", "Bogotá"),
+            )
+            org2_id = cur.fetchone()["id"]
+
+            # ── Backoffice (platform-level, no org) ───────────────────────────
             bo_hash = pwd_context.hash("Back123!") if pwd_context else None
             cur.execute(
-                "INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash) VALUES (%s,%s,%s,%s,%s,%s)",
-                ("Admin Backoffice", "00.000.002", "backoffice@torreadmin.co", "300 000 0002", "backoffice", bo_hash),
+                """INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash,organizacion_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                ("Admin Backoffice", "00.000.002", "backoffice@torreadmin.co",
+                 "300 000 0002", "backoffice", bo_hash, None),
             )
 
-            # ── Conjunto Nórdico ─────────────────────────────────────────────
+            # ── SuperAdmin 1 (both orgs) ──────────────────────────────────────
+            sa_hash = pwd_context.hash("Super123!") if pwd_context else None
             cur.execute(
-                "INSERT INTO conjuntos (nombre, direccion, ciudad) VALUES (%s,%s,%s) RETURNING id",
-                ("Conjunto Nórdico", "Cra 15 #85-32, Bogotá", "Bogotá"),
+                """INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash,organizacion_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                ("Super Admin", "00.000.001", "superadmin@torreadmin.co",
+                 "300 000 0000", "superadmin", sa_hash, None),
+            )
+            sa1_id = cur.fetchone()["id"]
+
+            # ── SuperAdmin 2 (org 2 only) ─────────────────────────────────────
+            cur.execute(
+                """INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash,organizacion_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                ("Super Admin Sur", "00.000.003", "superadmin2@torreadmin.co",
+                 "300 000 0003", "superadmin", sa_hash, None),
+            )
+            sa2_id = cur.fetchone()["id"]
+
+            # Assign SA1 → org1 + org2; SA2 → org2
+            cur.execute(
+                "INSERT INTO organizacion_superadmins (organizacion_id, usuario_id) VALUES (%s,%s),(%s,%s)",
+                (org1_id, sa1_id, org2_id, sa1_id),
+            )
+            cur.execute(
+                "INSERT INTO organizacion_superadmins (organizacion_id, usuario_id) VALUES (%s,%s)",
+                (org2_id, sa2_id),
+            )
+
+            # ── ORG 1 — Conjunto Nórdico (Propiedades Norte) ─────────────────
+            cur.execute(
+                "INSERT INTO conjuntos (organizacion_id, nombre, direccion, ciudad) VALUES (%s,%s,%s,%s) RETURNING id",
+                (org1_id, "Conjunto Nórdico", "Cra 15 #85-32, Bogotá", "Bogotá"),
             )
             conjunto_id = cur.fetchone()["id"]
 
-            # ── Edificio 1: Torres del Norte (dentro del conjunto) ───────────
+            # Edificio 1: Torres del Norte
             cur.execute(
-                "INSERT INTO edificios (nombre, direccion, pisos, conjunto_id) VALUES (%s,%s,%s,%s) RETURNING id",
-                ("Torres del Norte", "Cra 15 #85-32, Bogotá", 8, conjunto_id),
+                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos, conjunto_id) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                (org1_id, "Torres del Norte", "Cra 15 #85-32, Bogotá", 8, conjunto_id),
             )
             edificio_tdn_id = cur.fetchone()["id"]
 
-            # Torres A y B
             cur.execute(
                 "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
                 (edificio_tdn_id, "Torre A", "A", 8),
@@ -1407,15 +1062,12 @@ def seed_db():
             )
             torre_b_id = cur.fetchone()["id"]
 
-            # Unidades Torre A (8 pisos × 3 aptos)
             for piso in range(1, 9):
                 for apt in range(1, 4):
                     cur.execute(
                         "INSERT INTO unidades (torre_id, numero, piso, tipo, coeficiente) VALUES (%s,%s,%s,%s,%s)",
                         (torre_a_id, f"Apto {piso}0{apt}A", piso, "apartamento", round(1/24, 4)),
                     )
-
-            # Unidades Torre B (4 pisos × 2 aptos)
             for piso in range(1, 5):
                 for apt in range(1, 3):
                     cur.execute(
@@ -1423,10 +1075,10 @@ def seed_db():
                         (torre_b_id, f"Apto {piso}0{apt}B", piso, "apartamento", round(1/8, 4)),
                     )
 
-            # ── Edificio 2: Reserva del Parque (independiente) ───────────────
+            # Edificio 2: Reserva del Parque (org 1, no conjunto)
             cur.execute(
-                "INSERT INTO edificios (nombre, direccion, pisos) VALUES (%s,%s,%s) RETURNING id",
-                ("Reserva del Parque", "Av. El Dorado #68-11, Bogotá", 6),
+                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (org1_id, "Reserva del Parque", "Av. El Dorado #68-11, Bogotá", 6),
             )
             edificio_rp_id = cur.fetchone()["id"]
 
@@ -1443,10 +1095,10 @@ def seed_db():
                         (torre_rp_id, f"Apto {piso}0{apt}", piso, "apartamento", round(1/12, 4)),
                     )
 
-            # ── Edificio 3: Palma Real (independiente) ───────────────────────
+            # ── ORG 2 — Palma Real (Inmobiliaria Sur) ────────────────────────
             cur.execute(
-                "INSERT INTO edificios (nombre, direccion, pisos) VALUES (%s,%s,%s) RETURNING id",
-                ("Edificio Palma Real", "Calle 100 #14-55, Bogotá", 5),
+                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (org2_id, "Edificio Palma Real", "Calle 100 #14-55, Bogotá", 5),
             )
             edificio_pr_id = cur.fetchone()["id"]
 
@@ -1463,31 +1115,30 @@ def seed_db():
                         (torre_pr_id, f"Apto {piso}0{apt}", piso, "apartamento", round(1/10, 4)),
                     )
 
-            # ── Usuarios demo ────────────────────────────────────────────────
-            admin_hash    = pwd_context.hash("Admin123!")   if pwd_context else None
-            prop_hash     = pwd_context.hash("Prop123!")    if pwd_context else None
-            torre_hash    = pwd_context.hash("Torre123!")   if pwd_context else None
-            guardia_hash  = pwd_context.hash("Guardia123!") if pwd_context else None
+            # ── Usuarios demo (Org 1) ─────────────────────────────────────────
+            admin_hash   = pwd_context.hash("Admin123!")   if pwd_context else None
+            prop_hash    = pwd_context.hash("Prop123!")    if pwd_context else None
+            torre_hash   = pwd_context.hash("Torre123!")   if pwd_context else None
+            guardia_hash = pwd_context.hash("Guardia123!") if pwd_context else None
 
             demo_users = [
-                ("Juan Rodríguez",         "79.111.222",    "admin@torreadmin.co",    "310 000 0001", "administrador", admin_hash,   None, None),
-                ("Carlos Andrés Martínez", "79.456.123",    "c.martinez@gmail.com",   "310 456 7890", "propietario",   prop_hash,    "Compensar", "ARL Sura"),
-                ("María Fernanda Gómez",   "52.789.456",    "mfgomez@hotmail.com",    "315 234 5678", "propietario",   torre_hash,   None, None),
-                ("Jhon Sebastián Rojas",   "1.020.345.678", "jsrojas@gmail.com",      "300 987 6543", "inquilino",     torre_hash,   None, None),
-                ("Luisa Valentina Herrera","43.567.890",    "lv.herrera@outlook.com", "318 765 4321", "propietario",   torre_hash,   None, None),
-                ("Pedro Guardia",          "80.999.111",    "guardia1@torreadmin.co", "311 000 0001", "portero",       guardia_hash, None, None),
+                ("Juan Rodríguez",         "79.111.222",    "admin@torreadmin.co",    "310 000 0001", "administrador", admin_hash,   None, None,       org1_id),
+                ("Carlos Andrés Martínez", "79.456.123",    "c.martinez@gmail.com",   "310 456 7890", "propietario",   prop_hash,    "Compensar", "ARL Sura", org1_id),
+                ("María Fernanda Gómez",   "52.789.456",    "mfgomez@hotmail.com",    "315 234 5678", "propietario",   torre_hash,   None, None,       org1_id),
+                ("Jhon Sebastián Rojas",   "1.020.345.678", "jsrojas@gmail.com",      "300 987 6543", "inquilino",     torre_hash,   None, None,       org1_id),
+                ("Luisa Valentina Herrera","43.567.890",    "lv.herrera@outlook.com", "318 765 4321", "propietario",   torre_hash,   None, None,       org1_id),
+                ("Pedro Guardia",          "80.999.111",    "guardia1@torreadmin.co", "311 000 0001", "portero",       guardia_hash, None, None,       org1_id),
             ]
             user_ids = {}
-            for nombre, cedula, email, telefono, rol, ph, eps, aseg in demo_users:
+            for nombre, cedula, email, telefono, rol, ph, eps, aseg, org_id in demo_users:
                 cur.execute(
-                    """INSERT INTO usuarios (nombre,cedula,email,telefono,rol,password_hash,eps,aseguradora_riesgo)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (nombre, cedula, email, telefono, rol, ph, eps, aseg),
+                    """INSERT INTO usuarios (organizacion_id,nombre,cedula,email,telefono,rol,password_hash,eps,aseguradora_riesgo)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (org_id, nombre, cedula, email, telefono, rol, ph, eps, aseg),
                 )
                 user_ids[email] = cur.fetchone()["id"]
 
-            # ── Admin y guardia → Torres del Norte ───────────────────────────
-            admin_id = user_ids["admin@torreadmin.co"]
+            admin_id    = user_ids["admin@torreadmin.co"]
             guardia_uid = user_ids["guardia1@torreadmin.co"]
 
             cur.execute(
@@ -1503,7 +1154,7 @@ def seed_db():
                 (guardia_uid, edificio_tdn_id),
             )
 
-            # ── Ocupaciones demo (Torre A) ────────────────────────────────────
+            # ── Ocupaciones demo ──────────────────────────────────────────────
             ocupaciones_demo = [
                 ("c.martinez@gmail.com",   "Apto 101A", "propietario"),
                 ("mfgomez@hotmail.com",    "Apto 201A", "propietario"),
@@ -1523,7 +1174,7 @@ def seed_db():
                         (un["id"], uid, tipo),
                     )
 
-            # ── Zonas comunes ────────────────────────────────────────────────
+            # ── Zonas comunes ─────────────────────────────────────────────────
             cur.execute("""
                 INSERT INTO zonas_comunes (edificio_id, torre_id, nombre, descripcion, capacidad, icono, duracion_min_horas, duracion_max_horas) VALUES
                 (%s, %s, 'Gimnasio', 'Equipado con máquinas cardiovasculares y pesas libres.', 15, '🏋️', 1, 2),
@@ -1541,26 +1192,26 @@ def seed_db():
                 edificio_rp_id,
             ))
 
-            # ── Proveedores demo ─────────────────────────────────────────────
-            cur.execute("""
-                INSERT INTO proveedores (nombre,contacto,telefono,email,especialidad,nit,creado_por) VALUES
-                ('Elevadores Técnicos S.A.S','Carlos Mora','601 234 5678','contacto@elevtec.co','Ascensores','900.123.456-1',%s),
-                ('AquaServ Colombia','Luz Marina Pérez','314 567 8901','info@aquaserv.co','Piscinas y sistemas hidráulicos','900.234.567-2',%s),
-                ('Electrored Mantenimientos','Fabio Torres','315 678 9012','fabio@electrored.co','Electricidad','900.345.678-3',%s)
-                RETURNING id
-            """, (sa_id, sa_id, sa_id))
+            # ── Proveedores demo (Org 1) ──────────────────────────────────────
+            cur.execute(
+                """INSERT INTO proveedores (organizacion_id,nombre,contacto,telefono,email,especialidad,nit,creado_por) VALUES
+                (%s,'Elevadores Técnicos S.A.S','Carlos Mora','601 234 5678','contacto@elevtec.co','Ascensores','900.123.456-1',%s),
+                (%s,'AquaServ Colombia','Luz Marina Pérez','314 567 8901','info@aquaserv.co','Piscinas y sistemas hidráulicos','900.234.567-2',%s),
+                (%s,'Electrored Mantenimientos','Fabio Torres','315 678 9012','fabio@electrored.co','Electricidad','900.345.678-3',%s)""",
+                (org1_id, sa1_id, org1_id, sa1_id, org1_id, sa1_id),
+            )
 
-            # ── Activar todos los módulos en todos los edificios ─────────────
+            # ── Activar todos los módulos ─────────────────────────────────────
             cur.execute("SELECT id FROM modulos")
             modulo_ids = [r["id"] for r in cur.fetchall()]
             for eid in [edificio_tdn_id, edificio_rp_id, edificio_pr_id]:
                 for mid in modulo_ids:
                     cur.execute(
-                        "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE)",
+                        "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
                         (eid, mid),
                     )
 
-            # ── Cuotas demo (mes actual) ─────────────────────────────────────
+            # ── Cuotas demo ───────────────────────────────────────────────────
             from datetime import date
             mes_actual = date.today().strftime("%Y-%m")
             cur.execute("""
@@ -1577,4 +1228,60 @@ def seed_db():
                     (row["id"], mes_actual, date.today().replace(day=15)),
                 )
 
-            print("✅ Database seeded with demo data (v3.5 — jerarquía torres)")
+            print("✅ Database seeded with demo data (v14 — organizaciones multi-tenant)")
+
+
+def _ensure_passwords(cur, pwd_context):
+    """Update password_hash for seeded users that don't have one yet."""
+    demo_passwords = {
+        "admin@torreadmin.co":        "Admin123!",
+        "superadmin@torreadmin.co":   "Super123!",
+        "superadmin2@torreadmin.co":  "Super123!",
+        "backoffice@torreadmin.co":   "Back123!",
+        "guardia1@torreadmin.co":     "Guardia123!",
+        "c.martinez@gmail.com":       "Prop123!",
+        "mfgomez@hotmail.com":        "Torre123!",
+        "jsrojas@gmail.com":          "Torre123!",
+        "lv.herrera@outlook.com":     "Torre123!",
+    }
+    for email, pw in demo_passwords.items():
+        cur.execute(
+            "UPDATE usuarios SET password_hash = %s WHERE email = %s AND password_hash IS NULL",
+            (pwd_context.hash(pw), email),
+        )
+    print("✅ Demo passwords set")
+
+
+def _ensure_base_data(cur):
+    """Ensure modules and basic assignments exist for demo data."""
+    modulos = [
+        ("finanzas",      "Finanzas",         "💰"),
+        ("mantenimiento", "Mantenimiento",     "🔧"),
+        ("comunicados",   "Comunicados",       "📢"),
+        ("zonas_comunes", "Zonas Comunes",     "🏊"),
+        ("accesos",       "Control de Acceso", "🔐"),
+        ("paquetes",      "Paquetería",        "📦"),
+        ("chat",          "Chat Seguridad",    "💬"),
+        ("guardias",      "Guardias y Turnos", "👮"),
+        ("reportes",      "Reportes",          "📈"),
+        ("procurement",   "Procurement",       "🛒"),
+        ("chatbot",       "Asistente IA",      "🤖"),
+    ]
+    for clave, nombre, icono in modulos:
+        cur.execute(
+            "INSERT INTO modulos (clave, nombre, icono) VALUES (%s,%s,%s) ON CONFLICT (clave) DO NOTHING",
+            (clave, nombre, icono),
+        )
+
+    cur.execute("SELECT id FROM edificios")
+    edificio_ids = [r["id"] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM modulos")
+    modulo_ids = [r["id"] for r in cur.fetchall()]
+    for e in edificio_ids:
+        for m in modulo_ids:
+            cur.execute(
+                "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                (e, m),
+            )
+
+    print("✅ Base data ensured")

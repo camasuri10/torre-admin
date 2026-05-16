@@ -15,6 +15,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _require_superadmin(current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso restringido a Super Admin")
+    if not current_user.get("organizacion_id"):
+        raise HTTPException(status_code=403, detail="SuperAdmin sin organización activa. Selecciona una organización.")
     return current_user
 
 
@@ -80,35 +82,51 @@ class AdminUpdate(BaseModel):
 @router.get("/stats")
 def get_stats(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)):
     """
-    Totales del sistema + KPIs operacionales.
+    Totales del sistema + KPIs operacionales, filtrados por la organización del SA.
     Si conjunto_id es provisto, filtra solo edificios de ese conjunto.
     """
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            # Filtrar edificios por conjunto si se especifica
+            # Filtrar edificios por conjunto + org
             if conjunto_id:
-                cur.execute("SELECT id FROM edificios WHERE conjunto_id = %s", (conjunto_id,))
+                cur.execute(
+                    "SELECT id FROM edificios WHERE conjunto_id = %s AND organizacion_id = %s",
+                    (conjunto_id, org_id),
+                )
             else:
-                cur.execute("SELECT id FROM edificios")
+                cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
             edificio_ids = [r["id"] for r in cur.fetchall()]
             eid_list = tuple(edificio_ids) if edificio_ids else (0,)
 
-            cur.execute("SELECT COUNT(*) AS total FROM edificios")
+            cur.execute("SELECT COUNT(*) AS total FROM edificios WHERE organizacion_id = %s", (org_id,))
             total_edificios = cur.fetchone()["total"]
 
-            cur.execute("SELECT COUNT(*) AS total FROM conjuntos")
+            cur.execute("SELECT COUNT(*) AS total FROM conjuntos WHERE organizacion_id = %s", (org_id,))
             total_conjuntos = cur.fetchone()["total"]
 
-            cur.execute("SELECT COUNT(*) AS total FROM torres")
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM torres t JOIN edificios e ON e.id = t.edificio_id WHERE e.organizacion_id = %s",
+                (org_id,),
+            )
             total_torres = cur.fetchone()["total"]
 
-            cur.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'administrador' AND activo = TRUE")
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'administrador' AND activo = TRUE AND organizacion_id = %s",
+                (org_id,),
+            )
             total_admins = cur.fetchone()["total"]
 
-            cur.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol IN ('servicios','portero') AND activo = TRUE")
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM usuarios WHERE rol IN ('servicios','portero') AND activo = TRUE AND organizacion_id = %s",
+                (org_id,),
+            )
             total_staff = cur.fetchone()["total"]
 
-            cur.execute("SELECT COUNT(*) AS total FROM usuarios WHERE activo = TRUE")
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM usuarios WHERE activo = TRUE AND organizacion_id = %s",
+                (org_id,),
+            )
             total_usuarios = cur.fetchone()["total"]
 
             cur.execute("SELECT COUNT(*) AS total FROM modulos")
@@ -210,6 +228,7 @@ def get_stats(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)
 
 @router.get("/edificios")
 def list_edificios(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
@@ -231,9 +250,9 @@ def list_edificios(conjunto_id: Optional[int] = None, sa=Depends(_require_supera
                 LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
                 LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
                 LEFT JOIN edificio_modulos em ON em.edificio_id = e.id
-                WHERE 1=1
+                WHERE e.organizacion_id = %s
             """
-            params = []
+            params: list = [org_id]
             if conjunto_id is not None:
                 query += " AND e.conjunto_id = %s"
                 params.append(conjunto_id)
@@ -244,6 +263,7 @@ def list_edificios(conjunto_id: Optional[int] = None, sa=Depends(_require_supera
 
 @router.post("/edificios", status_code=201)
 def create_edificio(body: EdificioCreate, sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             conjunto_id = body.conjunto_id
@@ -251,14 +271,14 @@ def create_edificio(body: EdificioCreate, sa=Depends(_require_superadmin)):
             # Auto-create a conjunto with the same name if requested
             if body.create_conjunto and not conjunto_id:
                 cur.execute(
-                    "INSERT INTO conjuntos (nombre, nit, telefono, direccion) VALUES (%s,%s,%s,%s) RETURNING id",
-                    (body.nombre, body.nit, body.telefono, body.direccion),
+                    "INSERT INTO conjuntos (nombre, nit, telefono, direccion, organizacion_id) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (body.nombre, body.nit, body.telefono, body.direccion, org_id),
                 )
                 conjunto_id = cur.fetchone()["id"]
 
             cur.execute(
-                "INSERT INTO edificios (nombre, direccion, pisos, conjunto_id, nit, telefono) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-                (body.nombre, body.direccion, body.pisos, conjunto_id, body.nit, body.telefono),
+                "INSERT INTO edificios (nombre, direccion, pisos, conjunto_id, nit, telefono, organizacion_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (body.nombre, body.direccion, body.pisos, conjunto_id, body.nit, body.telefono, org_id),
             )
             edificio_id = cur.fetchone()["id"]
 
@@ -334,6 +354,7 @@ def update_modulos(edificio_id: int, body: ModulosUpdate, sa=Depends(_require_su
 
 @router.get("/admins")
 def list_admins(sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -346,15 +367,16 @@ def list_admins(sa=Depends(_require_superadmin)):
                 FROM usuarios u
                 LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
                 LEFT JOIN edificios e ON e.id = ue.edificio_id
-                WHERE u.rol = 'administrador'
+                WHERE u.rol = 'administrador' AND u.organizacion_id = %s
                 GROUP BY u.id
                 ORDER BY u.nombre
-            """)
+            """, (org_id,))
             return {"admins": [dict(r) for r in cur.fetchall()]}
 
 
 @router.get("/staff")
 def list_staff(sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -367,15 +389,16 @@ def list_staff(sa=Depends(_require_superadmin)):
                 FROM usuarios u
                 LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
                 LEFT JOIN edificios e ON e.id = ue.edificio_id
-                WHERE u.rol IN ('servicios', 'portero')
+                WHERE u.rol IN ('servicios', 'portero') AND u.organizacion_id = %s
                 GROUP BY u.id
                 ORDER BY u.rol, u.nombre
-            """)
+            """, (org_id,))
             return {"staff": [dict(r) for r in cur.fetchall()]}
 
 
 @router.post("/admins", status_code=201)
 def create_admin(body: AdminCreate, sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     allowed_roles = ("administrador", "portero", "servicios")
     if body.rol not in allowed_roles:
         raise HTTPException(status_code=400, detail=f"Rol debe ser uno de: {', '.join(allowed_roles)}")
@@ -390,10 +413,10 @@ def create_admin(body: AdminCreate, sa=Depends(_require_superadmin)):
                 cur.execute(
                     """INSERT INTO usuarios
                        (nombre, email, cedula, telefono, rol, password_hash,
-                        eps, aseguradora_riesgo, proveedor_id)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        eps, aseguradora_riesgo, proveedor_id, organizacion_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                     (body.nombre, body.email, body.cedula, body.telefono, body.rol,
-                     password_hash, body.eps, body.aseguradora_riesgo, proveedor_id),
+                     password_hash, body.eps, body.aseguradora_riesgo, proveedor_id, org_id),
                 )
             except Exception:
                 raise HTTPException(status_code=400, detail="El email o cédula ya existe")
@@ -486,18 +509,19 @@ def get_cuotas_detalle(
     sa=Depends(_require_superadmin),
 ):
     """Lista cuotas por estado con residente, unidad y edificio para drill-down en el SA panel."""
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            params: list = [estado]
-            where_eid = ""
             if conjunto_id:
-                cur.execute("SELECT id FROM edificios WHERE conjunto_id = %s", (conjunto_id,))
-                eid_list = [r["id"] for r in cur.fetchall()]
-                if eid_list:
-                    where_eid = "AND t.edificio_id = ANY(%s)"
-                    params.append(eid_list)
+                cur.execute(
+                    "SELECT id FROM edificios WHERE conjunto_id = %s AND organizacion_id = %s",
+                    (conjunto_id, org_id),
+                )
+            else:
+                cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
+            eid_list = [r["id"] for r in cur.fetchall()] or [0]
 
-            cur.execute(f"""
+            cur.execute("""
                 SELECT c.id, c.mes, c.monto, c.estado, c.fecha_vencimiento,
                        uni.numero AS unidad_numero, t.nombre AS torre_nombre,
                        e.nombre AS edificio_nombre,
@@ -508,10 +532,10 @@ def get_cuotas_detalle(
                 JOIN edificios e ON e.id = t.edificio_id
                 LEFT JOIN ocupaciones ocp ON ocp.unidad_id = uni.id AND ocp.activo = TRUE
                 LEFT JOIN usuarios usr ON usr.id = ocp.usuario_id
-                WHERE c.estado = %s {where_eid}
+                WHERE c.estado = %s AND t.edificio_id = ANY(%s)
                 ORDER BY e.nombre, t.nombre, uni.numero
                 LIMIT 300
-            """, params)
+            """, [estado, eid_list])
             return {"cuotas": [dict(r) for r in cur.fetchall()]}
 
 
@@ -523,20 +547,24 @@ def get_mantenimientos_detalle(
     conjunto_id: Optional[int] = None,
     sa=Depends(_require_superadmin),
 ):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            params: list = []
+            if conjunto_id:
+                cur.execute(
+                    "SELECT id FROM edificios WHERE conjunto_id = %s AND organizacion_id = %s",
+                    (conjunto_id, org_id),
+                )
+            else:
+                cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
+            eid_list = [r["id"] for r in cur.fetchall()] or [0]
+
+            params: list = [eid_list]
             where_estado = "AND m.estado IN ('pendiente','en_proceso')"
             if estado in ("pendiente", "en_proceso"):
                 where_estado = "AND m.estado = %s"
                 params.append(estado)
-            where_eid = ""
-            if conjunto_id:
-                cur.execute("SELECT id FROM edificios WHERE conjunto_id = %s", (conjunto_id,))
-                eid_list = [r["id"] for r in cur.fetchall()]
-                if eid_list:
-                    where_eid = "AND m.edificio_id = ANY(%s)"
-                    params.append(eid_list)
+
             cur.execute(f"""
                 SELECT m.id, m.titulo, m.estado, m.prioridad, m.categoria,
                        m.fecha_solicitud, m.es_programado,
@@ -547,7 +575,7 @@ def get_mantenimientos_detalle(
                 JOIN edificios e ON e.id = m.edificio_id
                 LEFT JOIN unidades u ON u.id = m.unidad_id
                 LEFT JOIN usuarios sol ON sol.id = m.solicitado_por_id
-                WHERE 1=1 {where_estado} {where_eid}
+                WHERE m.edificio_id = ANY(%s) {where_estado}
                 ORDER BY CASE m.prioridad
                     WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'media' THEN 3 ELSE 4
                 END, m.fecha_solicitud DESC
@@ -560,10 +588,14 @@ def get_mantenimientos_detalle(
 
 @router.get("/analytics")
 def get_analytics(edificio_id: Optional[int] = None, sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            params = []
-            where = "WHERE 1=1"
+            cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
+            org_eids = [r["id"] for r in cur.fetchall()] or [0]
+
+            params: list = [org_eids]
+            where = "WHERE mu.edificio_id = ANY(%s)"
             if edificio_id:
                 where += " AND mu.edificio_id = %s"
                 params.append(edificio_id)

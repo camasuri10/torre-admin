@@ -1,5 +1,6 @@
 const TOKEN_KEY = "torre_auth_token";
 const EDIFICIOS_KEY = "torre_edificios_disponibles";
+const ORGS_KEY = "torre_orgs_disponibles";
 const USER_TEMP_KEY = "torre_user_temp";
 
 export interface AuthUser {
@@ -8,10 +9,17 @@ export interface AuthUser {
   nombre: string;
   rol: "superadmin" | "administrador" | "propietario" | "inquilino" | "portero" | "servicios" | "backoffice";
   edificio_id?: number;
+  organizacion_id?: number;
+  organizacion_nombre?: string;
   exp: number;
 }
 
 export interface EdificioBasic {
+  id: number;
+  nombre: string;
+}
+
+export interface OrgBasic {
   id: number;
   nombre: string;
 }
@@ -36,6 +44,7 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(EDIFICIOS_KEY);
+  localStorage.removeItem(ORGS_KEY);
   localStorage.removeItem(USER_TEMP_KEY);
   document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
 }
@@ -87,7 +96,22 @@ export function setUserTemp(user: UserTemp): void {
   localStorage.setItem(USER_TEMP_KEY, JSON.stringify(user));
 }
 
+export function getOrgsDisponibles(): OrgBasic[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ORGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setOrgsDisponibles(orgs: OrgBasic[]): void {
+  localStorage.setItem(ORGS_KEY, JSON.stringify(orgs));
+}
+
 export function clearUserTemp(): void {
   localStorage.removeItem(EDIFICIOS_KEY);
+  localStorage.removeItem(ORGS_KEY);
   localStorage.removeItem(USER_TEMP_KEY);
 }

@@ -11,6 +11,8 @@ router = APIRouter()
 def _require_superadmin(current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso restringido a Super Admin")
+    if not current_user.get("organizacion_id"):
+        raise HTTPException(status_code=403, detail="SuperAdmin sin organización activa.")
     return current_user
 
 
@@ -34,30 +36,48 @@ class ConjuntoUpdate(BaseModel):
 
 @router.get("")
 def list_conjuntos(current_user: dict = Depends(get_current_user)):
+    rol = current_user.get("rol")
+    org_id = current_user.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT c.*,
-                       COUNT(DISTINCT e.id) AS total_edificios,
-                       COUNT(DISTINCT t.id) AS total_torres,
-                       COUNT(DISTINCT u.id) AS total_unidades
-                FROM conjuntos c
-                LEFT JOIN edificios e ON e.conjunto_id = c.id
-                LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
-                LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
-                GROUP BY c.id
-                ORDER BY c.nombre
-            """)
+            if rol == "superadmin" and org_id:
+                cur.execute("""
+                    SELECT c.*,
+                           COUNT(DISTINCT e.id) AS total_edificios,
+                           COUNT(DISTINCT t.id) AS total_torres,
+                           COUNT(DISTINCT u.id) AS total_unidades
+                    FROM conjuntos c
+                    LEFT JOIN edificios e ON e.conjunto_id = c.id
+                    LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                    LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
+                    WHERE c.organizacion_id = %s
+                    GROUP BY c.id
+                    ORDER BY c.nombre
+                """, (org_id,))
+            else:
+                cur.execute("""
+                    SELECT c.*,
+                           COUNT(DISTINCT e.id) AS total_edificios,
+                           COUNT(DISTINCT t.id) AS total_torres,
+                           COUNT(DISTINCT u.id) AS total_unidades
+                    FROM conjuntos c
+                    LEFT JOIN edificios e ON e.conjunto_id = c.id
+                    LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                    LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
+                    GROUP BY c.id
+                    ORDER BY c.nombre
+                """)
             return {"conjuntos": [dict(r) for r in cur.fetchall()]}
 
 
 @router.post("", status_code=201)
 def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_superadmin)):
+    org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO conjuntos (nombre, nit, telefono, direccion, ciudad, pais) VALUES (%s,%s,%s,%s,%s,%s) RETURNING *",
-                (body.nombre, body.nit, body.telefono, body.direccion, body.ciudad, body.pais),
+                "INSERT INTO conjuntos (nombre, nit, telefono, direccion, ciudad, pais, organizacion_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                (body.nombre, body.nit, body.telefono, body.direccion, body.ciudad, body.pais, org_id),
             )
             return dict(cur.fetchone())
 

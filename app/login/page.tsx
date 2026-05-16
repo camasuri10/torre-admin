@@ -3,14 +3,15 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
-import { setToken, setEdificiosDisponibles, setUserTemp } from "@/lib/auth";
+import { setToken, setEdificiosDisponibles, setOrgsDisponibles, setUserTemp } from "@/lib/auth";
 
 const DEMO_CREDENTIALS = [
-  { rol: "Super Admin",     email: "superadmin@torreadmin.co",  password: "Super123!" },
-  { rol: "Admin Backoffice", email: "backoffice@torreadmin.co", password: "Back123!" },
-  { rol: "Administrador",   email: "admin@torreadmin.co",       password: "Admin123!" },
-  { rol: "Propietario",     email: "c.martinez@gmail.com",      password: "Prop123!" },
-  { rol: "Portero",         email: "guardia1@torreadmin.co",    password: "Guardia123!" },
+  { rol: "Super Admin (2 orgs)", email: "superadmin@torreadmin.co",  password: "Super123!" },
+  { rol: "Super Admin (org 2)",  email: "superadmin2@torreadmin.co", password: "Super123!" },
+  { rol: "Admin Backoffice",     email: "backoffice@torreadmin.co",  password: "Back123!" },
+  { rol: "Administrador",        email: "admin@torreadmin.co",       password: "Admin123!" },
+  { rol: "Propietario",          email: "c.martinez@gmail.com",      password: "Prop123!" },
+  { rol: "Portero",              email: "guardia1@torreadmin.co",    password: "Guardia123!" },
 ];
 
 export default function LoginPage() {
@@ -26,6 +27,13 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await authApi.login(email, password);
+
+      if (data.requires_org_selection) {
+        setOrgsDisponibles(data.organizaciones);
+        setUserTemp(data.user_temp);
+        router.push("/login/seleccionar-organizacion");
+        return;
+      }
 
       if (data.requires_building_selection) {
         setEdificiosDisponibles(data.edificios);

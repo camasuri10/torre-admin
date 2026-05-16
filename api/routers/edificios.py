@@ -8,9 +8,15 @@ router = APIRouter()
 
 
 def _check_edificio_access(cur, user: dict, edificio_id: int):
-    """SA passes always; admin passes if assigned to the building; others → 403."""
+    """SA passes if building is in their org; admin passes if assigned to the building; others → 403."""
     rol = user.get("rol")
     if rol == "superadmin":
+        org_id = user.get("organizacion_id")
+        if org_id:
+            cur.execute("SELECT organizacion_id FROM edificios WHERE id = %s", (edificio_id,))
+            row = cur.fetchone()
+            if not row or row["organizacion_id"] != org_id:
+                raise HTTPException(status_code=403, detail="Sin acceso a este edificio")
         return
     if rol == "administrador":
         uid = int(user.get("sub", 0))

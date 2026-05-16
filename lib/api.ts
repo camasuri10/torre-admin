@@ -39,9 +39,15 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ user_id, edificio_id }),
     }),
+  seleccionarOrganizacion: (user_id: number, organizacion_id: number) =>
+    request<any>("/api/auth/seleccionar-organizacion", {
+      method: "POST",
+      body: JSON.stringify({ user_id, organizacion_id }),
+    }),
   seleccionarTodos: () =>
     request<any>("/api/auth/seleccionar-todos", { method: "POST", body: JSON.stringify({}) }),
   misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
+  misOrganizaciones: () => request<{ organizaciones: { id: number; nombre: string }[] }>("/api/auth/mis-organizaciones"),
   me: () => request<any>("/api/auth/me"),
 };
 
@@ -612,4 +618,19 @@ export const api = {
         { method: "POST", body: JSON.stringify(config ?? {}) }
       ),
   },
+};
+
+// ── Organizaciones (Backoffice) ────────────────────────────────────────────────
+export const organizacionesApi = {
+  list: () => request<any>("/api/organizaciones/"),
+  create: (data: any) => request<any>("/api/organizaciones/", { method: "POST", body: JSON.stringify(data) }),
+  get: (id: number) => request<any>(`/api/organizaciones/${id}`),
+  update: (id: number, data: any) => request<any>(`/api/organizaciones/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  asignarSA: (orgId: number, usuario_id: number) =>
+    request<any>(`/api/organizaciones/${orgId}/superadmins`, { method: "POST", body: JSON.stringify({ usuario_id }) }),
+  crearYAsignarSA: (orgId: number, data: any) =>
+    request<any>(`/api/organizaciones/${orgId}/superadmins/crear`, { method: "POST", body: JSON.stringify(data) }),
+  quitarSA: (orgId: number, usuarioId: number) =>
+    request<any>(`/api/organizaciones/${orgId}/superadmins/${usuarioId}`, { method: "DELETE" }),
+  superadminsDisponibles: () => request<any>("/api/organizaciones/superadmins/disponibles"),
 };
