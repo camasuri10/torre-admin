@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { organizacionesApi } from "@/lib/api";
 
+interface CrearSAForm {
+  nombre: string;
+  email: string;
+  password: string;
+  cedula: string;
+  telefono: string;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Org {
@@ -52,6 +60,12 @@ export default function OrganizacionesPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // Crear SA modal
+  const [showCrearSA, setShowCrearSA] = useState(false);
+  const [crearSAForm, setCrearSAForm] = useState<CrearSAForm>({ nombre: "", email: "", password: "", cedula: "", telefono: "" });
+  const [crearSASaving, setCrearSASaving] = useState(false);
+  const [crearSAError, setCrearSAError] = useState("");
+
   function load() {
     organizacionesApi.list()
       .then((d) => setOrgs(d.organizaciones))
@@ -100,6 +114,32 @@ export default function OrganizacionesPage() {
     const d = await organizacionesApi.superadminsDisponibles();
     setSADisponibles(d.superadmins);
     setShowAssignSA(true);
+  }
+
+  async function handleCrearSA(e: React.FormEvent) {
+    e.preventDefault();
+    if (!detailOrg) return;
+    if (!crearSAForm.nombre.trim() || !crearSAForm.email.trim() || !crearSAForm.password.trim()) {
+      setCrearSAError("Nombre, email y contraseña son obligatorios.");
+      return;
+    }
+    setCrearSASaving(true); setCrearSAError("");
+    try {
+      await organizacionesApi.crearYAsignarSA(detailOrg.id, {
+        nombre: crearSAForm.nombre.trim(),
+        email: crearSAForm.email.trim(),
+        password: crearSAForm.password,
+        cedula: crearSAForm.cedula || undefined,
+        telefono: crearSAForm.telefono || undefined,
+      });
+      setShowCrearSA(false);
+      setCrearSAForm({ nombre: "", email: "", password: "", cedula: "", telefono: "" });
+      const d = await organizacionesApi.get(detailOrg.id);
+      setDetailOrg(d.organizacion);
+      load();
+    } catch (err: any) {
+      setCrearSAError(err?.message ?? "Error al crear el SuperAdmin.");
+    } finally { setCrearSASaving(false); }
   }
 
   async function handleAssignSA(usuarioId: number) {
@@ -277,7 +317,15 @@ export default function OrganizacionesPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-gray-800">SuperAdmins asignados</h3>
-                <button onClick={openAssignSA} className="text-xs text-primary font-medium hover:underline">+ Asignar SA</button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowCrearSA(true); setCrearSAForm({ nombre: "", email: "", password: "", cedula: "", telefono: "" }); setCrearSAError(""); }}
+                    className="text-xs bg-primary text-white px-2.5 py-1 rounded-lg font-medium hover:bg-primary/90"
+                  >
+                    + Crear SA
+                  </button>
+                  <button onClick={openAssignSA} className="text-xs text-primary font-medium hover:underline">Asignar existente</button>
+                </div>
               </div>
               {detailOrg.superadmins.length === 0 ? (
                 <p className="text-xs text-gray-400">Sin SuperAdmins asignados</p>
@@ -319,6 +367,26 @@ export default function OrganizacionesPage() {
               )}
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Crear SA modal ── */}
+      {showCrearSA && detailOrg && (
+        <Modal title={`Crear SuperAdmin → ${detailOrg.nombre}`} onClose={() => setShowCrearSA(false)}>
+          <form onSubmit={handleCrearSA} className="space-y-3">
+            <Field label="Nombre completo *" value={crearSAForm.nombre} onChange={(v) => setCrearSAForm({ ...crearSAForm, nombre: v })} required />
+            <Field label="Email *" value={crearSAForm.email} onChange={(v) => setCrearSAForm({ ...crearSAForm, email: v })} type="email" required />
+            <Field label="Contraseña *" value={crearSAForm.password} onChange={(v) => setCrearSAForm({ ...crearSAForm, password: v })} type="password" required />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Cédula" value={crearSAForm.cedula} onChange={(v) => setCrearSAForm({ ...crearSAForm, cedula: v })} />
+              <Field label="Teléfono" value={crearSAForm.telefono} onChange={(v) => setCrearSAForm({ ...crearSAForm, telefono: v })} />
+            </div>
+            {crearSAError && <p className="text-xs text-red-600">{crearSAError}</p>}
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setShowCrearSA(false)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
+              <button type="submit" disabled={crearSASaving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{crearSASaving ? "Creando…" : "Crear y asignar"}</button>
+            </div>
+          </form>
         </Modal>
       )}
 

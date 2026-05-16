@@ -56,31 +56,40 @@ class CrearSARequest(BaseModel):
 
 
 def _org_stats(cur, org_id: int) -> dict:
-    cur.execute("SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s", (org_id,))
-    num_edificios = cur.fetchone()["count"]
+    def _count(sql, params=()):
+        try:
+            cur.execute(sql, params)
+            return cur.fetchone()["count"]
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT _org_stats")
+            return 0
 
-    cur.execute("SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s", (org_id,))
-    num_conjuntos = cur.fetchone()["count"]
+    cur.execute("SAVEPOINT _org_stats")
 
-    cur.execute(
+    num_edificios = _count("SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s", (org_id,))
+    cur.execute("SAVEPOINT _org_stats")
+
+    num_conjuntos = _count("SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s", (org_id,))
+    cur.execute("SAVEPOINT _org_stats")
+
+    num_superadmins = _count(
         "SELECT COUNT(*) FROM organizacion_superadmins WHERE organizacion_id = %s AND activo = TRUE",
         (org_id,),
     )
-    num_superadmins = cur.fetchone()["count"]
+    cur.execute("SAVEPOINT _org_stats")
 
-    cur.execute(
+    num_usuarios = _count(
         "SELECT COUNT(*) FROM usuarios WHERE organizacion_id = %s AND activo = TRUE",
         (org_id,),
     )
-    num_usuarios = cur.fetchone()["count"]
+    cur.execute("SAVEPOINT _org_stats")
 
-    cur.execute(
+    num_edificios_con_modulos = _count(
         """SELECT COUNT(DISTINCT em.edificio_id) FROM edificio_modulos em
            JOIN edificios e ON e.id = em.edificio_id
            WHERE e.organizacion_id = %s AND em.activo = TRUE""",
         (org_id,),
     )
-    num_edificios_con_modulos = cur.fetchone()["count"]
 
     return {
         "num_edificios": num_edificios,

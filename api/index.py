@@ -87,6 +87,37 @@ app.include_router(chatbot.router,        prefix="/api/chatbot",           tags=
 app.include_router(organizaciones.router, prefix="/api/organizaciones",    tags=["Organizaciones"])
 
 
+@app.get("/api/migrate-v15")
+def migrate_v15():
+    """v15: tipo_documento en usuarios, chatbot_config global (organizacion_id nullable)."""
+    from db import get_db
+    sqls = [
+        ("usuarios.tipo_documento",
+         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC'"),
+        ("organizacion_superadmins table",
+         """CREATE TABLE IF NOT EXISTS organizacion_superadmins (
+            id               SERIAL PRIMARY KEY,
+            organizacion_id  INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+            usuario_id       INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            activo           BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(organizacion_id, usuario_id)
+         )"""),
+        ("chatbot_config.organizacion_id nullable",
+         "ALTER TABLE chatbot_config ALTER COLUMN organizacion_id DROP NOT NULL"),
+    ]
+    results = []
+    for label, sql in sqls:
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+            results.append({"migration": label, "status": "ok"})
+        except Exception as e:
+            results.append({"migration": label, "status": "skipped", "detail": str(e)})
+    return {"status": "done", "migrations": results}
+
+
 @app.get("/api/migrate-v13")
 def migrate_v13():
     """Apply v13 migrations: chatbot multi-config support (nombre column)."""

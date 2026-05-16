@@ -34,6 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/backoffice",                   label: "Dashboard Global",    icon: "🌐", exact: true,  roles: ["backoffice"] },
       { href: "/dashboard/backoffice/usuarios",          label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
       { href: "/dashboard/backoffice/organizaciones",    label: "Organizaciones",       icon: "🏢", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/chatbot",           label: "Asistente IA",         icon: "🤖", exact: false, roles: ["backoffice"] },
     ],
   },
   {

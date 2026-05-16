@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     organizacion_id     INTEGER REFERENCES organizaciones(id),
     nombre              TEXT NOT NULL,
     cedula              TEXT UNIQUE,
+    tipo_documento      TEXT DEFAULT 'CC',
     email               TEXT UNIQUE,
     telefono            TEXT,
     rol                 TEXT NOT NULL CHECK (rol IN (
@@ -802,10 +803,10 @@ CREATE TABLE IF NOT EXISTS consejo_miembros (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Chatbot IA (configuración por organización)
+-- Chatbot IA (configuración global, gestionada por Backoffice)
 CREATE TABLE IF NOT EXISTS chatbot_config (
     id              SERIAL PRIMARY KEY,
-    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
+    organizacion_id INTEGER REFERENCES organizaciones(id) ON DELETE CASCADE,
     nombre          VARCHAR(100) NOT NULL DEFAULT 'Principal',
     proveedor       VARCHAR(50)  NOT NULL DEFAULT 'claude',
     api_key         TEXT,
@@ -880,6 +881,9 @@ CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(org
 
 # Incremental migrations for existing databases (safety net)
 MIGRATION_SQL = """
+-- v15.0 — tipo_documento para usuarios, chatbot_config global (sin NOT NULL en org)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC';
+
 -- v14.0 — Organizaciones (multi-tenancy top-level entity)
 ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE edificios  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);

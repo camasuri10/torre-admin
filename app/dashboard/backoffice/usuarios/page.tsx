@@ -69,6 +69,8 @@ export default function BackofficeUsuariosPage() {
     setShowModal(true);
   }
 
+  const [saCreatedWarning, setSaCreatedWarning] = useState(false);
+
   async function handleSave() {
     if (!form.nombre.trim() || !form.email.trim()) {
       setError("Nombre y email son obligatorios.");
@@ -97,6 +99,9 @@ export default function BackofficeUsuariosPage() {
           password: form.password,
           rol: form.rol,
         });
+        if (form.rol === "superadmin") {
+          setSaCreatedWarning(true);
+        }
       }
       setShowModal(false);
       loadUsuarios();
@@ -124,6 +129,21 @@ export default function BackofficeUsuariosPage() {
 
   return (
     <div className="space-y-6">
+      {/* Warning SA sin org */}
+      {saCreatedWarning && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <span className="text-xl mt-0.5">⚠️</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">SuperAdmin creado — asígnalo a una organización</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              El SuperAdmin no puede iniciar sesión hasta ser asignado a una organización.
+              Ve a <strong>Organizaciones</strong>, abre el detalle de la org y usa <em>Crear SA</em> o <em>Asignar existente</em>.
+            </p>
+          </div>
+          <button onClick={() => setSaCreatedWarning(false)} className="text-amber-500 hover:text-amber-700 text-lg leading-none">×</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
