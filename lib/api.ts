@@ -86,8 +86,11 @@ export const superadminApi = {
     if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
     return request<any>(`/api/superadmin/stats/mantenimientos-detalle?${params}`);
   },
-  analytics: (edificio_id?: number) => {
-    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+  analytics: (conjunto_id?: number, edificio_id?: number) => {
+    const params = new URLSearchParams();
+    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
+    if (edificio_id) params.set("edificio_id", String(edificio_id));
+    const q = params.toString() ? `?${params}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);
   },
   edificios: {

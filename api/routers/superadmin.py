@@ -54,6 +54,7 @@ class AdminCreate(BaseModel):
     nombre: str
     email: str
     password: str
+    tipo_documento: Optional[str] = "CC"
     cedula: Optional[str] = None
     telefono: Optional[str] = None
     rol: str = "administrador"          # administrador | portero | servicios
@@ -99,11 +100,18 @@ def get_stats(conjunto_id: Optional[int] = None, sa=Depends(_require_superadmin)
             edificio_ids = [r["id"] for r in cur.fetchall()]
             eid_list = tuple(edificio_ids) if edificio_ids else (0,)
 
-            cur.execute("SELECT COUNT(*) AS total FROM edificios WHERE organizacion_id = %s", (org_id,))
-            total_edificios = cur.fetchone()["total"]
-
-            cur.execute("SELECT COUNT(*) AS total FROM conjuntos WHERE organizacion_id = %s", (org_id,))
-            total_conjuntos = cur.fetchone()["total"]
+            if conjunto_id:
+                cur.execute(
+                    "SELECT COUNT(*) AS total FROM edificios WHERE conjunto_id = %s AND organizacion_id = %s",
+                    (conjunto_id, org_id),
+                )
+                total_edificios = cur.fetchone()["total"]
+                total_conjuntos = 1
+            else:
+                cur.execute("SELECT COUNT(*) AS total FROM edificios WHERE organizacion_id = %s", (org_id,))
+                total_edificios = cur.fetchone()["total"]
+                cur.execute("SELECT COUNT(*) AS total FROM conjuntos WHERE organizacion_id = %s", (org_id,))
+                total_conjuntos = cur.fetchone()["total"]
 
             cur.execute(
                 "SELECT COUNT(*) AS total FROM torres t JOIN edificios e ON e.id = t.edificio_id WHERE e.organizacion_id = %s",
@@ -413,10 +421,11 @@ def create_admin(body: AdminCreate, sa=Depends(_require_superadmin)):
                 cur.execute(
                     """INSERT INTO usuarios
                        (nombre, email, cedula, telefono, rol, password_hash,
-                        eps, aseguradora_riesgo, proveedor_id, organizacion_id)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        eps, aseguradora_riesgo, proveedor_id, organizacion_id, tipo_documento)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                     (body.nombre, body.email, body.cedula, body.telefono, body.rol,
-                     password_hash, body.eps, body.aseguradora_riesgo, proveedor_id, org_id),
+                     password_hash, body.eps, body.aseguradora_riesgo, proveedor_id, org_id,
+                     body.tipo_documento or "CC"),
                 )
             except Exception:
                 raise HTTPException(status_code=400, detail="El email o cédula ya existe")
@@ -587,11 +596,21 @@ def get_mantenimientos_detalle(
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
 @router.get("/analytics")
-def get_analytics(edificio_id: Optional[int] = None, sa=Depends(_require_superadmin)):
+def get_analytics(
+    conjunto_id: Optional[int] = None,
+    edificio_id: Optional[int] = None,
+    sa=Depends(_require_superadmin),
+):
     org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
+            if conjunto_id:
+                cur.execute(
+                    "SELECT id FROM edificios WHERE conjunto_id = %s AND organizacion_id = %s",
+                    (conjunto_id, org_id),
+                )
+            else:
+                cur.execute("SELECT id FROM edificios WHERE organizacion_id = %s", (org_id,))
             org_eids = [r["id"] for r in cur.fetchall()] or [0]
 
             params: list = [org_eids]

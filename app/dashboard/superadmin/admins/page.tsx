@@ -165,6 +165,7 @@ export default function AdminsPage() {
         nombre: form.nombre,
         email: form.email,
         password: form.password,
+        tipo_documento: form.tipo_documento,
         cedula: form.cedula || undefined,
         telefono: form.telefono || undefined,
         rol: form.rol,

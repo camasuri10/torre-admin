@@ -11,7 +11,7 @@ interface CrearSAForm {
   telefono: string;
 }
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Types
 
 interface Org {
   id: number;
@@ -41,7 +41,7 @@ interface SADisponible {
   organizaciones: { id: number; nombre: string }[];
 }
 
-// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Component
 
 export default function OrganizacionesPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -122,7 +122,7 @@ export default function OrganizacionesPage() {
     e.preventDefault();
     if (!detailOrg) return;
     if (!crearSAForm.nombre.trim() || !crearSAForm.email.trim() || !crearSAForm.password.trim()) {
-      setCrearSAError("Nombre, email y contraseÃ±a son obligatorios.");
+      setCrearSAError("Nombre, email y contraseña son obligatorios.");
       return;
     }
     setCrearSASaving(true); setCrearSAError("");
@@ -157,7 +157,7 @@ export default function OrganizacionesPage() {
   }
 
   async function handleQuitarSA(orgId: number, usuarioId: number) {
-    if (!confirm("Â¿Remover este SuperAdmin de la organizaciÃ³n?")) return;
+    if (!confirm("¿Remover este SuperAdmin de la organización?")) return;
     try {
       await organizacionesApi.quitarSA(orgId, usuarioId);
       const d = await organizacionesApi.get(orgId);
@@ -167,9 +167,9 @@ export default function OrganizacionesPage() {
     }
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Render
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando organizacionesâ€¦</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Cargando organizaciones…</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
 
   const totalActivas = orgs.filter((o) => o.activo).length;
@@ -196,23 +196,23 @@ export default function OrganizacionesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Organizaciones</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {orgs.length} organizaciones Â· {totalActivas} activas
+            {orgs.length} organizaciones · {totalActivas} activas
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
         >
-          + Nueva organizaciÃ³n
+          + Nueva organización
         </button>
       </div>
 
       <div className="relative max-w-xl">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">ðŸ”</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, NIT o ciudadâ€¦"
+          placeholder="Buscar por nombre, NIT o ciudad…"
           className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
       </div>
@@ -300,35 +300,35 @@ export default function OrganizacionesPage() {
         ))}
       </div>
 
-      {/* â”€â”€ Create modal â”€â”€ */}
+      {/* Create modal */}
       {showCreate && (
-        <Modal title="Nueva organizaciÃ³n" onClose={() => setShowCreate(false)}>
+        <Modal title="Nueva organización" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <Field label="Nombre *" value={createForm.nombre} onChange={(v) => setCreateForm({ ...createForm, nombre: v })} required />
             <Field label="NIT" value={createForm.nit} onChange={(v) => setCreateForm({ ...createForm, nit: v })} />
             <Field label="Email" value={createForm.email} onChange={(v) => setCreateForm({ ...createForm, email: v })} type="email" />
-            <Field label="TelÃ©fono" value={createForm.telefono} onChange={(v) => setCreateForm({ ...createForm, telefono: v })} />
-            <Field label="DirecciÃ³n" value={createForm.direccion} onChange={(v) => setCreateForm({ ...createForm, direccion: v })} />
+            <Field label="Teléfono" value={createForm.telefono} onChange={(v) => setCreateForm({ ...createForm, telefono: v })} />
+            <Field label="Dirección" value={createForm.direccion} onChange={(v) => setCreateForm({ ...createForm, direccion: v })} />
             <Field label="Ciudad" value={createForm.ciudad} onChange={(v) => setCreateForm({ ...createForm, ciudad: v })} />
-            <Field label="PaÃ­s" value={createForm.pais} onChange={(v) => setCreateForm({ ...createForm, pais: v })} />
+            <Field label="País" value={createForm.pais} onChange={(v) => setCreateForm({ ...createForm, pais: v })} />
             {saveError && <p className="text-xs text-red-600">{saveError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardandoâ€¦" : "Crear"}</button>
+              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardando…" : "Crear"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* â”€â”€ Edit modal â”€â”€ */}
+      {/* Edit modal */}
       {editOrg && (
-        <Modal title="Editar organizaciÃ³n" onClose={() => setEditOrg(null)}>
+        <Modal title="Editar organización" onClose={() => setEditOrg(null)}>
           <form onSubmit={handleUpdate} className="space-y-3">
             <Field label="Nombre *" value={editOrg.nombre} onChange={(v) => setEditOrg({ ...editOrg, nombre: v })} required />
             <Field label="NIT" value={editOrg.nit ?? ""} onChange={(v) => setEditOrg({ ...editOrg, nit: v })} />
             <Field label="Email" value={editOrg.email ?? ""} onChange={(v) => setEditOrg({ ...editOrg, email: v })} type="email" />
-            <Field label="TelÃ©fono" value={editOrg.telefono ?? ""} onChange={(v) => setEditOrg({ ...editOrg, telefono: v })} />
-            <Field label="DirecciÃ³n" value={editOrg.direccion ?? ""} onChange={(v) => setEditOrg({ ...editOrg, direccion: v })} />
+            <Field label="Teléfono" value={editOrg.telefono ?? ""} onChange={(v) => setEditOrg({ ...editOrg, telefono: v })} />
+            <Field label="Dirección" value={editOrg.direccion ?? ""} onChange={(v) => setEditOrg({ ...editOrg, direccion: v })} />
             <Field label="Ciudad" value={editOrg.ciudad ?? ""} onChange={(v) => setEditOrg({ ...editOrg, ciudad: v })} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={editOrg.activo} onChange={(e) => setEditOrg({ ...editOrg, activo: e.target.checked })} className="rounded" />
@@ -337,13 +337,13 @@ export default function OrganizacionesPage() {
             {saveError && <p className="text-xs text-red-600">{saveError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setEditOrg(null)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardandoâ€¦" : "Guardar"}</button>
+              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* â”€â”€ Detail drawer â”€â”€ */}
+      {/* Detail drawer */}
       {detailOrg && (
         <Modal title={detailOrg.nombre} onClose={() => { setDetailOrg(null); setShowAssignSA(false); }} wide>
           <div className="space-y-5">
@@ -400,7 +400,7 @@ export default function OrganizacionesPage() {
                 <div className="space-y-1">
                   {detailOrg.edificios.map((e) => (
                     <div key={e.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
-                      <span>ðŸ˜ï¸</span>
+                      <span>🏘️</span>
                       <span className="font-medium">{e.nombre}</span>
                       {e.conjunto_nombre && <span className="text-xs text-gray-400">({e.conjunto_nombre})</span>}
                     </div>
@@ -412,27 +412,27 @@ export default function OrganizacionesPage() {
         </Modal>
       )}
 
-      {/* â”€â”€ Crear SA modal â”€â”€ */}
+      {/* Crear SA modal */}
       {showCrearSA && detailOrg && (
-        <Modal title={`Crear SuperAdmin â†’ ${detailOrg.nombre}`} onClose={() => setShowCrearSA(false)}>
+        <Modal title={`Crear SuperAdmin → ${detailOrg.nombre}`} onClose={() => setShowCrearSA(false)}>
           <form onSubmit={handleCrearSA} className="space-y-3">
             <Field label="Nombre completo *" value={crearSAForm.nombre} onChange={(v) => setCrearSAForm({ ...crearSAForm, nombre: v })} required />
             <Field label="Email *" value={crearSAForm.email} onChange={(v) => setCrearSAForm({ ...crearSAForm, email: v })} type="email" required />
-            <Field label="ContraseÃ±a *" value={crearSAForm.password} onChange={(v) => setCrearSAForm({ ...crearSAForm, password: v })} type="password" required />
+            <Field label="Contraseña *" value={crearSAForm.password} onChange={(v) => setCrearSAForm({ ...crearSAForm, password: v })} type="password" required />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="CÃ©dula" value={crearSAForm.cedula} onChange={(v) => setCrearSAForm({ ...crearSAForm, cedula: v })} />
-              <Field label="TelÃ©fono" value={crearSAForm.telefono} onChange={(v) => setCrearSAForm({ ...crearSAForm, telefono: v })} />
+              <Field label="Cédula" value={crearSAForm.cedula} onChange={(v) => setCrearSAForm({ ...crearSAForm, cedula: v })} />
+              <Field label="Teléfono" value={crearSAForm.telefono} onChange={(v) => setCrearSAForm({ ...crearSAForm, telefono: v })} />
             </div>
             {crearSAError && <p className="text-xs text-red-600">{crearSAError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCrearSA(false)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={crearSASaving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{crearSASaving ? "Creandoâ€¦" : "Crear y asignar"}</button>
+              <button type="submit" disabled={crearSASaving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{crearSASaving ? "Creando…" : "Crear y asignar"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* â”€â”€ Assign SA modal â”€â”€ */}
+      {/* Assign SA modal */}
       {showAssignSA && detailOrg && (
         <Modal title="Asignar SuperAdmin" onClose={() => setShowAssignSA(false)}>
           <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -468,7 +468,7 @@ export default function OrganizacionesPage() {
   );
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helpers
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
@@ -476,7 +476,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
       <div className={`bg-white rounded-2xl shadow-xl w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">Ã—</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
         <div className="px-6 py-4">{children}</div>
       </div>

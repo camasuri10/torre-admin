@@ -116,7 +116,10 @@ export default function EdificioGestionPage() {
   function handleTabChange(t: Tab) {
     setTab(t);
     if (t === "torres" && torres.length === 0) loadTorres();
-    if (t === "unidades" && unidades.length === 0) loadUnidades();
+    if (t === "unidades") {
+      if (torres.length === 0) loadTorres();
+      if (unidades.length === 0) loadUnidades();
+    }
   }
 
   // ── Módulos ───────────────────────────────────────────────────────────────────

@@ -138,7 +138,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then((data) => setEdificios(data.edificios))
       .catch(() => {});
 
-    if (u.rol === "backoffice") {
+    if (u.rol === "backoffice" || u.rol === "superadmin") {
       authApi.misOrganizaciones()
         .then((data) => setOrganizaciones(data.organizaciones ?? []))
         .catch(() => {});
@@ -201,7 +201,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const data = await authApi.seleccionarEdificio(parseInt(user.sub), edificioId);
       setToken(data.access_token);
-      window.location.href = user.rol === "backoffice" ? "/dashboard/backoffice" : "/dashboard";
+      window.location.href =
+        user.rol === "backoffice" ? "/dashboard/backoffice"
+        : user.rol === "superadmin" ? "/dashboard/superadmin"
+        : "/dashboard";
     } catch {
       setSwitching(false);
     }
@@ -216,7 +219,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ? await authApi.seleccionarOrganizacion(parseInt(user.sub), orgId)
         : await authApi.seleccionarTodos();
       setToken(data.access_token);
-      window.location.href = "/dashboard/backoffice";
+      window.location.href = user?.rol === "superadmin" ? "/dashboard/superadmin" : "/dashboard/backoffice";
     } catch {
       setSwitching(false);
     }
@@ -229,7 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const data = await authApi.seleccionarConjunto(parseInt(user.sub), conjuntoId);
       setToken(data.access_token);
-      window.location.href = "/dashboard/backoffice";
+      window.location.href = user?.rol === "superadmin" ? "/dashboard/superadmin" : "/dashboard/backoffice";
     } catch {
       setSwitching(false);
     }
@@ -283,17 +286,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </div>
 
-        {/* Org badge for SA */}
-        {isSuperAdmin && user?.organizacion_nombre && (
-          <div className="px-4 py-2 border-b border-white/10">
-            <div className="bg-white/10 rounded-lg px-3 py-2">
-              <div className="text-blue-300 text-xs mb-0.5">Organización</div>
-              <div className="text-white text-sm font-medium truncate">{user.organizacion_nombre}</div>
-            </div>
-          </div>
-        )}
-
-        {isBackoffice && (
+        {(isBackoffice || isSuperAdmin) && (
           <div className="px-4 py-3 border-b border-white/10 space-y-2">
             <div>
               <button
@@ -303,7 +296,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <div className="text-blue-300 text-xs mb-0.5">Organización</div>
                 <div className="text-white text-sm font-medium truncate">
-                  {user?.organizacion_nombre ?? "Todas las organizaciones"}
+                  {user?.organizacion_nombre ?? (isBackoffice ? "Todas las organizaciones" : "Organización")}
                 </div>
               </button>
               {showOrgSwitcher && (
@@ -319,10 +312,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       />
                     </div>
                   )}
-                  <button type="button" onClick={() => handleSwitchOrganizacion(null)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!user?.organizacion_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
-                    🌐 Todas las organizaciones
-                  </button>
+                  {isBackoffice && (
+                    <button type="button" onClick={() => handleSwitchOrganizacion(null)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!user?.organizacion_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
+                      🌐 Todas las organizaciones
+                    </button>
+                  )}
                   {organizaciones
                     .filter((o) => !orgSearch.trim() || o.nombre.toLowerCase().includes(orgSearch.trim().toLowerCase()))
                     .map((o) => (

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getUser } from "@/lib/auth";
 import { conjuntosApi, superadminApi } from "@/lib/api";
 
 const EMPTY = { nombre: "", nit: "", telefono: "", direccion: "", ciudad: "", pais: "Colombia" };
 
 export default function ConjuntosPage() {
+  const router = useRouter();
   const [conjuntos, setConjuntos] = useState<any[]>([]);
   const [allEdificios, setAllEdificios] = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -40,7 +43,14 @@ export default function ConjuntosPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const user = getUser();
+    if (!user || user.rol !== "superadmin") {
+      router.replace("/dashboard");
+      return;
+    }
+    load();
+  }, [router]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

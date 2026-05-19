@@ -31,8 +31,8 @@ export default function SuperAdminPage() {
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
+    if (user.conjunto_id) setConjuntoId(user.conjunto_id);
     conjuntosApi.list().then((r: any) => setConjuntos(r?.conjuntos ?? [])).catch(() => {});
-    superadminApi.analytics().then(setAnalytics).catch(console.error);
   }, [router]);
 
   useEffect(() => {
@@ -41,6 +41,12 @@ export default function SuperAdminPage() {
       .then(setStats)
       .catch(console.error)
       .finally(() => setLoading(false));
+  }, [conjuntoId]);
+
+  useEffect(() => {
+    superadminApi.analytics(conjuntoId)
+      .then(setAnalytics)
+      .catch(console.error);
   }, [conjuntoId]);
 
   async function openDetalle(estado: "pendiente" | "vencido") {
@@ -66,8 +72,8 @@ export default function SuperAdminPage() {
   }
 
   const statCards = [
-    { label: "Conjuntos",        value: stats?.total_conjuntos ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
-    { label: "Agrupaciones",     value: stats?.total_edificios  ?? 0, icon: "🏙️", href: "/dashboard/superadmin/conjuntos",  color: "bg-blue-50 border-blue-100" },
+    { label: "Conjuntos",        value: stats?.total_edificios  ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
+    { label: "Agrupaciones",     value: stats?.total_conjuntos ?? 0, icon: "🏙️", href: "/dashboard/superadmin/conjuntos",  color: "bg-blue-50 border-blue-100" },
     { label: "Administradores",  value: stats?.total_admins     ?? 0, icon: "👤", href: "/dashboard/superadmin/admins",    color: "bg-green-50 border-green-100" },
     { label: "Staff Servicios",  value: stats?.total_staff      ?? 0, icon: "🧹", href: "/dashboard/superadmin/admins",    color: "bg-teal-50 border-teal-100" },
     { label: "Usuarios totales", value: stats?.total_usuarios   ?? 0, icon: "👥", href: null,                              color: "bg-purple-50 border-purple-100" },
@@ -152,7 +158,7 @@ export default function SuperAdminPage() {
 
         {conjuntos.length > 0 && (
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 whitespace-nowrap">Filtrar por conjunto:</label>
+            <label className="text-sm text-gray-500 whitespace-nowrap">Filtrar por agrupación:</label>
             <select
               value={conjuntoId ?? ""}
               onChange={(e) => setConjuntoId(e.target.value ? Number(e.target.value) : undefined)}
