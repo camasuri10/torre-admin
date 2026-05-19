@@ -193,9 +193,9 @@ export const api = {
     // Torres
     torres: {
       list: (edificio_id: number) => request<any>(`/api/edificios/${edificio_id}/torres`),
-      create: (edificio_id: number, data: { nombre: string; numero?: string; pisos?: number }) =>
+      create: (edificio_id: number, data: { nombre: string; numero?: string; pisos?: number; tipo?: string }) =>
         request<any>(`/api/edificios/${edificio_id}/torres`, { method: "POST", body: JSON.stringify(data) }),
-      update: (edificio_id: number, torre_id: number, data: any) =>
+      update: (edificio_id: number, torre_id: number, data: { nombre?: string; numero?: string; pisos?: number; tipo?: string }) =>
         request<any>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "PUT", body: JSON.stringify(data) }),
       delete: (edificio_id: number, torre_id: number) =>
         request<void>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "DELETE" }),
