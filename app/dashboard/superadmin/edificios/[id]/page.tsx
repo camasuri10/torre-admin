@@ -7,12 +7,26 @@ import { getUser } from "@/lib/auth";
 import { superadminApi, api } from "@/lib/api";
 
 interface Modulo  { clave: string; nombre: string; icono: string; activo: boolean; }
-interface Torre   { id: number; nombre: string; numero: string | null; pisos: number | null; total_unidades: number; activo: boolean; }
+type TorreTipo = "torre" | "lote" | "parcelacion" | "manzana" | "otro";
+interface Torre   { id: number; nombre: string; numero: string | null; pisos: number | null; total_unidades: number; activo: boolean; tipo?: TorreTipo; }
 interface Unidad  { id: number; numero: string; piso: number | null; area_m2: number | null; coeficiente: number | null; residente_nombre: string | null; tipo_ocupacion: string | null; torre_nombre?: string | null; }
 
 type Tab = "modulos" | "torres" | "unidades";
 
-const emptyTorreForm = { nombre: "", numero: "", pisos: "", tipo: "torre" };
+const TIPO_LABELS: Record<TorreTipo, string> = {
+  torre: "Torre",
+  lote: "Lote",
+  parcelacion: "Parcelación",
+  manzana: "Manzana",
+  otro: "Otro",
+};
+
+function getTipoLabel(tipo: TorreTipo | undefined): string {
+  return tipo ? TIPO_LABELS[tipo] : "Torre";
+}
+
+type TorreForm = { nombre: string; numero: string; pisos: string; tipo: TorreTipo };
+const emptyTorreForm: TorreForm = { nombre: "", numero: "", pisos: "", tipo: "torre" };
 const emptyUnidadForm = { numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "", torre_id: "" };
 
 export default function EdificioGestionPage() {
@@ -141,7 +155,7 @@ export default function EdificioGestionPage() {
 
   function openEditTorre(t: Torre) {
     setEditTorre(t);
-    setEditTForm({ nombre: t.nombre, numero: t.numero ?? "", pisos: t.pisos != null ? String(t.pisos) : "", tipo: (t as any).tipo ?? "torre" });
+    setEditTForm({ nombre: t.nombre, numero: t.numero ?? "", pisos: t.pisos != null ? String(t.pisos) : "", tipo: t.tipo ?? "torre" });
     setEditTError("");
   }
 
@@ -332,7 +346,7 @@ export default function EdificioGestionPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
                   <select required value={torreForm.tipo}
-                    onChange={(e) => setTorreForm({ ...torreForm, tipo: e.target.value })}
+                    onChange={(e) => setTorreForm({ ...torreForm, tipo: e.target.value as TorreTipo })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="torre">Torre</option>
                     <option value="lote">Lote</option>
@@ -389,14 +403,7 @@ export default function EdificioGestionPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {torres.map((t) => {
-                    const tipoLabel = {
-                      torre: "Torre",
-                      lote: "Lote",
-                      parcelacion: "Parcelación",
-                      manzana: "Manzana",
-                      otro: "Otro"
-                    }[(t as any).tipo] || "Torre";
-                    
+                    const tipoLabel = getTipoLabel(t.tipo);
                     return (
                       <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900">{t.nombre}</td>
@@ -444,16 +451,9 @@ export default function EdificioGestionPage() {
                     }}
                     className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todas las subdivisiones</option>
-                    {torres.map((t) => {
-                      const tipoLabel = {
-                        torre: "Torre",
-                        lote: "Lote",
-                        parcelacion: "Parcelación",
-                        manzana: "Manzana",
-                        otro: "Otro"
-                      }[(t as any).tipo] || "Torre";
-                      return <option key={t.id} value={t.id}>{tipoLabel}: {t.nombre}</option>;
-                    })}
+                    {torres.map((t) => (
+                      <option key={t.id} value={t.id}>{getTipoLabel(t.tipo)}: {t.nombre}</option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -477,16 +477,9 @@ export default function EdificioGestionPage() {
                     onChange={(e) => setAddForm({ ...addForm, torre_id: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Seleccionar subdivisión…</option>
-                    {torres.map((t) => {
-                      const tipoLabel = {
-                        torre: "Torre",
-                        lote: "Lote",
-                        parcelacion: "Parcelación",
-                        manzana: "Manzana",
-                        otro: "Otro"
-                      }[(t as any).tipo] || "Torre";
-                      return <option key={t.id} value={t.id}>{tipoLabel}: {t.nombre}</option>;
-                    })}
+                    {torres.map((t) => (
+                      <option key={t.id} value={t.id}>{getTipoLabel(t.tipo)}: {t.nombre}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -610,7 +603,7 @@ export default function EdificioGestionPage() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
                 <select required value={editTForm.tipo}
-                  onChange={(e) => setEditTForm({ ...editTForm, tipo: e.target.value })}
+                  onChange={(e) => setEditTForm({ ...editTForm, tipo: e.target.value as TorreTipo })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="torre">Torre</option>
                   <option value="lote">Lote</option>
