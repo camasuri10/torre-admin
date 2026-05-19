@@ -59,6 +59,11 @@ export const authApi = {
     }),
   seleccionarTodos: () =>
     request<any>("/api/auth/seleccionar-todos", { method: "POST", body: JSON.stringify({}) }),
+  seleccionarConjunto: (user_id: number, conjunto_id: number | null) =>
+    request<any>("/api/auth/seleccionar-conjunto", {
+      method: "POST",
+      body: JSON.stringify({ user_id, conjunto_id }),
+    }),
   misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
   misOrganizaciones: () => request<{ organizaciones: { id: number; nombre: string }[] }>("/api/auth/mis-organizaciones"),
   me: () => request<any>("/api/auth/me"),
@@ -419,8 +424,22 @@ export const api = {
 
   // ── Backoffice ─────────────────────────────────────────────────────────────
   backoffice: {
-    stats: () => request<any>("/api/backoffice/stats"),
-    analytics: () => request<any>("/api/backoffice/analytics"),
+    stats: (params?: { organizacion_id?: number; edificio_id?: number; conjunto_id?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
+      if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
+      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
+      const qs = q.toString();
+      return request<any>(`/api/backoffice/stats${qs ? `?${qs}` : ""}`);
+    },
+    analytics: (params?: { organizacion_id?: number; edificio_id?: number; conjunto_id?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
+      if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
+      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
+      const qs = q.toString();
+      return request<any>(`/api/backoffice/analytics${qs ? `?${qs}` : ""}`);
+    },
     usuarios: {
       list: () => request<any[]>("/api/backoffice/usuarios"),
       create: (data: any) => request<any>("/api/backoffice/usuarios", { method: "POST", body: JSON.stringify(data) }),

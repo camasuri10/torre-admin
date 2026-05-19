@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { organizacionesApi } from "@/lib/api";
@@ -11,7 +11,7 @@ interface CrearSAForm {
   telefono: string;
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Org {
   id: number;
@@ -41,7 +41,7 @@ interface SADisponible {
   organizaciones: { id: number; nombre: string }[];
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function OrganizacionesPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -65,6 +65,8 @@ export default function OrganizacionesPage() {
   const [crearSAForm, setCrearSAForm] = useState<CrearSAForm>({ nombre: "", email: "", password: "", cedula: "", telefono: "" });
   const [crearSASaving, setCrearSASaving] = useState(false);
   const [crearSAError, setCrearSAError] = useState("");
+  const [search, setSearch] = useState("");
+  const [cardFilter, setCardFilter] = useState<"all" | "activas" | "con_conjuntos" | "con_sa">("all");
 
   function load() {
     organizacionesApi.list()
@@ -120,7 +122,7 @@ export default function OrganizacionesPage() {
     e.preventDefault();
     if (!detailOrg) return;
     if (!crearSAForm.nombre.trim() || !crearSAForm.email.trim() || !crearSAForm.password.trim()) {
-      setCrearSAError("Nombre, email y contraseña son obligatorios.");
+      setCrearSAError("Nombre, email y contraseÃ±a son obligatorios.");
       return;
     }
     setCrearSASaving(true); setCrearSAError("");
@@ -155,7 +157,7 @@ export default function OrganizacionesPage() {
   }
 
   async function handleQuitarSA(orgId: number, usuarioId: number) {
-    if (!confirm("¿Remover este SuperAdmin de la organización?")) return;
+    if (!confirm("Â¿Remover este SuperAdmin de la organizaciÃ³n?")) return;
     try {
       await organizacionesApi.quitarSA(orgId, usuarioId);
       const d = await organizacionesApi.get(orgId);
@@ -165,12 +167,27 @@ export default function OrganizacionesPage() {
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando organizaciones…</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Cargando organizacionesâ€¦</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
 
   const totalActivas = orgs.filter((o) => o.activo).length;
+  const totalConjuntos = orgs.reduce((s, o) => s + o.num_edificios, 0);
+  const totalSA = orgs.reduce((s, o) => s + o.num_superadmins, 0);
+
+  const q = search.trim().toLowerCase();
+  const filteredOrgs = orgs.filter((org) => {
+    if (cardFilter === "activas" && !org.activo) return false;
+    if (cardFilter === "con_conjuntos" && org.num_edificios === 0) return false;
+    if (cardFilter === "con_sa" && org.num_superadmins === 0) return false;
+    if (!q) return true;
+    return (
+      org.nombre.toLowerCase().includes(q) ||
+      (org.nit ?? "").toLowerCase().includes(q) ||
+      (org.ciudad ?? "").toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -179,36 +196,61 @@ export default function OrganizacionesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Organizaciones</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {orgs.length} organizaciones · {totalActivas} activas
+            {orgs.length} organizaciones Â· {totalActivas} activas
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
         >
-          + Nueva organización
+          + Nueva organizaciÃ³n
         </button>
       </div>
 
-      {/* Stats row */}
+      <div className="relative max-w-xl">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">ðŸ”</span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, NIT o ciudadâ€¦"
+          className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total", value: orgs.length, icon: "🏢" },
-          { label: "Activas", value: totalActivas, icon: "✅" },
-          { label: "Conjuntos", value: orgs.reduce((s, o) => s + o.num_edificios, 0), icon: "🏗️" },
-          { label: "SuperAdmins", value: orgs.reduce((s, o) => s + o.num_superadmins, 0), icon: "👤" },
+          { key: "all" as const, label: "Total", value: orgs.length, icon: "🏢" },
+          { key: "activas" as const, label: "Activas", value: totalActivas, icon: "✅" },
+          { key: "con_conjuntos" as const, label: "Con conjuntos", value: totalConjuntos, icon: "🏗️" },
+          { key: "con_sa" as const, label: "Con SuperAdmins", value: totalSA, icon: "👤" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <button
+            key={stat.key}
+            type="button"
+            onClick={() => setCardFilter(cardFilter === stat.key ? "all" : stat.key)}
+            className={`bg-white rounded-2xl border p-4 shadow-sm text-left transition-all hover:shadow-md ${
+              cardFilter === stat.key ? "border-primary ring-2 ring-primary/25" : "border-gray-100"
+            }`}
+          >
             <div className="text-2xl mb-1">{stat.icon}</div>
             <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
             <div className="text-xs text-gray-500">{stat.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* Org grid */}
+      <p className="text-sm text-gray-500">
+        {filteredOrgs.length} de {orgs.length} organizaciones
+        {cardFilter !== "all" && " (filtro activo)"}
+      </p>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {orgs.map((org) => (
+        {filteredOrgs.length === 0 && (
+          <p className="col-span-full text-center text-gray-400 py-12 text-sm">
+            {q ? "Sin resultados para la búsqueda." : "No hay organizaciones que coincidan con el filtro."}
+          </p>
+        )}
+        {filteredOrgs.map((org) => (
           <div
             key={org.id}
             className={`bg-white rounded-2xl border shadow-sm p-5 space-y-4 ${org.activo ? "border-gray-100" : "border-red-100 opacity-75"}`}
@@ -258,35 +300,35 @@ export default function OrganizacionesPage() {
         ))}
       </div>
 
-      {/* ── Create modal ── */}
+      {/* â”€â”€ Create modal â”€â”€ */}
       {showCreate && (
-        <Modal title="Nueva organización" onClose={() => setShowCreate(false)}>
+        <Modal title="Nueva organizaciÃ³n" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <Field label="Nombre *" value={createForm.nombre} onChange={(v) => setCreateForm({ ...createForm, nombre: v })} required />
             <Field label="NIT" value={createForm.nit} onChange={(v) => setCreateForm({ ...createForm, nit: v })} />
             <Field label="Email" value={createForm.email} onChange={(v) => setCreateForm({ ...createForm, email: v })} type="email" />
-            <Field label="Teléfono" value={createForm.telefono} onChange={(v) => setCreateForm({ ...createForm, telefono: v })} />
-            <Field label="Dirección" value={createForm.direccion} onChange={(v) => setCreateForm({ ...createForm, direccion: v })} />
+            <Field label="TelÃ©fono" value={createForm.telefono} onChange={(v) => setCreateForm({ ...createForm, telefono: v })} />
+            <Field label="DirecciÃ³n" value={createForm.direccion} onChange={(v) => setCreateForm({ ...createForm, direccion: v })} />
             <Field label="Ciudad" value={createForm.ciudad} onChange={(v) => setCreateForm({ ...createForm, ciudad: v })} />
-            <Field label="País" value={createForm.pais} onChange={(v) => setCreateForm({ ...createForm, pais: v })} />
+            <Field label="PaÃ­s" value={createForm.pais} onChange={(v) => setCreateForm({ ...createForm, pais: v })} />
             {saveError && <p className="text-xs text-red-600">{saveError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardando…" : "Crear"}</button>
+              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardandoâ€¦" : "Crear"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* ── Edit modal ── */}
+      {/* â”€â”€ Edit modal â”€â”€ */}
       {editOrg && (
-        <Modal title="Editar organización" onClose={() => setEditOrg(null)}>
+        <Modal title="Editar organizaciÃ³n" onClose={() => setEditOrg(null)}>
           <form onSubmit={handleUpdate} className="space-y-3">
             <Field label="Nombre *" value={editOrg.nombre} onChange={(v) => setEditOrg({ ...editOrg, nombre: v })} required />
             <Field label="NIT" value={editOrg.nit ?? ""} onChange={(v) => setEditOrg({ ...editOrg, nit: v })} />
             <Field label="Email" value={editOrg.email ?? ""} onChange={(v) => setEditOrg({ ...editOrg, email: v })} type="email" />
-            <Field label="Teléfono" value={editOrg.telefono ?? ""} onChange={(v) => setEditOrg({ ...editOrg, telefono: v })} />
-            <Field label="Dirección" value={editOrg.direccion ?? ""} onChange={(v) => setEditOrg({ ...editOrg, direccion: v })} />
+            <Field label="TelÃ©fono" value={editOrg.telefono ?? ""} onChange={(v) => setEditOrg({ ...editOrg, telefono: v })} />
+            <Field label="DirecciÃ³n" value={editOrg.direccion ?? ""} onChange={(v) => setEditOrg({ ...editOrg, direccion: v })} />
             <Field label="Ciudad" value={editOrg.ciudad ?? ""} onChange={(v) => setEditOrg({ ...editOrg, ciudad: v })} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={editOrg.activo} onChange={(e) => setEditOrg({ ...editOrg, activo: e.target.checked })} className="rounded" />
@@ -295,13 +337,13 @@ export default function OrganizacionesPage() {
             {saveError && <p className="text-xs text-red-600">{saveError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setEditOrg(null)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardando…" : "Guardar"}</button>
+              <button type="submit" disabled={saving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{saving ? "Guardandoâ€¦" : "Guardar"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* ── Detail drawer ── */}
+      {/* â”€â”€ Detail drawer â”€â”€ */}
       {detailOrg && (
         <Modal title={detailOrg.nombre} onClose={() => { setDetailOrg(null); setShowAssignSA(false); }} wide>
           <div className="space-y-5">
@@ -358,7 +400,7 @@ export default function OrganizacionesPage() {
                 <div className="space-y-1">
                   {detailOrg.edificios.map((e) => (
                     <div key={e.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
-                      <span>🏘️</span>
+                      <span>ðŸ˜ï¸</span>
                       <span className="font-medium">{e.nombre}</span>
                       {e.conjunto_nombre && <span className="text-xs text-gray-400">({e.conjunto_nombre})</span>}
                     </div>
@@ -370,27 +412,27 @@ export default function OrganizacionesPage() {
         </Modal>
       )}
 
-      {/* ── Crear SA modal ── */}
+      {/* â”€â”€ Crear SA modal â”€â”€ */}
       {showCrearSA && detailOrg && (
-        <Modal title={`Crear SuperAdmin → ${detailOrg.nombre}`} onClose={() => setShowCrearSA(false)}>
+        <Modal title={`Crear SuperAdmin â†’ ${detailOrg.nombre}`} onClose={() => setShowCrearSA(false)}>
           <form onSubmit={handleCrearSA} className="space-y-3">
             <Field label="Nombre completo *" value={crearSAForm.nombre} onChange={(v) => setCrearSAForm({ ...crearSAForm, nombre: v })} required />
             <Field label="Email *" value={crearSAForm.email} onChange={(v) => setCrearSAForm({ ...crearSAForm, email: v })} type="email" required />
-            <Field label="Contraseña *" value={crearSAForm.password} onChange={(v) => setCrearSAForm({ ...crearSAForm, password: v })} type="password" required />
+            <Field label="ContraseÃ±a *" value={crearSAForm.password} onChange={(v) => setCrearSAForm({ ...crearSAForm, password: v })} type="password" required />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Cédula" value={crearSAForm.cedula} onChange={(v) => setCrearSAForm({ ...crearSAForm, cedula: v })} />
-              <Field label="Teléfono" value={crearSAForm.telefono} onChange={(v) => setCrearSAForm({ ...crearSAForm, telefono: v })} />
+              <Field label="CÃ©dula" value={crearSAForm.cedula} onChange={(v) => setCrearSAForm({ ...crearSAForm, cedula: v })} />
+              <Field label="TelÃ©fono" value={crearSAForm.telefono} onChange={(v) => setCrearSAForm({ ...crearSAForm, telefono: v })} />
             </div>
             {crearSAError && <p className="text-xs text-red-600">{crearSAError}</p>}
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCrearSA(false)} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={crearSASaving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{crearSASaving ? "Creando…" : "Crear y asignar"}</button>
+              <button type="submit" disabled={crearSASaving} className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">{crearSASaving ? "Creandoâ€¦" : "Crear y asignar"}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* ── Assign SA modal ── */}
+      {/* â”€â”€ Assign SA modal â”€â”€ */}
       {showAssignSA && detailOrg && (
         <Modal title="Asignar SuperAdmin" onClose={() => setShowAssignSA(false)}>
           <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -426,7 +468,7 @@ export default function OrganizacionesPage() {
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
@@ -434,7 +476,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
       <div className={`bg-white rounded-2xl shadow-xl w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">Ã—</button>
         </div>
         <div className="px-6 py-4">{children}</div>
       </div>

@@ -1,8 +1,8 @@
 """Backoffice — gestión de plataforma: usuarios SA/BO y reportería global."""
 from decimal import Decimal
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Tuple, List
 from passlib.context import CryptContext
 from db import get_db
 from routers.auth import get_current_user
@@ -25,6 +25,64 @@ def _require_backoffice(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
+def _resolve_scope(
+    current_user: dict,
+    organizacion_id: Optional[int] = None,
+    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
+) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    eid = edificio_id if edificio_id is not None else current_user.get("edificio_id")
+    oid = organizacion_id if organizacion_id is not None else current_user.get("organizacion_id")
+    cid = conjunto_id if conjunto_id is not None else current_user.get("conjunto_id")
+    return eid, oid, cid
+
+
+def _edificio_ids_subquery(
+    edificio_id: Optional[int],
+    org_id: Optional[int],
+    conjunto_id: Optional[int],
+) -> Tuple[Optional[str], List]:
+    """Returns (SQL subquery for edificio ids, params) or (None, []) for no filter."""
+    if edificio_id:
+        return "%s", [edificio_id]
+    parts, params = [], []
+    if org_id:
+        parts.append("organizacion_id = %s")
+        params.append(org_id)
+    if conjunto_id:
+        parts.append("conjunto_id = %s")
+        params.append(conjunto_id)
+    if not parts:
+        return None, []
+    return f"SELECT id FROM edificios WHERE {' AND '.join(parts)}", params
+
+
+def _edificio_col_scope(col: str, edificio_id, org_id, conjunto_id) -> Tuple[str, List]:
+    sub, params = _edificio_ids_subquery(edificio_id, org_id, conjunto_id)
+    if edificio_id and not sub:
+        return f" AND {col} = %s", [edificio_id]
+    if sub is None:
+        return "", []
+    if sub == "%s":
+        return f" AND {col} = %s", params
+    return f" AND {col} IN ({sub})", params
+
+
+def _unidad_scope(edificio_id, org_id, conjunto_id) -> Tuple[str, List]:
+    sub, params = _edificio_ids_subquery(edificio_id, org_id, conjunto_id)
+    if not sub:
+        return "", []
+    if sub == "%s":
+        return (
+            " AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.edificio_id = %s)",
+            params,
+        )
+    return (
+        f" AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.edificio_id IN ({sub}))",
+        params,
+    )
+
+
 class BoUsuarioCreate(BaseModel):
     nombre: str
     cedula: Optional[str] = None
@@ -44,22 +102,62 @@ class BoUsuarioUpdate(BaseModel):
 
 
 @router.get("/stats")
-def get_stats(_: dict = Depends(_require_backoffice)):
+def get_stats(
+    organizacion_id: Optional[int] = None,
+    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
+    current_user: dict = Depends(_require_backoffice),
+):
+    eid, oid, cid = _resolve_scope(current_user, organizacion_id, edificio_id, conjunto_id)
+    ed_scope, ed_params = _edificio_col_scope("edificio_id", eid, oid, cid)
+    un_scope, un_params = _unidad_scope(eid, oid, cid)
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM conjuntos")
+                if cid:
+                    cur.execute("SELECT COUNT(*) FROM conjuntos WHERE id = %s", (cid,))
+                elif oid:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s",
+                        (oid,),
+                    )
+                else:
+                    cur.execute("SELECT COUNT(*) FROM conjuntos")
                 total_conjuntos = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM edificios")
+
+                if eid:
+                    cur.execute("SELECT COUNT(*) FROM edificios WHERE id = %s", (eid,))
+                elif oid and cid:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s AND conjunto_id = %s",
+                        (oid, cid),
+                    )
+                elif oid:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s",
+                        (oid,),
+                    )
+                elif cid:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM edificios WHERE conjunto_id = %s",
+                        (cid,),
+                    )
+                else:
+                    cur.execute("SELECT COUNT(*) FROM edificios")
                 total_edificios = cur.fetchone()["count"]
-                cur.execute("""
+
+                em_scope = ed_scope.replace("edificio_id", "em.edificio_id") if ed_scope else ""
+                cur.execute(
+                    f"""
                     SELECT m.clave, m.nombre, m.icono,
                            COALESCE(COUNT(em.edificio_id) FILTER (WHERE em.activo = TRUE), 0) AS activaciones
                     FROM modulos m
-                    LEFT JOIN edificio_modulos em ON em.modulo_id = m.id
+                    LEFT JOIN edificio_modulos em ON em.modulo_id = m.id{em_scope}
                     GROUP BY m.id, m.clave, m.nombre, m.icono
                     ORDER BY activaciones DESC, m.nombre
-                """)
+                    """,
+                    ed_params,
+                )
                 modulos_rows = cur.fetchall()
                 modulos_detalle = [
                     {
@@ -76,7 +174,8 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                 cur.execute("SELECT rol, COUNT(*) AS total FROM usuarios WHERE activo = TRUE GROUP BY rol")
                 usuarios_por_rol = {r["rol"]: int(r["total"]) for r in cur.fetchall()}
 
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT
                         COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
                         COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
@@ -84,36 +183,85 @@ def get_stats(_: dict = Depends(_require_backoffice)):
                         COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'pagado')    AS FLOAT), 0) AS monto_pagado,
                         COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'pendiente') AS FLOAT), 0) AS monto_pendiente,
                         COALESCE(CAST(SUM(monto) FILTER (WHERE estado = 'vencido')   AS FLOAT), 0) AS monto_vencido
-                    FROM cuotas
-                """)
+                    FROM cuotas WHERE 1=1{un_scope}
+                    """,
+                    un_params,
+                )
                 cuotas = dict(cur.fetchone())
 
-                cur.execute("SELECT COUNT(*) FROM reservas WHERE estado <> 'cancelada'")
+                zona_scope = ""
+                zona_params: List = []
+                if ed_scope:
+                    zona_scope = ed_scope.replace("edificio_id", "z.edificio_id")
+                    zona_params = list(ed_params)
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*) FROM reservas r
+                    JOIN zonas_comunes z ON z.id = r.zona_id
+                    WHERE r.estado <> 'cancelada'{zona_scope}
+                    """,
+                    zona_params,
+                )
                 total_reservas = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM comunicados")
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM comunicados WHERE 1=1{ed_scope}",
+                    ed_params,
+                )
                 total_comunicados = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM mantenimientos WHERE estado <> 'cancelado'")
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM mantenimientos WHERE estado <> 'cancelado'{ed_scope}",
+                    ed_params,
+                )
                 total_mantenimientos = cur.fetchone()["count"]
 
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT
                         COUNT(*) FILTER (WHERE estado = 'pendiente')  AS pendientes,
                         COUNT(*) FILTER (WHERE estado = 'en_proceso') AS en_proceso,
                         COUNT(*) FILTER (WHERE estado = 'resuelto')   AS resueltos
-                    FROM mantenimientos WHERE estado <> 'cancelado'
-                """)
+                    FROM mantenimientos WHERE estado <> 'cancelado'{ed_scope}
+                    """,
+                    ed_params,
+                )
                 mantenimientos_estado = dict(cur.fetchone())
 
-                cur.execute("SELECT COUNT(*) FROM proveedores WHERE activo = TRUE")
+                prov_scope = ""
+                prov_params: List = []
+                if oid:
+                    prov_scope = " AND organizacion_id = %s"
+                    prov_params = [oid]
+                cur.execute(
+                    f"SELECT COUNT(*) FROM proveedores WHERE activo = TRUE{prov_scope}",
+                    prov_params,
+                )
                 total_proveedores = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM contratos_servicio WHERE activo = TRUE")
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM contratos_servicio WHERE activo = TRUE{ed_scope}",
+                    ed_params,
+                )
                 total_contratos = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM paquetes")
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM paquetes WHERE 1=1{ed_scope}",
+                    ed_params,
+                )
                 total_paquetes = cur.fetchone()["count"]
-                cur.execute("SELECT COUNT(*) FROM accesos")
+                cur.execute(
+                    f"SELECT COUNT(*) FROM accesos WHERE 1=1{ed_scope}",
+                    ed_params,
+                )
                 total_accesos = cur.fetchone()["count"]
 
                 return {
+                    "scope": {
+                        "organizacion_id": oid,
+                        "conjunto_id": cid,
+                        "edificio_id": eid,
+                    },
                     "conjuntos": int(total_conjuntos),
                     "edificios": int(total_edificios),
                     "modulos_total": total_modulos,
@@ -137,49 +285,75 @@ def get_stats(_: dict = Depends(_require_backoffice)):
 
 
 @router.get("/analytics")
-def get_analytics(_: dict = Depends(_require_backoffice)):
+def get_analytics(
+    organizacion_id: Optional[int] = None,
+    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
+    current_user: dict = Depends(_require_backoffice),
+):
+    eid, oid, cid = _resolve_scope(current_user, organizacion_id, edificio_id, conjunto_id)
+    ed_scope, ed_params = _edificio_col_scope("edificio_id", eid, oid, cid)
+    un_scope, un_params = _unidad_scope(eid, oid, cid)
+    zona_scope = ed_scope.replace("edificio_id", "z.edificio_id") if ed_scope else ""
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes, COUNT(*) AS total
-                    FROM reservas
-                    WHERE fecha >= CURRENT_DATE - INTERVAL '6 months'
-                    GROUP BY TO_CHAR(fecha, 'YYYY-MM') ORDER BY 1
-                """)
+                cur.execute(
+                    f"""
+                    SELECT TO_CHAR(r.fecha, 'YYYY-MM') AS mes, COUNT(*) AS total
+                    FROM reservas r
+                    JOIN zonas_comunes z ON z.id = r.zona_id
+                    WHERE r.fecha >= CURRENT_DATE - INTERVAL '6 months'
+                      AND r.estado <> 'cancelada'{zona_scope}
+                    GROUP BY TO_CHAR(r.fecha, 'YYYY-MM') ORDER BY 1
+                    """,
+                    list(ed_params),
+                )
                 reservas_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS total
                     FROM comunicados
-                    WHERE created_at >= NOW() - INTERVAL '6 months'
+                    WHERE created_at >= NOW() - INTERVAL '6 months'{ed_scope}
                     GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY 1
-                """)
+                    """,
+                    ed_params,
+                )
                 comunicados_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT estado, COUNT(*) AS total
-                    FROM mantenimientos WHERE estado <> 'cancelado'
+                    FROM mantenimientos WHERE estado <> 'cancelado'{ed_scope}
                     GROUP BY estado
-                """)
+                    """,
+                    ed_params,
+                )
                 mantenimientos_por_estado = [{"estado": r["estado"], "total": int(r["total"])} for r in cur.fetchall()]
 
                 try:
-                    cur.execute("SELECT tipo, COUNT(*) AS total FROM comunicados GROUP BY tipo")
+                    cur.execute(
+                        f"SELECT tipo, COUNT(*) AS total FROM comunicados WHERE 1=1{ed_scope} GROUP BY tipo",
+                        ed_params,
+                    )
                     comunicados_por_tipo = [{"tipo": r["tipo"], "total": int(r["total"])} for r in cur.fetchall()]
                 except Exception:
                     conn.rollback()
                     comunicados_por_tipo = []
 
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT mes,
                         COUNT(*) FILTER (WHERE estado = 'pagado')    AS pagadas,
                         COUNT(*) FILTER (WHERE estado = 'pendiente') AS pendientes,
                         COUNT(*) FILTER (WHERE estado = 'vencido')   AS vencidas
                     FROM cuotas
-                    WHERE mes >= TO_CHAR(CURRENT_DATE - INTERVAL '6 months', 'YYYY-MM')
+                    WHERE mes >= TO_CHAR(CURRENT_DATE - INTERVAL '6 months', 'YYYY-MM'){un_scope}
                     GROUP BY mes ORDER BY mes
-                """)
+                    """,
+                    un_params,
+                )
                 cuotas_por_mes = [
                     {"mes": r["mes"], "pagadas": int(r["pagadas"]), "pendientes": int(r["pendientes"]), "vencidas": int(r["vencidas"])}
                     for r in cur.fetchall()
@@ -195,16 +369,21 @@ def get_analytics(_: dict = Depends(_require_backoffice)):
 
                 # Módulos más usados (desde modulos_uso) y cobertura por edificio
                 try:
-                    cur.execute("""
+                    mu_scope = ed_scope.replace("edificio_id", "mu.edificio_id") if ed_scope else ""
+                    cur.execute(
+                        f"""
                         SELECT mu.modulo_clave AS clave,
                                COALESCE(m.nombre, mu.modulo_clave) AS nombre,
                                COALESCE(m.icono, '') AS icono,
                                COUNT(*) AS usos
                         FROM modulos_uso mu
                         LEFT JOIN modulos m ON m.clave = mu.modulo_clave
+                        WHERE 1=1{mu_scope}
                         GROUP BY mu.modulo_clave, m.nombre, m.icono
                         ORDER BY usos DESC
-                    """)
+                        """,
+                        ed_params,
+                    )
                     modulos_mas_usados = [
                         {"clave": r["clave"], "nombre": r["nombre"], "icono": r["icono"], "usos": int(r["usos"])}
                         for r in cur.fetchall()

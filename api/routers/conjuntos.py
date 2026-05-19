@@ -38,9 +38,25 @@ class ConjuntoUpdate(BaseModel):
 def list_conjuntos(current_user: dict = Depends(get_current_user)):
     rol = current_user.get("rol")
     org_id = current_user.get("organizacion_id")
+    conjunto_id = current_user.get("conjunto_id")
     with get_db() as conn:
         with conn.cursor() as cur:
-            if rol == "superadmin" and org_id:
+            if conjunto_id:
+                cur.execute("""
+                    SELECT c.*,
+                           COUNT(DISTINCT e.id) AS total_edificios,
+                           COUNT(DISTINCT t.id) AS total_torres,
+                           COUNT(DISTINCT u.id) AS total_unidades
+                    FROM conjuntos c
+                    LEFT JOIN edificios e ON e.conjunto_id = c.id
+                    LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                    LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
+                    WHERE c.id = %s
+                    GROUP BY c.id
+                    ORDER BY c.nombre
+                """, (conjunto_id,))
+                return {"conjuntos": [dict(r) for r in cur.fetchall()]}
+            if rol in ("superadmin", "backoffice") and org_id:
                 cur.execute("""
                     SELECT c.*,
                            COUNT(DISTINCT e.id) AS total_edificios,
@@ -54,6 +70,19 @@ def list_conjuntos(current_user: dict = Depends(get_current_user)):
                     GROUP BY c.id
                     ORDER BY c.nombre
                 """, (org_id,))
+            elif rol == "backoffice":
+                cur.execute("""
+                    SELECT c.*,
+                           COUNT(DISTINCT e.id) AS total_edificios,
+                           COUNT(DISTINCT t.id) AS total_torres,
+                           COUNT(DISTINCT u.id) AS total_unidades
+                    FROM conjuntos c
+                    LEFT JOIN edificios e ON e.conjunto_id = c.id
+                    LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
+                    LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
+                    GROUP BY c.id
+                    ORDER BY c.nombre
+                """)
             else:
                 cur.execute("""
                     SELECT c.*,

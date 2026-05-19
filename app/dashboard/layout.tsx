@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getUser, clearToken, setToken, getEdificiosDisponibles, type AuthUser } from "@/lib/auth";
-import { authApi, api } from "@/lib/api";
+import { authApi, api, conjuntosApi } from "@/lib/api";
 import ChatbotBubble from "@/components/ChatbotBubble";
 
 type NavItem = {
@@ -102,7 +102,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser]                     = useState<AuthUser | null>(null);
   const [activeModules, setActiveModules]   = useState<string[]>([]);
   const [edificios, setEdificios]           = useState<{ id: number; nombre: string }[]>([]);
-  const [showSwitcher, setShowSwitcher]     = useState(false);
+  const [organizaciones, setOrganizaciones]   = useState<{ id: number; nombre: string }[]>([]);
+  const [conjuntos, setConjuntos]             = useState<{ id: number; nombre: string }[]>([]);
+  const [showSwitcher, setShowSwitcher]       = useState(false);
+  const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
+  const [showConjSwitcher, setShowConjSwitcher] = useState(false);
+  const [orgSearch, setOrgSearch]           = useState("");
+  const [conjSearch, setConjSearch]         = useState("");
   const [switching, setSwitching]           = useState(false);
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const switcherRef                         = useRef<HTMLDivElement>(null);
@@ -131,6 +137,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     authApi.misEdificios()
       .then((data) => setEdificios(data.edificios))
       .catch(() => {});
+
+    if (u.rol === "backoffice") {
+      authApi.misOrganizaciones()
+        .then((data) => setOrganizaciones(data.organizaciones ?? []))
+        .catch(() => {});
+      conjuntosApi.list()
+        .then((data) => setConjuntos((data?.conjuntos ?? []).map((c: any) => ({ id: c.id, nombre: c.nombre }))))
+        .catch(() => {});
+    }
   }, [router]);
 
   // Close switcher on outside click
@@ -186,7 +201,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const data = await authApi.seleccionarEdificio(parseInt(user.sub), edificioId);
       setToken(data.access_token);
-      window.location.href = "/dashboard";
+      window.location.href = user.rol === "backoffice" ? "/dashboard/backoffice" : "/dashboard";
+    } catch {
+      setSwitching(false);
+    }
+  }
+
+  async function handleSwitchOrganizacion(orgId: number | null) {
+    if (!user) return;
+    setSwitching(true);
+    setShowOrgSwitcher(false);
+    try {
+      const data = orgId
+        ? await authApi.seleccionarOrganizacion(parseInt(user.sub), orgId)
+        : await authApi.seleccionarTodos();
+      setToken(data.access_token);
+      window.location.href = "/dashboard/backoffice";
+    } catch {
+      setSwitching(false);
+    }
+  }
+
+  async function handleSwitchConjunto(conjuntoId: number | null) {
+    if (!user) return;
+    setSwitching(true);
+    setShowConjSwitcher(false);
+    try {
+      const data = await authApi.seleccionarConjunto(parseInt(user.sub), conjuntoId);
+      setToken(data.access_token);
+      window.location.href = "/dashboard/backoffice";
     } catch {
       setSwitching(false);
     }
@@ -246,6 +289,88 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="bg-white/10 rounded-lg px-3 py-2">
               <div className="text-blue-300 text-xs mb-0.5">Organización</div>
               <div className="text-white text-sm font-medium truncate">{user.organizacion_nombre}</div>
+            </div>
+          </div>
+        )}
+
+        {isBackoffice && (
+          <div className="px-4 py-3 border-b border-white/10 space-y-2">
+            <div>
+              <button
+                type="button"
+                onClick={() => { setShowOrgSwitcher((v) => !v); setShowConjSwitcher(false); setShowSwitcher(false); }}
+                className="w-full bg-white/10 rounded-lg px-3 py-2 text-left hover:bg-white/20 transition-colors"
+              >
+                <div className="text-blue-300 text-xs mb-0.5">Organización</div>
+                <div className="text-white text-sm font-medium truncate">
+                  {user?.organizacion_nombre ?? "Todas las organizaciones"}
+                </div>
+              </button>
+              {showOrgSwitcher && (
+                <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden max-h-56 overflow-y-auto z-50">
+                  {organizaciones.length >= 6 && (
+                    <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                      <input
+                        type="search"
+                        value={orgSearch}
+                        onChange={(e) => setOrgSearch(e.target.value)}
+                        placeholder="Buscar organización…"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      />
+                    </div>
+                  )}
+                  <button type="button" onClick={() => handleSwitchOrganizacion(null)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!user?.organizacion_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
+                    🌐 Todas las organizaciones
+                  </button>
+                  {organizaciones
+                    .filter((o) => !orgSearch.trim() || o.nombre.toLowerCase().includes(orgSearch.trim().toLowerCase()))
+                    .map((o) => (
+                    <button key={o.id} type="button" onClick={() => handleSwitchOrganizacion(o.id)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${o.id === user?.organizacion_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
+                      🏢 {o.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <button type="button"
+                onClick={() => { setShowConjSwitcher((v) => !v); setShowOrgSwitcher(false); setShowSwitcher(false); }}
+                className="w-full bg-white/10 rounded-lg px-3 py-2 text-left hover:bg-white/20 transition-colors">
+                <div className="text-blue-300 text-xs mb-0.5">Agrupación</div>
+                <div className="text-white text-sm font-medium truncate">
+                  {user?.conjunto_nombre ?? "Todas las agrupaciones"}
+                </div>
+              </button>
+              {showConjSwitcher && (
+                <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden max-h-56 overflow-y-auto z-50">
+                  {conjuntos.length >= 6 && (
+                    <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                      <input
+                        type="search"
+                        value={conjSearch}
+                        onChange={(e) => setConjSearch(e.target.value)}
+                        placeholder="Buscar agrupación…"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      />
+                    </div>
+                  )}
+                  <button type="button" onClick={() => handleSwitchConjunto(null)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
+                    🏙️ Todas las agrupaciones
+                  </button>
+                  {conjuntos
+                    .filter((c) => !conjSearch.trim() || c.nombre.toLowerCase().includes(conjSearch.trim().toLowerCase()))
+                    .map((c) => (
+                    <button key={c.id} type="button" onClick={() => handleSwitchConjunto(c.id)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${c.id === user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
+                      {c.nombre}
+                    </button>
+                  ))}
+                  {conjuntos.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">Sin agrupaciones en este alcance</p>}
+                </div>
+              )}
             </div>
           </div>
         )}
