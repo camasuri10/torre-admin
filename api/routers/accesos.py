@@ -1,15 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from db import get_db
+import base64
 
 router = APIRouter()
+
+VEHICULO_TIPOS = ("carro", "moto", "bicicleta", "otro")
 
 
 class AccesoCreate(BaseModel):
     edificio_id: int
     visitante_nombre: str
     visitante_documento: Optional[str] = None
+    descripcion: Optional[str] = None
+    vehiculo_tipo: Optional[str] = None
+    vehiculo_placa: Optional[str] = None
     destino_unidad_id: Optional[int] = None
     anfitrion_id: Optional[int] = None
     motivo: str
@@ -19,6 +25,17 @@ class AccesoCreate(BaseModel):
 
 class SalidaRegistro(BaseModel):
     fecha_salida: Optional[str] = None  # ISO datetime, defaults to NOW()
+
+
+async def _foto_from_upload(foto: Optional[UploadFile]) -> Optional[str]:
+    if not foto:
+        return None
+    content = await foto.read()
+    if not content:
+        return None
+    b64 = base64.b64encode(content).decode()
+    mime = foto.content_type or "image/jpeg"
+    return f"data:{mime};base64,{b64}"
 
 
 @router.get("")
@@ -56,17 +73,37 @@ def list_accesos(
 
 
 @router.post("", status_code=201)
-def registrar_ingreso(data: AccesoCreate):
+async def registrar_ingreso(
+    edificio_id: int = Form(...),
+    visitante_nombre: str = Form(...),
+    visitante_documento: Optional[str] = Form(None),
+    descripcion: Optional[str] = Form(None),
+    vehiculo_tipo: Optional[str] = Form(None),
+    vehiculo_placa: Optional[str] = Form(None),
+    destino_unidad_id: Optional[int] = Form(None),
+    anfitrion_id: Optional[int] = Form(None),
+    motivo: str = Form("visita"),
+    autorizado: bool = Form(True),
+    registrado_por: Optional[int] = Form(None),
+    foto: Optional[UploadFile] = File(None),
+):
+    foto_url = await _foto_from_upload(foto)
+    placa = vehiculo_placa.strip().upper() if vehiculo_placa and vehiculo_placa.strip() else None
+    vtipo = vehiculo_tipo if vehiculo_tipo in VEHICULO_TIPOS else None
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO accesos
-                    (edificio_id, visitante_nombre, visitante_documento,
-                     destino_unidad_id, anfitrion_id, motivo, autorizado, registrado_por)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.visitante_nombre, data.visitante_documento,
-                  data.destino_unidad_id, data.anfitrion_id, data.motivo,
-                  data.autorizado, data.registrado_por))
+                    (edificio_id, visitante_nombre, visitante_documento, descripcion, foto_url,
+                     vehiculo_tipo, vehiculo_placa, destino_unidad_id, anfitrion_id, motivo,
+                     autorizado, registrado_por)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+            """, (
+                edificio_id, visitante_nombre, visitante_documento or None, descripcion or None,
+                foto_url, vtipo, placa, destino_unidad_id, anfitrion_id, motivo,
+                autorizado, registrado_por,
+            ))
             return cur.fetchone()
 
 
@@ -74,7 +111,6 @@ def registrar_ingreso(data: AccesoCreate):
 def registrar_salida(acceso_id: int, data: SalidaRegistro):
     with get_db() as conn:
         with conn.cursor() as cur:
-            ts = data.fecha_salida or "NOW()"
             if data.fecha_salida:
                 cur.execute(
                     "UPDATE accesos SET fecha_salida = %s WHERE id = %s RETURNING *",

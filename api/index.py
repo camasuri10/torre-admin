@@ -87,6 +87,28 @@ app.include_router(chatbot.router,        prefix="/api/chatbot",           tags=
 app.include_router(organizaciones.router, prefix="/api/organizaciones",    tags=["Organizaciones"])
 
 
+@app.get("/api/migrate-v16")
+def migrate_v16():
+    """v16: accesos — descripción, foto, vehículo visitante."""
+    from db import get_db
+    sqls = [
+        ("accesos.descripcion", "ALTER TABLE accesos ADD COLUMN IF NOT EXISTS descripcion TEXT"),
+        ("accesos.foto_url", "ALTER TABLE accesos ADD COLUMN IF NOT EXISTS foto_url TEXT"),
+        ("accesos.vehiculo_tipo", "ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_tipo TEXT"),
+        ("accesos.vehiculo_placa", "ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_placa TEXT"),
+    ]
+    results = []
+    for label, sql in sqls:
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+            results.append({"migration": label, "status": "ok"})
+        except Exception as e:
+            results.append({"migration": label, "status": "skipped", "detail": str(e)})
+    return {"status": "done", "migrations": results}
+
+
 @app.get("/api/migrate-v15")
 def migrate_v15():
     """v15: tipo_documento en usuarios, chatbot_config global (organizacion_id nullable)."""

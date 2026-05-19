@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import OptionalPhotoInput from "@/components/OptionalPhotoInput";
 
 const ESTADO_COLORS: Record<string, string> = {
   recibido:   "bg-blue-100 text-blue-700",
@@ -33,6 +34,8 @@ export default function PaquetesPage() {
   const [editPaquete, setEditPaquete] = useState<any | null>(null);
   const [editForm, setEditForm]       = useState({ unidad_id: "", residente_id: "", descripcion: "", residente_nombre: "" });
   const [savingEdit, setSavingEdit]   = useState(false);
+  const [fotoFile, setFotoFile]       = useState<File | null>(null);
+  const [photoKey, setPhotoKey]       = useState(0);
   const formRef                       = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
@@ -67,10 +70,13 @@ export default function PaquetesPage() {
       const res = usuarios.find((u: any) => u.id === Number(formResidenteId));
       if (res) fd.append("residente_nombre", res.nombre);
     }
+    if (fotoFile) fd.append("foto", fotoFile);
     await api.paquetes.registrar(fd);
     form.reset();
     setFormUnidadId("");
     setFormResidenteId("");
+    setFotoFile(null);
+    setPhotoKey((k) => k + 1);
     setShowForm(false);
     load();
   };
@@ -262,13 +268,11 @@ export default function PaquetesPage() {
                   <p className="text-xs text-amber-600 mt-1">Este apto no tiene residentes registrados.</p>
                 )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Foto del paquete (opcional)</label>
-              <input
-                name="foto"
-                type="file"
-                accept="image/*"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            <div className="sm:col-span-2">
+              <OptionalPhotoInput
+                key={photoKey}
+                label="Foto del paquete (opcional)"
+                onFileChange={setFotoFile}
               />
             </div>
             <div className="sm:col-span-2 flex gap-3 justify-end pt-2">
@@ -296,16 +300,16 @@ export default function PaquetesPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {["#", "Unidad", "Remitente", "Empresa", "Guía", "Recibido", "Estado", "Acciones"].map((h) => (
+                {["#", "Unidad", "Remitente", "Empresa", "Guía", "Recibido", "F. entrega", "Estado", "Acciones"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                   {sq ? "Sin resultados." : "No hay paquetes registrados"}
                 </td></tr>
               ) : filtered.map((p) => (
@@ -321,20 +325,18 @@ export default function PaquetesPage() {
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     {new Date(p.fecha_recepcion).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
                   </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                    {p.fecha_entrega
+                      ? new Date(p.fecha_entrega).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
+                      : "—"}
+                    {p.entregado_a && (
+                      <div className="text-[10px] text-gray-400 mt-0.5">→ {p.entregado_a}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
-                    <div>
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_COLORS[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
-                        {p.estado}
-                      </span>
-                      {p.fecha_entrega && (
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          Entregado {new Date(p.fecha_entrega).toLocaleDateString("es-CO", { dateStyle: "short" })}
-                        </div>
-                      )}
-                      {p.entregado_a && (
-                        <div className="text-[10px] text-gray-500">→ {p.entregado_a}</div>
-                      )}
-                    </div>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_COLORS[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
+                      {p.estado}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     {notificandoId === p.id ? (

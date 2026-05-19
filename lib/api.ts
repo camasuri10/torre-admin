@@ -27,6 +27,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function formRequest<T>(path: string, formData: FormData, method = "POST"): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   login: (email: string, password: string) =>
@@ -339,7 +352,7 @@ export const api = {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/accesos/${q ? "?" + q : ""}`);
     },
-    registrar: (data: any) => request<any>("/api/accesos/", { method: "POST", body: JSON.stringify(data) }),
+    registrar: (formData: FormData) => formRequest<any>("/api/accesos/", formData),
     salida: (id: number) => request<any>(`/api/accesos/${id}/salida`, { method: "PATCH", body: JSON.stringify({}) }),
     stats: (edificio_id: number) => request<any>(`/api/accesos/stats/${edificio_id}`),
   },
@@ -351,8 +364,7 @@ export const api = {
       return request<any[]>(`/api/paquetes/${q ? "?" + q : ""}`);
     },
     get: (id: number) => request<any>(`/api/paquetes/${id}`),
-    registrar: (formData: FormData) =>
-      fetch(`${BASE}/api/paquetes/`, { method: "POST", body: formData }).then((r) => r.json()),
+    registrar: (formData: FormData) => formRequest<any>("/api/paquetes/", formData),
     entregar: (id: number, data: any) =>
       request<any>(`/api/paquetes/${id}/entregar`, { method: "PATCH", body: JSON.stringify(data) }),
     stats: (edificio_id: number) => request<any>(`/api/paquetes/stats/${edificio_id}`),

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import OptionalPhotoInput from "@/components/OptionalPhotoInput";
 
 const MOTIVO_BADGE: Record<string, string> = {
   visita:           "bg-blue-100 text-blue-700",
@@ -20,10 +21,21 @@ const MOTIVO_LABELS: Record<string, string> = {
   otro:             "Otro",
 };
 
+const VEHICULO_LABELS: Record<string, string> = {
+  carro: "Carro",
+  moto: "Moto",
+  bicicleta: "Bicicleta",
+  otro: "Otro",
+};
+
 type Acceso = {
   id: number;
   visitante_nombre: string;
   visitante_documento: string | null;
+  descripcion: string | null;
+  foto_url: string | null;
+  vehiculo_tipo: string | null;
+  vehiculo_placa: string | null;
   motivo: string;
   autorizado: boolean;
   fecha_entrada: string;
@@ -38,26 +50,31 @@ type Stats = {
   no_autorizados_hoy: number;
 };
 
-type NuevoAcceso = {
-  visitante_nombre: string;
-  visitante_documento: string;
-  motivo: string;
-  autorizado: boolean;
-  destino_unidad_id?: number;
+const EMPTY_FORM = {
+  visitante_nombre: "",
+  visitante_documento: "",
+  descripcion: "",
+  motivo: "visita",
+  autorizado: true,
+  destino_unidad_id: undefined as number | undefined,
+  vehiculo_tipo: "",
+  vehiculo_placa: "",
 };
 
 export default function AccesosPage() {
-  const user      = getUser();
+  const user = getUser();
   const edificioId = user?.edificio_id ?? 1;
 
-  const [accesos, setAccesos]     = useState<Acceso[]>([]);
-  const [stats, setStats]         = useState<Stats | null>(null);
-  const [unidades, setUnidades]   = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [search, setSearch]       = useState("");
-  const [form, setForm]           = useState<NuevoAcceso>({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true, destino_unidad_id: undefined });
+  const [accesos, setAccesos] = useState<Acceso[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [unidades, setUnidades] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [photoKey, setPhotoKey] = useState(0);
 
   async function load() {
     try {
@@ -85,8 +102,23 @@ export default function AccesosPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.accesos.registrar({ edificio_id: edificioId, ...form });
-      setForm({ visitante_nombre: "", visitante_documento: "", motivo: "visita", autorizado: true, destino_unidad_id: undefined });
+      const fd = new FormData();
+      fd.append("edificio_id", String(edificioId));
+      fd.append("visitante_nombre", form.visitante_nombre);
+      if (form.visitante_documento) fd.append("visitante_documento", form.visitante_documento);
+      if (form.descripcion) fd.append("descripcion", form.descripcion);
+      fd.append("motivo", form.motivo);
+      fd.append("autorizado", form.autorizado ? "true" : "false");
+      if (form.destino_unidad_id) fd.append("destino_unidad_id", String(form.destino_unidad_id));
+      if (form.vehiculo_tipo) fd.append("vehiculo_tipo", form.vehiculo_tipo);
+      if (form.vehiculo_placa.trim()) fd.append("vehiculo_placa", form.vehiculo_placa.trim());
+      if (user?.sub) fd.append("registrado_por", user.sub);
+      if (fotoFile) fd.append("foto", fotoFile);
+
+      await api.accesos.registrar(fd);
+      setForm(EMPTY_FORM);
+      setFotoFile(null);
+      setPhotoKey((k) => k + 1);
       setShowForm(false);
       await load();
     } catch (err) {
@@ -117,6 +149,8 @@ export default function AccesosPage() {
         (a.visitante_documento ?? "").toLowerCase().includes(q) ||
         (a.unidad_numero ?? "").toLowerCase().includes(q) ||
         (a.anfitrion_nombre ?? "").toLowerCase().includes(q) ||
+        (a.descripcion ?? "").toLowerCase().includes(q) ||
+        (a.vehiculo_placa ?? "").toLowerCase().includes(q) ||
         MOTIVO_LABELS[a.motivo]?.toLowerCase().includes(q)
       )
     : accesos;
@@ -126,14 +160,22 @@ export default function AccesosPage() {
     return isNaN(d.getTime()) ? iso : d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
   }
 
+  function vehiculoLabel(a: Acceso) {
+    if (!a.vehiculo_placa && !a.vehiculo_tipo) return "—";
+    const tipo = a.vehiculo_tipo ? (VEHICULO_LABELS[a.vehiculo_tipo] ?? a.vehiculo_tipo) : "";
+    if (a.vehiculo_placa && tipo) return `${tipo} · ${a.vehiculo_placa}`;
+    return a.vehiculo_placa ?? tipo;
+  }
+
+  const COLS = 10;
+
   return (
     <div className="space-y-6">
-      {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Ingresos hoy",            value: stats?.ingresos_hoy ?? 0,        color: "text-primary",    bg: "bg-blue-50" },
-          { label: "Actualmente dentro",       value: stats?.dentro_ahora ?? 0,        color: "text-green-600",  bg: "bg-green-50" },
-          { label: "Accesos no autorizados",   value: stats?.no_autorizados_hoy ?? 0,  color: "text-red-600",    bg: "bg-red-50" },
+          { label: "Ingresos hoy", value: stats?.ingresos_hoy ?? 0, color: "text-primary", bg: "bg-blue-50" },
+          { label: "Actualmente dentro", value: stats?.dentro_ahora ?? 0, color: "text-green-600", bg: "bg-green-50" },
+          { label: "Accesos no autorizados", value: stats?.no_autorizados_hoy ?? 0, color: "text-red-600", bg: "bg-red-50" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-xl p-5`}>
             <div className={`text-3xl font-bold ${s.color}`}>{loading ? "—" : s.value}</div>
@@ -142,7 +184,6 @@ export default function AccesosPage() {
         ))}
       </div>
 
-      {/* Register CTA / form */}
       {!showForm ? (
         <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-6 text-white flex items-center justify-between">
           <div>
@@ -170,6 +211,12 @@ export default function AccesosPage() {
               <input value={form.visitante_documento} onChange={(e) => setForm({ ...form, visitante_documento: e.target.value })}
                 placeholder="CC / Pasaporte" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descripción / observaciones</label>
+              <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                rows={2} placeholder="Ej: visita familiar, entrega programada…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none" />
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Motivo</label>
               <select value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })}
@@ -190,7 +237,24 @@ export default function AccesosPage() {
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-3 pt-5">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de vehículo</label>
+              <select value={form.vehiculo_tipo} onChange={(e) => setForm({ ...form, vehiculo_tipo: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
+                <option value="">— Sin vehículo</option>
+                {Object.entries(VEHICULO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Placa</label>
+              <input value={form.vehiculo_placa} onChange={(e) => setForm({ ...form, vehiculo_placa: e.target.value.toUpperCase() })}
+                placeholder="ABC123" disabled={!form.vehiculo_tipo}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-gray-50 disabled:text-gray-400" />
+            </div>
+            <div className="sm:col-span-2">
+              <OptionalPhotoInput key={photoKey} label="Foto del visitante (opcional)" onFileChange={setFotoFile} />
+            </div>
+            <div className="flex items-center gap-3 pt-1">
               <input type="checkbox" id="autorizado" checked={form.autorizado} onChange={(e) => setForm({ ...form, autorizado: e.target.checked })} className="w-4 h-4 rounded" />
               <label htmlFor="autorizado" className="text-sm text-gray-700">Acceso autorizado</label>
             </div>
@@ -204,7 +268,6 @@ export default function AccesosPage() {
         </form>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 space-y-3">
           <h2 className="font-semibold text-gray-900">Registro de accesos</h2>
@@ -213,7 +276,7 @@ export default function AccesosPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar visitante, unidad, motivo…"
+              placeholder="Buscar visitante, unidad, placa, descripción…"
               className="w-full border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -222,18 +285,18 @@ export default function AccesosPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {["Visitante", "Documento", "Unidad destino", "Anfitrión", "Motivo", "Entrada", "Salida", "Estado"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                {["Visitante", "Documento", "Descripción", "Unidad", "Vehículo", "Motivo", "Entrada", "Salida", "Estado", ""].map((h) => (
+                  <th key={h || "foto"} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
+                <tr><td colSpan={COLS} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
               ) : accesos.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Sin registros de acceso.</td></tr>
+                <tr><td colSpan={COLS} className="px-4 py-8 text-center text-sm text-gray-400">Sin registros de acceso.</td></tr>
               ) : filteredAccesos.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
+                <tr><td colSpan={COLS} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
               ) : filteredAccesos.map((r) => (
                 <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${!r.autorizado ? "bg-red-50/50" : ""}`}>
                   <td className="px-4 py-3">
@@ -247,10 +310,11 @@ export default function AccesosPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs font-mono text-gray-600">{r.visitante_documento ?? "—"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{r.unidad_numero ?? "—"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {r.anfitrion_nombre ? r.anfitrion_nombre.split(" ").slice(0, 2).join(" ") : "—"}
+                  <td className="px-4 py-3 text-xs text-gray-600 max-w-[140px] truncate" title={r.descripcion ?? undefined}>
+                    {r.descripcion ?? "—"}
                   </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{r.unidad_numero ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 font-mono">{vehiculoLabel(r)}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${MOTIVO_BADGE[r.motivo] ?? "bg-gray-100 text-gray-600"}`}>
                       {MOTIVO_LABELS[r.motivo] ?? r.motivo}
@@ -279,6 +343,13 @@ export default function AccesosPage() {
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ Autorizado</span>
                     ) : (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">✗ No autorizado</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.foto_url ? (
+                      <a href={r.foto_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">📷</a>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
                     )}
                   </td>
                 </tr>

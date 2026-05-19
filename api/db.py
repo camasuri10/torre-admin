@@ -415,6 +415,10 @@ CREATE TABLE IF NOT EXISTS accesos (
     edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
     visitante_nombre    TEXT NOT NULL,
     visitante_documento TEXT,
+    descripcion         TEXT,
+    foto_url            TEXT,
+    vehiculo_tipo       TEXT,
+    vehiculo_placa      TEXT,
     destino_unidad_id   INTEGER REFERENCES unidades(id),
     anfitrion_id        INTEGER REFERENCES usuarios(id),
     motivo              TEXT NOT NULL CHECK (motivo IN ('visita','domicilio','servicio_tecnico','mudanza','otro')),
@@ -908,6 +912,12 @@ UPDATE chatbot_config SET nombre = 'Principal' WHERE nombre IS NULL;
 -- v15.0 — tipo_documento para usuarios, chatbot_config global (sin NOT NULL en org)
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_documento TEXT DEFAULT 'CC';
 ALTER TABLE chatbot_config ALTER COLUMN organizacion_id DROP NOT NULL;
+
+-- v16.0 — accesos: descripción, foto, vehículo visitante
+ALTER TABLE accesos ADD COLUMN IF NOT EXISTS descripcion TEXT;
+ALTER TABLE accesos ADD COLUMN IF NOT EXISTS foto_url TEXT;
+ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_tipo TEXT;
+ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_placa TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org  ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user ON organizacion_superadmins(usuario_id);
