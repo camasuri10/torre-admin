@@ -939,6 +939,11 @@ ALTER TABLE consejo_miembros ADD COLUMN IF NOT EXISTS residente_id INTEGER REFER
 ALTER TABLE chat_mensajes ADD COLUMN IF NOT EXISTS receptor_id INTEGER REFERENCES usuarios(id);
 CREATE INDEX IF NOT EXISTS idx_chat_receptor ON chat_mensajes(receptor_id);
 
+-- v17.0 — Torres tipo (subdivisiones: torre, lote, parcelación, manzana, otro)
+ALTER TABLE torres ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'torre';
+ALTER TABLE torres DROP CONSTRAINT IF EXISTS torres_tipo_check;
+ALTER TABLE torres ADD CONSTRAINT torres_tipo_check CHECK (tipo IN ('torre','lote','parcelacion','manzana','otro'));
+
 -- v10.0 — ordenes_compra columnas adicionales (requiere_cotizaciones, clasificacion con actividad)
 ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS requiere_cotizaciones BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE ordenes_compra DROP CONSTRAINT IF EXISTS ordenes_compra_clasificacion_check;
