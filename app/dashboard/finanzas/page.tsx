@@ -245,7 +245,7 @@ export default function FinanzasPage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {(isAdmin
-                  ? ["Residente", "Unidad", "Edificio", "Monto", "Vencimiento", "Estado", "Fecha pago", "Acciones"]
+                  ? ["Residente", "Unidad", "Conjunto", "Monto", "Vencimiento", "Estado", "Fecha pago", "Acciones"]
                   : ["Unidad", "Monto", "Vencimiento", "Estado", "Fecha pago"]
                 ).map((h) => (
                   <th key={h} className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${h === "Monto" ? "text-right" : "text-left"}`}>{h}</th>

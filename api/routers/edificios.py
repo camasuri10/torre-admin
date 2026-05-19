@@ -39,12 +39,14 @@ class TorreCreate(BaseModel):
     nombre: str
     numero: Optional[str] = None
     pisos: Optional[int] = None
+    tipo: str = "torre"
 
 
 class TorreUpdate(BaseModel):
     nombre: Optional[str] = None
     numero: Optional[str] = None
     pisos: Optional[int] = None
+    tipo: Optional[str] = None
     activo: Optional[bool] = None
 
 
@@ -157,8 +159,8 @@ def create_torre(edificio_id: int, data: TorreCreate, current_user: dict = Depen
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Edificio no encontrado")
             cur.execute(
-                "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING *",
-                (edificio_id, data.nombre, data.numero, data.pisos),
+                "INSERT INTO torres (edificio_id, nombre, numero, pisos, tipo) VALUES (%s,%s,%s,%s,%s) RETURNING *",
+                (edificio_id, data.nombre, data.numero, data.pisos, data.tipo),
             )
             return dict(cur.fetchone())
 

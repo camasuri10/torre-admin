@@ -100,7 +100,7 @@ export default function BackofficeDashboard() {
       {/* KPI Cards — Fila 1: Estructura */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon="🏘️" label="Conjuntos" value={stats.conjuntos} color="blue" />
-        <KpiCard icon="🏢" label="Edificios" value={stats.edificios} color="blue" />
+        <KpiCard icon="🏢" label="Conjuntos" value={stats.edificios} color="blue" />
         <KpiCard icon="🔌" label="Módulos disponibles" value={stats.modulos_total ?? 0} color="green" />
         <KpiCard icon="👥" label="Total usuarios"
           value={Object.values(stats.usuarios_por_rol ?? {}).reduce((a: number, b: any) => a + b, 0)}
@@ -133,7 +133,7 @@ export default function BackofficeDashboard() {
               {stats.modulos_activaciones ?? 0} activaciones totales
             </span>
           </div>
-          <p className="text-xs text-gray-400 mb-4">Edificios con cada módulo habilitado</p>
+          <p className="text-xs text-gray-400 mb-4">Conjuntos con cada módulo habilitado</p>
           <div className="space-y-2.5">
             {(stats.modulos_detalle ?? []).map((m: any) => (
               <div key={m.clave} className="flex items-center gap-3">

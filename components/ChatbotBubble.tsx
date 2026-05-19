@@ -24,7 +24,7 @@ const WELCOME_MSG: Message = {
 };
 
 const QUICK_ACTIONS: Record<string, string[]> = {
-  superadmin: ["Ver estadísticas globales", "Listar edificios", "¿Cómo activar un módulo?"],
+  superadmin: ["Ver estadísticas globales", "Listar conjuntos", "¿Cómo activar un módulo?"],
   administrador: ["Ver cuotas vencidas", "¿Cuántos morosos hay?", "Crear un comunicado"],
   propietario: ["Ver mis cuotas", "Reservar una zona común", "Reportar un problema"],
 };

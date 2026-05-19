@@ -15,7 +15,7 @@ type Tab = "info" | "vehiculos" | "mascotas";
 export default function ResidentesPage() {
   const user = getUser();
   const edificioId = user?.edificio_id ?? 1;
-  const edificioNombre = getEdificiosDisponibles().find((e) => e.id === edificioId)?.nombre ?? `Edificio ${edificioId}`;
+  const edificioNombre = getEdificiosDisponibles().find((e) => e.id === edificioId)?.nombre ?? `Conjunto ${edificioId}`;
 
   const [residentes, setResidentes] = useState<any[]>([]);
   const [unidades, setUnidades]     = useState<any[]>([]);
@@ -541,7 +541,7 @@ export default function ResidentesPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>{["Nombre", "Cédula", "Tipo", "Unidad", "Edificio", "Teléfono", "Email"].map((h) => (
+              <tr>{["Nombre", "Cédula", "Tipo", "Unidad", "Conjunto", "Teléfono", "Email"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
               ))}</tr>
             </thead>

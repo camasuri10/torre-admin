@@ -39,7 +39,7 @@ export default function SeleccionarEdificioPage() {
       clearUserTemp();
       router.push("/dashboard");
     } catch {
-      setError("No se pudo acceder al edificio. Intenta de nuevo.");
+      setError("No se pudo acceder al conjunto. Intenta de nuevo.");
       setLoading(null);
     }
   }
@@ -60,9 +60,9 @@ export default function SeleccionarEdificioPage() {
               <div className="text-sm text-gray-500">Gestión de Propiedad Horizontal</div>
             </div>
           </div>
-          <h2 className="text-lg font-semibold text-gray-800">Selecciona un edificio</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Selecciona un conjunto</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Tienes acceso a múltiples edificios. ¿A cuál deseas ingresar?
+            Tienes acceso a múltiples conjuntos. ¿A cuál deseas ingresar?
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export default function SeleccionarEdificioPage() {
               className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-100 hover:border-primary/40 hover:bg-blue-50/40 transition-all group disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                <span className="text-lg">🏢</span>
+                <span className="text-lg">🏘️</span>
               </div>
               <div className="text-left flex-1">
                 <div className="text-sm font-semibold text-gray-800 group-hover:text-primary transition-colors">

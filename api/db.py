@@ -96,9 +96,11 @@ CREATE TABLE IF NOT EXISTS torres (
     nombre          TEXT NOT NULL,
     numero          TEXT,
     pisos           INTEGER,
+    tipo            TEXT NOT NULL DEFAULT 'torre' CHECK (tipo IN ('torre','lote','parcelacion','manzana','otro')),
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE torres ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'torre' CHECK (tipo IN ('torre','lote','parcelacion','manzana','otro'));
 
 -- Unidades privadas (apartamentos, locales, oficinas, casas)
 CREATE TABLE IF NOT EXISTS unidades (

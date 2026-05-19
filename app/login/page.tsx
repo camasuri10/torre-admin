@@ -54,7 +54,7 @@ export default function LoginPage() {
     } catch (err: any) {
       const msg = err?.message ?? "";
       if (msg.includes("400") || msg.includes("sin edificio")) {
-        setError("Tu usuario no tiene un edificio asignado. Contacta al Super Admin.");
+        setError("Tu usuario no tiene un conjunto asignado. Contacta al Super Admin.");
       } else {
         setError("Credenciales inválidas. Verifica tu email y contraseña.");
       }

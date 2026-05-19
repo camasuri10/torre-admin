@@ -12,7 +12,7 @@ interface Unidad  { id: number; numero: string; piso: number | null; area_m2: nu
 
 type Tab = "modulos" | "torres" | "unidades";
 
-const emptyTorreForm = { nombre: "", numero: "", pisos: "" };
+const emptyTorreForm = { nombre: "", numero: "", pisos: "", tipo: "torre" };
 const emptyUnidadForm = { numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "", torre_id: "" };
 
 export default function EdificioGestionPage() {
@@ -130,17 +130,18 @@ export default function EdificioGestionPage() {
         nombre: torreForm.nombre,
         numero: torreForm.numero || undefined,
         pisos: torreForm.pisos ? parseInt(torreForm.pisos) : undefined,
+        tipo: torreForm.tipo,
       });
       setTorreForm(emptyTorreForm);
       setShowAddTorre(false);
       loadTorres();
-    } catch { setTorreError("Error al crear la torre"); }
+    } catch { setTorreError("Error al crear la subdivisión"); }
     finally { setTorreSaving(false); }
   }
 
   function openEditTorre(t: Torre) {
     setEditTorre(t);
-    setEditTForm({ nombre: t.nombre, numero: t.numero ?? "", pisos: t.pisos != null ? String(t.pisos) : "" });
+    setEditTForm({ nombre: t.nombre, numero: t.numero ?? "", pisos: t.pisos != null ? String(t.pisos) : "", tipo: (t as any).tipo ?? "torre" });
     setEditTError("");
   }
 
@@ -153,6 +154,7 @@ export default function EdificioGestionPage() {
         nombre: editTForm.nombre,
         numero: editTForm.numero || undefined,
         pisos: editTForm.pisos ? parseInt(editTForm.pisos) : undefined,
+        tipo: editTForm.tipo,
       });
       setEditTorre(null);
       loadTorres();
@@ -161,14 +163,14 @@ export default function EdificioGestionPage() {
   }
 
   async function handleDeleteTorre(t: Torre) {
-    if (!confirm(`¿Eliminar la torre "${t.nombre}"? No se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar la subdivisión "${t.nombre}"? No se puede deshacer.`)) return;
     try {
       await api.edificios.torres.delete(edificioId, t.id);
       loadTorres();
     } catch (err: any) {
       const msg = err?.message?.includes("unidades activas")
-        ? "No se puede eliminar: la torre tiene unidades activas."
-        : "Error al eliminar la torre.";
+        ? "No se puede eliminar: la subdivisión tiene unidades activas."
+        : "Error al eliminar la subdivisión.";
       alert(msg);
     }
   }
@@ -258,7 +260,7 @@ export default function EdificioGestionPage() {
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
-            {t === "modulos" ? "Módulos" : t === "torres" ? "Torres/Casas" : "Unidades"}
+            {t === "modulos" ? "Módulos" : t === "torres" ? "Subdivisiones" : "Unidades"}
           </button>
         ))}
       </div>
@@ -308,44 +310,56 @@ export default function EdificioGestionPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
-              {torresLoading ? "Cargando…" : `${torres.length} torre${torres.length !== 1 ? "s" : ""}`}
+              {torresLoading ? "Cargando…" : `${torres.length} subdivisión${torres.length !== 1 ? "es" : ""}`}
             </p>
             <button onClick={() => { setShowAddTorre((v) => !v); setTorreError(""); }}
               className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
-              {showAddTorre ? "✕ Cancelar" : "+ Agregar torre"}
+              {showAddTorre ? "✕ Cancelar" : "+ Agregar subdivisión"}
             </button>
           </div>
 
           {showAddTorre && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">Nueva torre</h4>
-              <form onSubmit={handleAddTorre} className="grid grid-cols-3 gap-3">
-                <div className="col-span-3 sm:col-span-1">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Nueva subdivisión</h4>
+              <form onSubmit={handleAddTorre} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                   <input required value={torreForm.nombre}
                     onChange={(e) => setTorreForm({ ...torreForm, nombre: e.target.value })}
-                    placeholder="Torre A"
+                    placeholder="Torre A / Lote 5 / Manzana 3"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
+                  <select required value={torreForm.tipo}
+                    onChange={(e) => setTorreForm({ ...torreForm, tipo: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="torre">Torre</option>
+                    <option value="lote">Lote</option>
+                    <option value="parcelacion">Parcelación</option>
+                    <option value="manzana">Manzana</option>
+                    <option value="otro">Otro</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Número / letra</label>
                   <input value={torreForm.numero}
                     onChange={(e) => setTorreForm({ ...torreForm, numero: e.target.value })}
-                    placeholder="A"
+                    placeholder="A / 5 / 3"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pisos / Niveles</label>
                   <input type="number" min={1} value={torreForm.pisos}
                     onChange={(e) => setTorreForm({ ...torreForm, pisos: e.target.value })}
                     placeholder="10"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </div>
-                {torreError && <p className="col-span-3 text-red-600 text-xs">{torreError}</p>}
-                <div className="col-span-3 flex gap-3">
+                {torreError && <p className="col-span-2 text-red-600 text-xs">{torreError}</p>}
+                <div className="col-span-2 flex gap-3">
                   <button type="submit" disabled={torreSaving}
                     className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
-                    {torreSaving ? "Guardando…" : "Crear torre"}
+                    {torreSaving ? "Guardando…" : "Crear subdivisión"}
                   </button>
                   <button type="button" onClick={() => setShowAddTorre(false)}
                     className="border border-gray-200 px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700">
@@ -357,15 +371,16 @@ export default function EdificioGestionPage() {
           )}
 
           {torresLoading ? (
-            <div className="text-center py-8 text-gray-400 text-sm">Cargando torres…</div>
+            <div className="text-center py-8 text-gray-400 text-sm">Cargando subdivisiones…</div>
           ) : torres.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">No hay torres registradas. Crea la primera para agregar unidades.</div>
+            <div className="text-center py-8 text-gray-400 text-sm">No hay subdivisiones registradas. Crea la primera para agregar unidades.</div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Tipo</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">N.°</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Pisos</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unidades</th>
@@ -373,20 +388,35 @@ export default function EdificioGestionPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {torres.map((t) => (
-                    <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{t.nombre}</td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{t.numero ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{t.pisos ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{t.total_unidades}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3 justify-end">
-                          <button onClick={() => openEditTorre(t)} className="text-xs text-primary hover:underline">Editar</button>
-                          <button onClick={() => handleDeleteTorre(t)} className="text-xs text-red-500 hover:underline">Eliminar</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {torres.map((t) => {
+                    const tipoLabel = {
+                      torre: "Torre",
+                      lote: "Lote",
+                      parcelacion: "Parcelación",
+                      manzana: "Manzana",
+                      otro: "Otro"
+                    }[(t as any).tipo] || "Torre";
+                    
+                    return (
+                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900">{t.nombre}</td>
+                        <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tipoLabel}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{t.numero ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{t.pisos ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600">{t.total_unidades}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 justify-end">
+                            <button onClick={() => openEditTorre(t)} className="text-xs text-primary hover:underline">Editar</button>
+                            <button onClick={() => handleDeleteTorre(t)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -403,17 +433,29 @@ export default function EdificioGestionPage() {
                 {unidadesLoading ? "Cargando…" : `${unidades.length} unidad${unidades.length !== 1 ? "es" : ""}`}
               </p>
               {torres.length > 0 && (
-                <select
-                  value={filterTorreId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value ? parseInt(e.target.value) : undefined;
-                    setFilterTorreId(v);
-                    loadUnidades(v);
-                  }}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  <option value="">Todas las torres</option>
-                  {torres.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                </select>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500">Filtrar:</label>
+                  <select
+                    value={filterTorreId ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value ? parseInt(e.target.value) : undefined;
+                      setFilterTorreId(v);
+                      loadUnidades(v);
+                    }}
+                    className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Todas las subdivisiones</option>
+                    {torres.map((t) => {
+                      const tipoLabel = {
+                        torre: "Torre",
+                        lote: "Lote",
+                        parcelacion: "Parcelación",
+                        manzana: "Manzana",
+                        otro: "Otro"
+                      }[(t as any).tipo] || "Torre";
+                      return <option key={t.id} value={t.id}>{tipoLabel}: {t.nombre}</option>;
+                    })}
+                  </select>
+                </div>
               )}
             </div>
             <button onClick={() => { setShowAddUnidad((v) => !v); setAddError(""); }}
@@ -426,16 +468,25 @@ export default function EdificioGestionPage() {
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
               <h4 className="text-sm font-semibold text-gray-700 mb-3">Nueva unidad</h4>
               {torres.length === 0 && (
-                <p className="text-sm text-amber-600 mb-3">Primero debes crear al menos una torre en la pestaña Torres.</p>
+                <p className="text-sm text-amber-600 mb-3">Primero debes crear al menos una subdivisión en la pestaña Subdivisiones.</p>
               )}
               <form onSubmit={handleAddUnidad} className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Torre *</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Subdivisión *</label>
                   <select required value={addForm.torre_id}
                     onChange={(e) => setAddForm({ ...addForm, torre_id: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    <option value="">Seleccionar torre…</option>
-                    {torres.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                    <option value="">Seleccionar subdivisión…</option>
+                    {torres.map((t) => {
+                      const tipoLabel = {
+                        torre: "Torre",
+                        lote: "Lote",
+                        parcelacion: "Parcelación",
+                        manzana: "Manzana",
+                        otro: "Otro"
+                      }[(t as any).tipo] || "Torre";
+                      return <option key={t.id} value={t.id}>{tipoLabel}: {t.nombre}</option>;
+                    })}
                   </select>
                 </div>
                 <div>
@@ -546,7 +597,7 @@ export default function EdificioGestionPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Editar torre</h3>
+              <h3 className="font-semibold text-gray-900">Editar subdivisión</h3>
               <button onClick={() => setEditTorre(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <form onSubmit={handleEditTorre} className="grid grid-cols-2 gap-4">
@@ -555,6 +606,18 @@ export default function EdificioGestionPage() {
                 <input required value={editTForm.nombre}
                   onChange={(e) => setEditTForm({ ...editTForm, nombre: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo *</label>
+                <select required value={editTForm.tipo}
+                  onChange={(e) => setEditTForm({ ...editTForm, tipo: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="torre">Torre</option>
+                  <option value="lote">Lote</option>
+                  <option value="parcelacion">Parcelación</option>
+                  <option value="manzana">Manzana</option>
+                  <option value="otro">Otro</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Número / letra</label>

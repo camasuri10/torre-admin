@@ -195,7 +195,7 @@ export default function OrganizacionesPage() {
         {[
           { label: "Total", value: orgs.length, icon: "🏢" },
           { label: "Activas", value: totalActivas, icon: "✅" },
-          { label: "Edificios", value: orgs.reduce((s, o) => s + o.num_edificios, 0), icon: "🏗️" },
+          { label: "Conjuntos", value: orgs.reduce((s, o) => s + o.num_edificios, 0), icon: "🏗️" },
           { label: "SuperAdmins", value: orgs.reduce((s, o) => s + o.num_superadmins, 0), icon: "👤" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
@@ -227,8 +227,8 @@ export default function OrganizacionesPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               {[
-                { label: "Edificios", value: org.num_edificios },
-                { label: "Conjuntos", value: org.num_conjuntos },
+                { label: "Conjuntos", value: org.num_edificios },
+                { label: "Agrupaciones", value: org.num_conjuntos },
                 { label: "SuperAdmins", value: org.num_superadmins },
                 { label: "Usuarios", value: org.num_usuarios },
               ].map((s) => (
@@ -349,16 +349,16 @@ export default function OrganizacionesPage() {
               )}
             </div>
 
-            {/* Edificios */}
+            {/* Conjuntos */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">Edificios ({detailOrg.edificios.length})</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">Conjuntos ({detailOrg.edificios.length})</h3>
               {detailOrg.edificios.length === 0 ? (
-                <p className="text-xs text-gray-400">Sin edificios registrados</p>
+                <p className="text-xs text-gray-400">Sin conjuntos registrados</p>
               ) : (
                 <div className="space-y-1">
                   {detailOrg.edificios.map((e) => (
                     <div key={e.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
-                      <span>🏢</span>
+                      <span>🏘️</span>
                       <span className="font-medium">{e.nombre}</span>
                       {e.conjunto_nombre && <span className="text-xs text-gray-400">({e.conjunto_nombre})</span>}
                     </div>

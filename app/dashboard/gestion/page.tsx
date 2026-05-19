@@ -441,7 +441,7 @@ export default function GestionPage() {
   if (!user) return <div className="text-center py-10 text-gray-400">Cargando…</div>;
   if (!eid) return (
     <div className="text-center py-10 text-gray-400">
-      Selecciona un edificio para acceder al módulo de Gestión.
+      Selecciona un conjunto para acceder al módulo de Gestión.
     </div>
   );
 

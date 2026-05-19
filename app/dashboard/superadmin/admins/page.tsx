@@ -609,7 +609,7 @@ function PersonalTable({ list, emptyMsg, onEdit, onView, showRol }: {
               <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden md:table-cell">Email</th>
               {showRol && <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Rol</th>}
               <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide hidden sm:table-cell">Seguridad social</th>
-              <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Edificios</th>
+              <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Conjuntos</th>
               <th className="px-5 py-3.5 font-semibold text-gray-600 text-xs uppercase tracking-wide">Estado</th>
               <th className="px-5 py-3.5"></th>
             </tr>

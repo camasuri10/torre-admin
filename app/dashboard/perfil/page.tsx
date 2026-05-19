@@ -96,7 +96,7 @@ export default function PerfilPage() {
         <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-gray-50">
           {perfil?.edificio_nombre && (
             <div>
-              <div className="text-xs text-gray-400 mb-0.5">Edificio / Torre</div>
+              <div className="text-xs text-gray-400 mb-0.5">Conjunto / Torre</div>
               <div className="font-medium text-gray-800">{perfil.edificio_nombre}</div>
             </div>
           )}

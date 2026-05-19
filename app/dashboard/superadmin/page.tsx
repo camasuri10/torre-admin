@@ -287,7 +287,7 @@ export default function SuperAdminPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 text-left">
-                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Edificio</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Conjunto</th>
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Título</th>
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Categoría</th>
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Prioridad</th>
@@ -357,7 +357,7 @@ export default function SuperAdminPage() {
                     <tr className="border-b border-gray-100 text-left">
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Residente</th>
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Unidad</th>
-                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Edificio</th>
+                      <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Conjunto</th>
                       <th className="pb-2 pr-4 font-semibold text-gray-500 text-xs uppercase tracking-wide">Mes</th>
                       <th className="pb-2 font-semibold text-gray-500 text-xs uppercase tracking-wide text-right">Monto</th>
                     </tr>

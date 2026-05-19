@@ -25,9 +25,9 @@ export default function ChatbotInfoPage() {
       </div>
 
       <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
-        <h3 className="font-semibold text-gray-800">¿Cómo activar el asistente en un edificio?</h3>
+        <h3 className="font-semibold text-gray-800">¿Cómo activar el asistente en un conjunto?</h3>
         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
-          <li>Ve a <strong>Edificios</strong> y selecciona el edificio.</li>
+          <li>Ve a <strong>Conjuntos</strong> y selecciona el conjunto.</li>
           <li>En la sección <strong>Módulos</strong>, activa el módulo <strong>Asistente IA</strong>.</li>
           <li>Los administradores y propietarios verán la burbuja 🤖 en su dashboard.</li>
         </ol>

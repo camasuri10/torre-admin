@@ -259,7 +259,7 @@ export default function ConjuntosPage() {
                     {showAssign === c.id ? (
                       <form onSubmit={(e) => handleAssign(e, c.id)} className="flex items-end gap-2 mt-2">
                         <div className="flex-1">
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Edificio</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
                           <select required value={assignEdificio} onChange={(e) => setAssignEdificio(e.target.value)} className={INPUT}>
                             <option value="">Seleccionar conjunto…</option>
                             {sinConjunto.map((e: any) => (
