@@ -41,8 +41,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Super Admin",
     items: [
       { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏢",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/edificios",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/conjuntos",  label: "Agrupaciones",     icon: "🏙️",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
     ],
@@ -168,7 +168,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const edificioNombre = user?.edificio_id
     ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
-    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los edificios" : "—";
+    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los conjuntos" : "—";
 
   const isSuperAdmin = user?.rol === "superadmin";
   const isBackoffice = user?.rol === "backoffice";
@@ -257,7 +257,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             disabled={switching || !canSwitch}
             className={`w-full bg-white/10 rounded-lg px-3 py-2 text-left transition-colors ${canSwitch ? "hover:bg-white/20 cursor-pointer" : "cursor-default"}`}
           >
-            <div className="text-blue-300 text-xs mb-0.5">Edificio activo</div>
+            <div className="text-blue-300 text-xs mb-0.5">Conjunto activo</div>
             <div className="text-white text-sm font-medium flex items-center justify-between">
               <span className="truncate">
                 {switching ? "Cambiando…" : edificioNombre}
@@ -278,7 +278,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   }`}
                 >
                   <span>🌐</span>
-                  <span className="truncate">Todos los edificios</span>
+                  <span className="truncate">Todos los conjuntos</span>
                   {!user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
                 </button>
               )}
@@ -290,7 +290,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     e.id === user?.edificio_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
                   }`}
                 >
-                  <span>🏢</span>
+                  <span>🏘️</span>
                   <span className="truncate">{e.nombre}</span>
                   {e.id === user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
                 </button>

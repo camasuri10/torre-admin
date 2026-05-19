@@ -137,17 +137,17 @@ export default function ConjuntosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Conjuntos Residenciales</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Agrupa edificios bajo un mismo conjunto (ej. Benedictine Park)</p>
+          <h2 className="text-xl font-bold text-gray-900">Agrupaciones</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Agrupa conjuntos bajo una misma agrupación (ej. Benedictine Park)</p>
         </div>
         <button onClick={() => setShowForm((v) => !v)} className="bg-primary text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors">
-          {showForm ? "✕ Cancelar" : "+ Nuevo conjunto"}
+          {showForm ? "✕ Cancelar" : "+ Nueva agrupación"}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <h3 className="font-semibold text-gray-900">Nuevo conjunto</h3>
+          <h3 className="font-semibold text-gray-900">Nueva agrupación</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Benedictine Park" className={INPUT} /></div>
@@ -163,7 +163,7 @@ export default function ConjuntosPage() {
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
             <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">
-              {saving ? "Guardando…" : "Crear conjunto"}
+              {saving ? "Guardando…" : "Crear agrupación"}
             </button>
           </div>
         </form>
@@ -173,7 +173,7 @@ export default function ConjuntosPage() {
         <div className="text-center text-gray-400 py-10">Cargando…</div>
       ) : conjuntos.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
-          Sin conjuntos registrados. Crea el primero.
+          Sin agrupaciones registradas. Crea la primera.
         </div>
       ) : (
         <div className="space-y-3">
@@ -198,14 +198,14 @@ export default function ConjuntosPage() {
                   >
                     ✏️ Editar
                   </button>
-                  <span className="text-sm text-gray-500">{c.total_edificios ?? 0} edificio(s)</span>
+                  <span className="text-sm text-gray-500">{c.total_edificios ?? 0} conjunto(s)</span>
                   <span className={`text-gray-400 text-sm transition-transform ${expanded === c.id ? "rotate-180" : ""}`}>▼</span>
                 </div>
               </button>
 
               {editingId === c.id && (
                 <form onSubmit={handleEdit} className="border-t border-blue-100 bg-blue-50 px-6 py-4 space-y-4">
-                  <h3 className="font-semibold text-gray-900 text-sm">Editar conjunto</h3>
+                  <h3 className="font-semibold text-gray-900 text-sm">Editar agrupación</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                       <input required value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={INPUT} /></div>
@@ -232,13 +232,13 @@ export default function ConjuntosPage() {
                   {loadingEd[c.id] ? (
                     <div className="text-sm text-gray-400">Cargando edificios…</div>
                   ) : (edificios[c.id] ?? []).length === 0 ? (
-                    <div className="text-sm text-gray-400">Sin edificios asignados</div>
+                    <div className="text-sm text-gray-400">Sin conjuntos asignados</div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {(edificios[c.id] ?? []).map((e: any) => (
                         <div key={e.id} className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between">
                           <div>
-                            <span className="font-medium text-sm text-gray-900">🏢 {e.nombre}</span>
+                            <span className="font-medium text-sm text-gray-900">🏘️ {e.nombre}</span>
                             <span className="ml-2 text-xs text-gray-500">
                               {e.total_torres ?? 0} torre(s) · {e.total_unidades ?? 0} unidades
                             </span>
@@ -246,7 +246,7 @@ export default function ConjuntosPage() {
                           <button
                             onClick={() => handleRemoveEdificio(c.id, e.id, e.nombre)}
                             className="text-red-400 hover:text-red-600 text-xs ml-2"
-                            title="Quitar del conjunto"
+                            title="Quitar de la agrupación"
                           >
                             ✕
                           </button>
@@ -261,7 +261,7 @@ export default function ConjuntosPage() {
                         <div className="flex-1">
                           <label className="block text-xs font-medium text-gray-600 mb-1">Edificio</label>
                           <select required value={assignEdificio} onChange={(e) => setAssignEdificio(e.target.value)} className={INPUT}>
-                            <option value="">Seleccionar edificio…</option>
+                            <option value="">Seleccionar conjunto…</option>
                             {sinConjunto.map((e: any) => (
                               <option key={e.id} value={e.id}>{e.nombre}</option>
                             ))}
@@ -274,7 +274,7 @@ export default function ConjuntosPage() {
                       </form>
                     ) : (
                       <button onClick={() => setShowAssign(c.id)} className="text-sm text-primary font-medium hover:underline mt-1">
-                        + Asignar edificio
+                        + Asignar conjunto
                       </button>
                     )}
                   </div>
@@ -287,7 +287,7 @@ export default function ConjuntosPage() {
 
       {sinConjunto.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-sm font-medium text-amber-800">Edificios sin conjunto asignado ({sinConjunto.length})</p>
+          <p className="text-sm font-medium text-amber-800">Conjuntos sin agrupación asignada ({sinConjunto.length})</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {sinConjunto.map((e: any) => (
               <span key={e.id} className="text-xs bg-white border border-amber-200 text-amber-700 rounded px-2 py-1">{e.nombre}</span>

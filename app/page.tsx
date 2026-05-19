@@ -44,10 +44,10 @@ const plans = [
     name: "Básico",
     price: "$ 89.000",
     period: "/ mes",
-    description: "Ideal para edificios pequeños",
+    description: "Ideal para conjuntos pequeños",
     features: [
       "Hasta 20 unidades",
-      "1 edificio",
+      "1 conjunto",
       "Módulos de residentes y finanzas",
       "Soporte por email",
     ],
@@ -60,7 +60,7 @@ const plans = [
     description: "Para conjuntos medianos",
     features: [
       "Hasta 80 unidades",
-      "Hasta 3 edificios",
+      "Hasta 3 conjuntos",
       "Todos los módulos",
       "Soporte prioritario",
       "Reportes avanzados",
@@ -74,7 +74,7 @@ const plans = [
     description: "Para grandes conjuntos",
     features: [
       "Unidades ilimitadas",
-      "Edificios ilimitados",
+      "Conjuntos ilimitados",
       "API personalizada",
       "Gerente de cuenta dedicado",
       "SLA garantizado",
@@ -138,7 +138,7 @@ export default function LandingPage() {
           </h1>
           <p className="text-xl text-blue-100 max-w-2xl mx-auto mb-10">
             TorreAdmin centraliza la gestión de residentes, finanzas, mantenimiento y
-            comunicaciones de tu edificio o conjunto residencial en una sola plataforma.
+            comunicaciones de tu conjunto residencial en una sola plataforma.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -217,7 +217,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { step: "01", title: "Crea tu cuenta", desc: "Registra tu conjunto o edificio con los datos básicos. Sin instalaciones ni configuraciones complejas." },
+              { step: "01", title: "Crea tu cuenta", desc: "Registra tu conjunto con los datos básicos. Sin instalaciones ni configuraciones complejas." },
               { step: "02", title: "Importa tus residentes", desc: "Carga la información de propietarios e inquilinos desde Excel o ingrésalos manualmente." },
               { step: "03", title: "Gestiona todo", desc: "Accede a todos los módulos desde cualquier dispositivo. Tu equipo y residentes también pueden ingresar." },
             ].map((item) => (

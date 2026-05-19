@@ -66,8 +66,8 @@ export default function SuperAdminPage() {
   }
 
   const statCards = [
-    { label: "Conjuntos",        value: stats?.total_conjuntos ?? 0, icon: "🏘️", href: "/dashboard/superadmin/conjuntos", color: "bg-sky-50 border-sky-100" },
-    { label: "Edificios",        value: stats?.total_edificios  ?? 0, icon: "🏢", href: "/dashboard/superadmin/edificios", color: "bg-blue-50 border-blue-100" },
+    { label: "Conjuntos",        value: stats?.total_conjuntos ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
+    { label: "Agrupaciones",     value: stats?.total_edificios  ?? 0, icon: "🏙️", href: "/dashboard/superadmin/conjuntos",  color: "bg-blue-50 border-blue-100" },
     { label: "Administradores",  value: stats?.total_admins     ?? 0, icon: "👤", href: "/dashboard/superadmin/admins",    color: "bg-green-50 border-green-100" },
     { label: "Staff Servicios",  value: stats?.total_staff      ?? 0, icon: "🧹", href: "/dashboard/superadmin/admins",    color: "bg-teal-50 border-teal-100" },
     { label: "Usuarios totales", value: stats?.total_usuarios   ?? 0, icon: "👥", href: null,                              color: "bg-purple-50 border-purple-100" },
@@ -250,8 +250,8 @@ export default function SuperAdminPage() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Acciones rápidas</h3>
           <div className="grid grid-cols-1 gap-3">
             {[
-              { href: "/dashboard/superadmin/conjuntos", icon: "🏘️", label: "Gestionar conjuntos", desc: "Agrupar torres bajo un conjunto" },
-              { href: "/dashboard/superadmin/edificios", icon: "🏢", label: "Gestionar edificios",  desc: "Crear, editar y configurar módulos" },
+              { href: "/dashboard/superadmin/edificios", icon: "🏘️", label: "Gestionar conjuntos",   desc: "Crear, editar y configurar módulos" },
+              { href: "/dashboard/superadmin/conjuntos",  icon: "🏙️", label: "Gestionar agrupaciones", desc: "Agrupar conjuntos bajo una agrupación" },
               { href: "/dashboard/superadmin/admins",    icon: "👤", label: "Gestionar personal",   desc: "Admins, porteros y staff de servicios" },
             ].map((a) => (
               <Link key={a.href} href={a.href}

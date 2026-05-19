@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "TorreAdmin – Gestión de Propiedad Horizontal",
   description:
-    "Plataforma SaaS para la administración eficiente de conjuntos residenciales y edificios en Latinoamérica.",
+    "Plataforma SaaS para la administración eficiente de conjuntos residenciales en Latinoamérica.",
   keywords: "propiedad horizontal, administración, conjuntos residenciales, Colombia",
 };
 

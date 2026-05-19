@@ -51,7 +51,7 @@ export default function EdificiosPage() {
     try {
       const data = await superadminApi.edificios.list();
       setEdificios(data.edificios);
-    } catch { setError("Error al cargar edificios"); }
+    } catch { setError("Error al cargar conjuntos"); }
     finally { setLoading(false); }
   }
 
@@ -72,7 +72,7 @@ export default function EdificiosPage() {
       setShowForm(false);
       setForm(emptyForm);
       loadEdificios();
-    } catch { setError("Error al crear el edificio"); }
+    } catch { setError("Error al crear el conjunto"); }
     finally { setSaving(false); }
   }
 
@@ -120,14 +120,14 @@ export default function EdificiosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Edificios</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Gestiona los edificios de la plataforma</p>
+          <h2 className="text-xl font-bold text-gray-900">Conjuntos</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Gestiona los conjuntos de la plataforma</p>
         </div>
         <button
           onClick={() => { setShowForm((v) => !v); setError(""); }}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
-          + Nuevo edificio
+          + Nuevo conjunto
         </button>
       </div>
 
@@ -145,7 +145,7 @@ export default function EdificiosPage() {
       {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear nuevo edificio</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear nuevo conjunto</h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
@@ -173,14 +173,14 @@ export default function EdificiosPage() {
                 placeholder="601 000 0000" className={INPUT} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto al que pertenece</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Agrupación a la que pertenece</label>
               <select
                 value={form.conjunto_id}
                 onChange={(e) => setForm({ ...form, conjunto_id: e.target.value, create_conjunto: false })}
                 disabled={form.create_conjunto}
                 className={`${INPUT} disabled:bg-gray-50 disabled:text-gray-400`}
               >
-                <option value="">— Sin conjunto</option>
+                <option value="">— Sin agrupación</option>
                 {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -192,17 +192,17 @@ export default function EdificiosPage() {
                   onChange={(e) => setForm({ ...form, create_conjunto: e.target.checked, conjunto_id: "" })}
                   className="accent-primary"
                 />
-                <span className="text-sm text-gray-700">Este edificio es su propio conjunto (crear conjunto automáticamente)</span>
+                <span className="text-sm text-gray-700">Este conjunto es su propia agrupación (crear agrupación automáticamente)</span>
               </label>
               {form.create_conjunto && (
-                <p className="text-xs text-blue-600 mt-1 ml-5">Se creará un conjunto con el mismo nombre y datos del edificio.</p>
+                <p className="text-xs text-blue-600 mt-1 ml-5">Se creará una agrupación con el mismo nombre y datos del conjunto.</p>
               )}
             </div>
             {error && <p className="sm:col-span-2 text-red-600 text-xs">{error}</p>}
             <div className="sm:col-span-2 flex gap-3">
               <button type="submit" disabled={saving}
                 className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
-                {saving ? "Guardando…" : "Crear edificio"}
+                {saving ? "Guardando…" : "Crear conjunto"}
               </button>
               <button type="button" onClick={() => { setShowForm(false); setError(""); }}
                 className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
@@ -227,7 +227,7 @@ export default function EdificiosPage() {
             <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                  <span className="text-lg">🏢</span>
+                  <span className="text-lg">🏘️</span>
                 </div>
                 <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
                   {e.modulos_activos} módulos activos
@@ -235,10 +235,10 @@ export default function EdificiosPage() {
               </div>
               <h3 className="font-semibold text-gray-900 text-sm">{e.nombre}</h3>
               <p className="text-xs text-gray-400 mt-0.5">{e.direccion}</p>
-              {/* Conjunto y admin */}
+              {/* Agrupación y admin */}
               <div className="mt-2 space-y-0.5">
                 {e.conjunto_nombre && (
-                  <p className="text-xs text-sky-600 font-medium">🏘️ {e.conjunto_nombre}</p>
+                  <p className="text-xs text-sky-600 font-medium">🏙️ {e.conjunto_nombre}</p>
                 )}
                 {e.admin_nombre && (
                   <p className="text-xs text-green-600">👤 {e.admin_nombre}</p>
@@ -278,7 +278,7 @@ export default function EdificiosPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Editar edificio</h3>
+              <h3 className="font-semibold text-gray-900">Editar conjunto</h3>
               <button onClick={() => setEditEdificio(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <form onSubmit={handleEditSave} className="space-y-3">
@@ -312,10 +312,10 @@ export default function EdificiosPage() {
                   placeholder="601 000 0000" className={INPUT} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Agrupación</label>
                 <select value={editForm.conjunto_id}
                   onChange={(e) => setEditForm({ ...editForm, conjunto_id: e.target.value })} className={INPUT}>
-                  <option value="">— Sin conjunto</option>
+                  <option value="">— Sin agrupación</option>
                   {conjuntos.map((c: any) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>

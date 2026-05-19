@@ -335,26 +335,26 @@ export default function AdminsPage() {
                 <input type="checkbox" checked={form.asignarEdificio}
                   onChange={() => setForm({ ...form, asignarEdificio: !form.asignarEdificio, edificio_ids: [] })}
                   className="accent-primary" />
-                <span className="text-sm font-medium text-gray-700">¿Asignar a un edificio?</span>
+                <span className="text-sm font-medium text-gray-700">¿Asignar a un conjunto?</span>
               </label>
 
               {form.asignarEdificio && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs font-medium text-gray-600">Edificios asignados</label>
+                    <label className="block text-xs font-medium text-gray-600">Conjuntos asignados</label>
                     <button
                       type="button"
                       onClick={() => { setShowEdificioRapido((v) => !v); setEdificioRapidoError(""); }}
                       className="text-xs text-primary font-medium hover:underline"
                     >
-                      + Crear nuevo edificio
+                      + Crear nuevo conjunto
                     </button>
                   </div>
 
                   {/* Quick building creation */}
                   {showEdificioRapido && (
                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear edificio rápido</p>
+                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear conjunto rápido</p>
                       <form onSubmit={handleCrearEdificioRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
@@ -379,8 +379,7 @@ export default function AdminsPage() {
                           <button type="submit" disabled={edificioRapidoSaving}
                             className="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-60">
                             {edificioRapidoSaving ? "Creando…" : "Crear y seleccionar"}
-                          </button>
-                          <button type="button" onClick={() => setShowEdificioRapido(false)}
+                          </button>                          <button type="button" onClick={() => setShowEdificioRapido(false)}
                             className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-200 hover:text-gray-700">
                             Cancelar
                           </button>
@@ -462,7 +461,7 @@ export default function AdminsPage() {
 
               {viewingAdmin.edificios?.length > 0 && (
                 <div className="pt-2">
-                  <p className="text-xs text-gray-400 mb-1.5">Edificios asignados</p>
+                  <p className="text-xs text-gray-400 mb-1.5">Conjuntos asignados</p>
                   <div className="flex flex-wrap gap-1.5">
                     {viewingAdmin.edificios.map((e) => (
                       <span key={e.id} className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">{e.nombre}</span>
@@ -541,7 +540,7 @@ export default function AdminsPage() {
                 </div>
               </div>
 
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Edificios asignados</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Conjuntos asignados</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {edificios.map((e: any) => (
                   <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">

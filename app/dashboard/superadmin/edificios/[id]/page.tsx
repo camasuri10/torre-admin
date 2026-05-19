@@ -239,11 +239,11 @@ export default function EdificioGestionPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <Link href={isSA ? "/dashboard/superadmin/edificios" : "/dashboard/backoffice"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
-        ← {isSA ? "Edificios" : "Mi edificio"}
+        ← {isSA ? "Conjuntos" : "Mi conjunto"}
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-gray-900">{nombre || `Edificio #${edificioId}`}</h2>
+        <h2 className="text-xl font-bold text-gray-900">{nombre || `Conjunto #${edificioId}`}</h2>
         <p className="text-sm text-gray-500 mt-0.5">
           {modulosActivos} de {modulos.length} módulos activos
           {torres.length > 0 && ` · ${torres.length} torre${torres.length !== 1 ? "s" : ""}`}
