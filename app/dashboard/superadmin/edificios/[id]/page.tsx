@@ -9,7 +9,20 @@ import { superadminApi, api } from "@/lib/api";
 interface Modulo  { clave: string; nombre: string; icono: string; activo: boolean; }
 type TorreTipo = "torre" | "lote" | "parcelacion" | "manzana" | "otro";
 interface Torre   { id: number; nombre: string; numero: string | null; pisos: number | null; total_unidades: number; activo: boolean; tipo?: TorreTipo; }
-interface Unidad  { id: number; numero: string; piso: number | null; area_m2: number | null; coeficiente: number | null; residente_nombre: string | null; tipo_ocupacion: string | null; torre_nombre?: string | null; }
+interface Unidad  { id: number; numero: string; piso: number | null; tipo?: string; area_m2: number | null; coeficiente: number | null; residente_nombre: string | null; tipo_ocupacion: string | null; torre_nombre?: string | null; torre_numero?: string | null; }
+
+const UNIDAD_TIPO_LABELS: Record<string, string> = {
+  apartamento: "Apartamento",
+  local: "Local",
+  bodega: "Bodega",
+  parqueadero: "Parqueadero",
+  otro: "Otro",
+};
+
+function formatTorre(u: Unidad): string {
+  const parts = [u.torre_nombre, u.torre_numero].filter(Boolean);
+  return parts.join(" ").trim() || "—";
+}
 
 type Tab = "modulos" | "torres" | "unidades";
 
@@ -257,8 +270,8 @@ export default function EdificioGestionPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <Link href={isSA ? "/dashboard/superadmin/edificios" : "/dashboard/backoffice"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
-        ← {isSA ? "Conjuntos" : "Mi conjunto"}
+      <Link href={isSA ? "/dashboard/superadmin/edificios" : "/dashboard"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
+        ← {isSA ? "Conjuntos" : "Panel"}
       </Link>
 
       <div>
@@ -552,6 +565,7 @@ export default function EdificioGestionPage() {
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unidad</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Tipo</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Torre</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Piso</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Área</th>
@@ -563,7 +577,10 @@ export default function EdificioGestionPage() {
                   {unidades.map((u) => (
                     <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-900">{u.numero}</td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{u.torre_nombre ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell capitalize">
+                        {UNIDAD_TIPO_LABELS[u.tipo ?? ""] ?? u.tipo ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{formatTorre(u)}</td>
                       <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{u.piso ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{u.area_m2 != null ? `${u.area_m2} m²` : "—"}</td>
                       <td className="px-4 py-3">

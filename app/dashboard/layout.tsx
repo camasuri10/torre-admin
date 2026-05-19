@@ -163,16 +163,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
 
   const visibleGroups = NAV_GROUPS
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((item) => {
+    .map((g) => {
+      let items = g.items.filter((item) => {
         if (!user) return false;
         if (!item.roles.includes(user.rol)) return false;
-        // Superadmin and items without a module requirement are always visible
         if (!item.modulo || user.rol === "superadmin") return true;
         return activeModules.includes(item.modulo);
-      }),
-    }))
+      });
+      if (g.label === "Gestión" && user?.rol === "administrador" && user.edificio_id) {
+        items = [
+          ...items,
+          {
+            href: `/dashboard/superadmin/edificios/${user.edificio_id}`,
+            label: "Estructura del conjunto",
+            icon: "🏢",
+            exact: false,
+            roles: ["administrador"],
+          },
+        ];
+      }
+      return { ...g, items };
+    })
     .filter((g) => g.items.length > 0);
 
   const currentLabel = ALL_ITEMS.find((i) => isActive(i))?.label ?? "Dashboard";

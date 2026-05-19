@@ -43,6 +43,16 @@ const CLASIFICACIONES = [
   { value: "actividad", label: "Actividad" },
 ];
 
+const ESTADO_SIGUIENTE: Record<string, string> = {
+  borrador: "Enviar a aprobación",
+  pendiente_aprobacion: "Aprobar / Rechazar",
+  aprobada: "Iniciar ejecución",
+  en_ejecucion: "Completar",
+  rechazada: "—",
+  completada: "—",
+  cancelada: "—",
+};
+
 const KANBAN_COLS: { key: string; label: string; color: string }[] = [
   { key: "borrador",             label: "Borrador",       color: "bg-gray-50 border-gray-200" },
   { key: "pendiente_aprobacion", label: "En Aprobación",  color: "bg-yellow-50 border-yellow-200" },
@@ -468,7 +478,7 @@ export default function GestionPage() {
 
       {/* KPI cards */}
       {activeTab === "ordenes" && stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
             <div className="text-xs text-gray-500 mb-1">Borradores</div>
             <div className="text-2xl font-bold text-gray-900">{stats.borradores ?? 0}</div>
@@ -476,6 +486,10 @@ export default function GestionPage() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
             <div className="text-xs text-gray-500 mb-1">Pendientes aprobación</div>
             <div className="text-2xl font-bold text-yellow-700">{stats.pendientes ?? 0}</div>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <div className="text-xs text-gray-500 mb-1">En curso</div>
+            <div className="text-2xl font-bold text-purple-700">{stats.en_ejecucion ?? 0}</div>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="text-xs text-gray-500 mb-1">Aprobadas</div>
@@ -559,6 +573,7 @@ export default function GestionPage() {
                       <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tipo</th>
                       <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Monto</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Estado</th>
+                      <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Siguiente paso</th>
                       <th className="hidden xl:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Auditoría</th>
                     </tr>
                   </thead>
@@ -581,6 +596,9 @@ export default function GestionPage() {
                         </td>
                         <td className="hidden md:table-cell px-4 py-3 text-right text-gray-700">{fmt(o.monto_estimado)}</td>
                         <td className="px-4 py-3"><Badge estado={o.estado} /></td>
+                        <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-600">
+                          {ESTADO_SIGUIENTE[o.estado] ?? "—"}
+                        </td>
                         <td className="hidden xl:table-cell px-4 py-3">
                           <span className="text-xs text-gray-400">{fmtDate(o.updated_at)}</span>
                         </td>
@@ -1729,11 +1747,7 @@ export default function GestionPage() {
                 onClick={async () => {
                   setSavingConsejoDecision(true);
                   try {
-                    await fetch(`${API}/api/procurement/ordenes/${consejoTarget.id}/consejo/decision`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(consejoDecisionForm),
-                    });
+                    await api.procurement.ordenes.consejoDecision(consejoTarget.id, consejoDecisionForm);
                     setShowConsejoDecisionModal(false);
                     if (selectedOrden?.id === consejoTarget.id) {
                       const updated = await api.procurement.ordenes.get(consejoTarget.id);

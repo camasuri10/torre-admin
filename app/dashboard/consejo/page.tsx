@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getUser, type AuthUser } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { formatUnidadLabel } from "@/lib/format-unidad";
 
 const CARGOS_FIJOS = ["presidente", "vicepresidente", "secretario", "vocal", "fiscal"];
 const CARGOS = [...CARGOS_FIJOS, "otro"];
@@ -20,7 +22,7 @@ const FORM_INIT: FormState = {
   nombre: "",
   cargo: "presidente",
   tipo: "activo",
-  es_propietario: false,
+  es_propietario: true,
   unidad_id: null,
   residente_id: null,
   cargo_otro: "",
@@ -38,7 +40,6 @@ export default function ConsejoPage() {
   const [unidades, setUnidades] = useState<any[]>([]);
   const [residentes, setResidentes] = useState<any[]>([]);
 
-  const API = process.env.NEXT_PUBLIC_API_URL || "";
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
 
   useEffect(() => {
@@ -56,8 +57,7 @@ export default function ConsejoPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/consejo/${id}`);
-      const data = await res.json();
+      const data = await api.consejo.list(id);
       setMiembros(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
@@ -67,8 +67,7 @@ export default function ConsejoPage() {
   async function loadUnidades(edificioId?: number): Promise<any[]> {
     const id = edificioId ?? eid;
     if (!id) return [];
-    const res = await fetch(`${API}/api/consejo/unidades/${id}`);
-    const data = await res.json();
+    const data = await api.consejo.unidades(id);
     const list = Array.isArray(data) ? data : [];
     setUnidades(list);
     return list;
@@ -135,17 +134,9 @@ export default function ConsejoPage() {
     };
     try {
       if (editingMiembro) {
-        await fetch(`${API}/api/consejo/miembros/${editingMiembro.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        await api.consejo.update(editingMiembro.id, body);
       } else {
-        await fetch(`${API}/api/consejo/${eid}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        await api.consejo.create(eid, body);
       }
       setShowModal(false);
       loadMiembros();
@@ -155,17 +146,13 @@ export default function ConsejoPage() {
   }
 
   async function toggleActivo(m: any) {
-    await fetch(`${API}/api/consejo/miembros/${m.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activo: !m.activo }),
-    });
+    await api.consejo.update(m.id, { activo: !m.activo });
     loadMiembros();
   }
 
   async function deleteMiembro(id: number) {
     if (!confirm("¿Eliminar este miembro del consejo?")) return;
-    await fetch(`${API}/api/consejo/miembros/${id}`, { method: "DELETE" });
+    await api.consejo.delete(id);
     loadMiembros();
   }
 
@@ -208,13 +195,13 @@ export default function ConsejoPage() {
         <div className="space-y-6">
           {activos.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Miembros Activos</h3>
+              <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Titulares</h3>
               <MiembroTable miembros={activos} isAdmin={isAdmin} onEdit={openEdit} onDelete={deleteMiembro} onToggle={toggleActivo} />
             </div>
           )}
           {suplentes.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Miembros Suplentes</h3>
+              <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Suplentes</h3>
               <MiembroTable miembros={suplentes} isAdmin={isAdmin} onEdit={openEdit} onDelete={deleteMiembro} onToggle={toggleActivo} />
             </div>
           )}
@@ -257,7 +244,7 @@ export default function ConsejoPage() {
                       <option value="">Seleccionar unidad…</option>
                       {unidades.map((u: any) => (
                         <option key={u.id} value={u.id}>
-                          {u.torre} — Apto {u.numero}
+                          {formatUnidadLabel({ numero: u.numero, piso: u.piso, torre: u.torre })}
                         </option>
                       ))}
                     </select>
@@ -323,7 +310,7 @@ export default function ConsejoPage() {
                     onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="activo">Activo</option>
+                    <option value="activo">Titular</option>
                     <option value="suplente">Suplente</option>
                   </select>
                 </div>
@@ -392,7 +379,7 @@ function MiembroTable({
                 {m.nombre}
                 {m.unidad_numero && (
                   <span className="ml-2 text-xs text-gray-400 font-normal">
-                    ({m.unidad_torre} – {m.unidad_numero})
+                    ({[m.unidad_torre, m.unidad_torre_numero].filter(Boolean).join(" ") || m.unidad_torre} – {m.unidad_numero})
                   </span>
                 )}
               </td>

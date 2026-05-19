@@ -31,8 +31,12 @@ function getMesStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const EMPTY_PORTERO = { nombre: "", cedula: "", email: "", telefono: "", password: "" };
+
 export default function GuardiasPage() {
-  const edificioId = getUser()?.edificio_id;
+  const user = getUser();
+  const edificioId = user?.edificio_id;
+  const isAdmin = user?.rol === "administrador";
   const [guardias, setGuardias]           = useState<any[]>([]);
   const [turnos, setTurnos]               = useState<any[]>([]);
   const [cuadro, setCuadro]               = useState<any[]>([]);
@@ -40,6 +44,10 @@ export default function GuardiasPage() {
   const [eventos, setEventos]             = useState<any[]>([]);
   const [tab, setTab]                     = useState<"cuadro" | "turnos" | "guardias">("cuadro");
   const [showTurnoForm, setShowTurnoForm] = useState(false);
+  const [showGuardiaForm, setShowGuardiaForm] = useState(false);
+  const [porteroForm, setPorteroForm] = useState(EMPTY_PORTERO);
+  const [savingGuardia, setSavingGuardia] = useState(false);
+  const [guardiaError, setGuardiaError] = useState("");
   const [loading, setLoading]             = useState(true);
   const [mesActual, setMesActual]         = useState(() => getMesStr(new Date()));
 
@@ -102,6 +110,28 @@ export default function GuardiasPage() {
     await api.guardias.turnos.update(turno_id, { estado });
     load(mesActual);
     if (selectedTurno?.id === turno_id) setSelectedTurno((t: any) => ({ ...t, estado }));
+  };
+
+  const handleCrearGuardia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!edificioId) return;
+    setSavingGuardia(true);
+    setGuardiaError("");
+    try {
+      const newUser = await api.usuarios.create({
+        ...porteroForm,
+        rol: "portero",
+        edificio_id: edificioId,
+      });
+      await api.guardias.create({ usuario_id: newUser.id, edificio_id: edificioId });
+      setShowGuardiaForm(false);
+      setPorteroForm(EMPTY_PORTERO);
+      load(mesActual);
+    } catch (err: any) {
+      setGuardiaError(err?.message ?? "No se pudo registrar el guardia");
+    } finally {
+      setSavingGuardia(false);
+    }
   };
 
   const handleCrearEvento = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -350,8 +380,17 @@ export default function GuardiasPage() {
       {/* ── Guardias list ────────────────────────────────────────────────── */}
       {tab === "guardias" && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <h2 className="font-semibold text-gray-900">Personal de seguridad</h2>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => { setGuardiaError(""); setShowGuardiaForm(true); }}
+                className="text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 shrink-0"
+              >
+                + Nuevo portero
+              </button>
+            )}
           </div>
           {guardias.length === 0 ? (
             <div className="py-12 text-center text-gray-400">No hay guardias registrados</div>
@@ -371,6 +410,56 @@ export default function GuardiasPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Modal: Nuevo portero / guardia ───────────────────────────────── */}
+      {showGuardiaForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Registrar portero</h3>
+            {guardiaError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{guardiaError}</p>
+            )}
+            <form onSubmit={handleCrearGuardia} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo *</label>
+                <input required value={porteroForm.nombre} onChange={(e) => setPorteroForm((f) => ({ ...f, nombre: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cédula</label>
+                  <input value={porteroForm.cedula} onChange={(e) => setPorteroForm((f) => ({ ...f, cedula: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input value={porteroForm.telefono} onChange={(e) => setPorteroForm((f) => ({ ...f, telefono: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input type="email" required value={porteroForm.email} onChange={(e) => setPorteroForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña temporal *</label>
+                <input type="password" required minLength={6} value={porteroForm.password}
+                  onChange={(e) => setPorteroForm((f) => ({ ...f, password: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => setShowGuardiaForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={savingGuardia} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50">
+                  {savingGuardia ? "Guardando…" : "Registrar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, vehiculosApi, mascotasApi } from "@/lib/api";
 import { getUser, getEdificiosDisponibles } from "@/lib/auth";
+import { formatUnidadLabel } from "@/lib/format-unidad";
 
 const EMPTY_RESIDENTE = { nombre: "", tipo_documento: "CC", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
 const EMPTY_MASCOTA_NUEVA = { tieneMascota: false, nombre: "", especie: "perro", raza: "" };
@@ -63,6 +64,7 @@ export default function ResidentesPage() {
   const [showAssignUnit, setShowAssignUnit] = useState(false);
   const [assignUnitForm, setAssignUnitForm] = useState({ unidad_id: "" as number | "", tipo: "propietario" });
   const [savingAssignUnit, setSavingAssignUnit] = useState(false);
+  const [unidadesExtra, setUnidadesExtra] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -115,14 +117,20 @@ export default function ResidentesPage() {
       const { unidad_id, tipo_ocupacion, ...userData } = form;
       // edificio_id se pasa siempre → backend inserta en usuario_edificios automáticamente
       const newUser = await api.usuarios.create({ ...userData, edificio_id: edificioId });
-      if (unidad_id) {
+      const primaryId = unidad_id ? Number(unidad_id) : null;
+      const allUnitIds = primaryId
+        ? [primaryId, ...unidadesExtra.filter((id) => id !== primaryId)]
+        : [];
+      if (allUnitIds.length > 0) {
         const today = new Date().toISOString().slice(0, 10);
-        await api.usuarios.asignarUnidad({
-          unidad_id: Number(unidad_id),
-          usuario_id: newUser.id,
-          tipo: tipo_ocupacion,
-          fecha_inicio: today,
-        });
+        for (const uid of allUnitIds) {
+          await api.usuarios.asignarUnidad({
+            unidad_id: uid,
+            usuario_id: newUser.id,
+            tipo: tipo_ocupacion,
+            fecha_inicio: today,
+          });
+        }
       }
       if (mascotaNueva.tieneMascota && mascotaNueva.nombre) {
         await mascotasApi.create({
@@ -143,6 +151,7 @@ export default function ResidentesPage() {
         });
       }
       setForm(EMPTY_RESIDENTE);
+      setUnidadesExtra([]);
       setMascotaNueva(EMPTY_MASCOTA_NUEVA);
       setVehiculoNuevo(EMPTY_VEHICULO_NUEVO);
       setShowForm(false);
@@ -367,9 +376,32 @@ export default function ResidentesPage() {
                   <select required value={form.unidad_id} onChange={(e) => setForm({ ...form, unidad_id: e.target.value ? Number(e.target.value) : "" })} className={INPUT}>
                     <option value="">Seleccionar unidad…</option>
                     {unidades.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.numero}{u.piso ? ` — Piso ${u.piso}` : ""}</option>
+                      <option key={u.id} value={u.id}>{formatUnidadLabel(u)}</option>
                     ))}
                   </select></div>
+                {form.unidad_id !== "" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Unidades adicionales (opcional)</label>
+                    <div className="max-h-32 overflow-y-auto border rounded-lg p-2 space-y-1">
+                      {unidades
+                        .filter((u: any) => u.id !== form.unidad_id)
+                        .map((u: any) => (
+                          <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={unidadesExtra.includes(u.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setUnidadesExtra((prev) => [...prev, u.id]);
+                                else setUnidadesExtra((prev) => prev.filter((id) => id !== u.id));
+                              }}
+                              className="rounded border-gray-300 text-primary"
+                            />
+                            <span>{formatUnidadLabel(u)}</span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 {form.unidad_id !== "" && (
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo de ocupación</label>
                     <select value={form.tipo_ocupacion} onChange={(e) => setForm({ ...form, tipo_ocupacion: e.target.value })} className={INPUT}>

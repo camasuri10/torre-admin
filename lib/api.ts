@@ -509,6 +509,11 @@ export const api = {
           method: "PATCH",
           body: JSON.stringify({ requiere }),
         }),
+      consejoDecision: (id: number, data: { decision: string; comentario?: string }) =>
+        request<any>(`/api/procurement/ordenes/${id}/consejo/decision`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }),
       createCotizacion: (id: number, data: any) =>
         request<any>(`/api/procurement/ordenes/${id}/cotizaciones`, {
           method: "POST",
@@ -556,6 +561,17 @@ export const api = {
       delete: (id: number) =>
         request<void>(`/api/procurement/flujos/${id}`, { method: "DELETE" }),
     },
+  },
+
+  consejo: {
+    list: (edificio_id: number) => request<any[]>(`/api/consejo/${edificio_id}`),
+    unidades: (edificio_id: number) => request<any[]>(`/api/consejo/unidades/${edificio_id}`),
+    create: (edificio_id: number, data: any) =>
+      request<any>(`/api/consejo/${edificio_id}`, { method: "POST", body: JSON.stringify(data) }),
+    update: (miembro_id: number, data: any) =>
+      request<any>(`/api/consejo/miembros/${miembro_id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (miembro_id: number) =>
+      request<void>(`/api/consejo/miembros/${miembro_id}`, { method: "DELETE" }),
   },
 
   // ── Contratos — Timeline, Pagos, PDF ──────────────────────────────────────
