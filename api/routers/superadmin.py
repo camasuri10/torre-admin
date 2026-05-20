@@ -236,7 +236,7 @@ def list_conjuntos(sa=Depends(_require_superadmin)):
 
 
 @router.post("/conjuntos", status_code=201)
-def create_conjunto(body: conjuntoCreate, sa=Depends(_require_superadmin)):
+def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_superadmin)):
     org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -257,7 +257,7 @@ def create_conjunto(body: conjuntoCreate, sa=Depends(_require_superadmin)):
 
 
 @router.put("/conjuntos/{conjunto_id}")
-def update_conjunto(conjunto_id: int, body: conjuntoUpdate, sa=Depends(_require_superadmin)):
+def update_conjunto(conjunto_id: int, body: ConjuntoUpdate, sa=Depends(_require_superadmin)):
     fields, values = [], []
     for field, val in body.model_dump(exclude_none=True).items():
         fields.append(f"{field} = %s")

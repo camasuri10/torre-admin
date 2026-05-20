@@ -106,7 +106,7 @@ def get_conjunto(conjunto_id: int):
 
 
 @router.post("", status_code=201)
-def create_conjunto(data: conjuntoCreate):
+def create_conjunto(data: ConjuntoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -117,7 +117,7 @@ def create_conjunto(data: conjuntoCreate):
 
 
 @router.put("/{conjunto_id}")
-def update_conjunto(conjunto_id: int, data: conjuntoCreate):
+def update_conjunto(conjunto_id: int, data: ConjuntoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
