@@ -1,40 +1,40 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import {
-  getEdificiosDisponibles,
+  getConjuntosDisponibles,
   getUserTemp,
   setToken,
   clearUserTemp,
-  type EdificioBasic,
+  type ConjuntoBasic,
 } from "@/lib/auth";
 
-export default function SeleccionarEdificioPage() {
+export default function SeleccionarConjuntoPage() {
   const router = useRouter();
-  const [edificios, setEdificios] = useState<EdificioBasic[]>([]);
+  const [conjuntos, setConjuntos] = useState<ConjuntoBasic[]>([]);
   const [loading, setLoading] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const lista = getEdificiosDisponibles();
+    const lista = getConjuntosDisponibles();
     const user = getUserTemp();
     if (!lista.length || !user) {
       router.replace("/login");
       return;
     }
-    setEdificios(lista);
+    setConjuntos(lista);
   }, [router]);
 
-  async function handleSelect(edificio: EdificioBasic) {
+  async function handleSelect(conjunto: ConjuntoBasic) {
     const user = getUserTemp();
     if (!user) { router.replace("/login"); return; }
 
-    setLoading(edificio.id);
+    setLoading(conjunto.id);
     setError("");
     try {
-      const data = await authApi.seleccionarEdificio(user.id, edificio.id);
+      const data = await authApi.seleccionarConjunto(user.id, conjunto.id);
       setToken(data.access_token);
       clearUserTemp();
       router.push("/dashboard");
@@ -44,7 +44,7 @@ export default function SeleccionarEdificioPage() {
     }
   }
 
-  if (!edificios.length) return null;
+  if (!conjuntos.length) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -68,7 +68,7 @@ export default function SeleccionarEdificioPage() {
 
         {/* Building cards */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
-          {edificios.map((e) => (
+          {conjuntos.map((e) => (
             <button
               key={e.id}
               onClick={() => handleSelect(e)}

@@ -1,4 +1,4 @@
-"""Procurement y Gestión — órdenes de compra, cotizaciones y flujos de aprobación."""
+﻿"""Procurement y Gestión — órdenes de compra, cotizaciones y flujos de aprobación."""
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Depends
@@ -32,23 +32,23 @@ def _require_superadmin(current_user: dict = Depends(get_current_user)):
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def _gen_numero_orden(cur, edificio_id: int) -> str:
+def _gen_numero_orden(cur, conjunto_id: int) -> str:
     yr = date.today().year
     cur.execute(
-        "SELECT COUNT(*)+1 AS seq FROM ordenes_compra WHERE edificio_id=%s AND EXTRACT(YEAR FROM created_at)=%s",
-        (edificio_id, yr),
+        "SELECT COUNT(*)+1 AS seq FROM ordenes_compra WHERE conjunto_id=%s AND EXTRACT(YEAR FROM created_at)=%s",
+        (conjunto_id, yr),
     )
     seq = int(cur.fetchone()["seq"])
-    return f"ORD-{edificio_id}-{yr}-{seq:04d}"
+    return f"ORD-{conjunto_id}-{yr}-{seq:04d}"
 
 
-def _needs_superadmin(monto: float, edificio_id: int, cur) -> bool:
+def _needs_superadmin(monto: float, conjunto_id: int, cur) -> bool:
     cur.execute("""
         SELECT approver_rol FROM flujos_aprobacion
-        WHERE edificio_id=%s AND activo=TRUE
+        WHERE conjunto_id=%s AND activo=TRUE
           AND monto_minimo <= %s AND (monto_maximo IS NULL OR monto_maximo >= %s)
         ORDER BY monto_minimo DESC LIMIT 1
-    """, (edificio_id, monto, monto))
+    """, (conjunto_id, monto, monto))
     row = cur.fetchone()
     if row:
         return row["approver_rol"] == "superadmin"
@@ -58,12 +58,12 @@ def _needs_superadmin(monto: float, edificio_id: int, cur) -> bool:
 _ORDEN_SELECT = """
     SELECT o.*,
            p.nombre AS proveedor_nombre,
-           e.nombre AS edificio_nombre,
+           e.nombre AS conjunto_nombre,
            u.nombre AS solicitante_nombre,
            pr.titulo AS proyecto_titulo
     FROM ordenes_compra o
     LEFT JOIN proveedores p ON p.id = o.proveedor_id
-    JOIN edificios e ON e.id = o.edificio_id
+    JOIN conjuntos e ON e.id = o.conjunto_id
     LEFT JOIN usuarios u ON u.id = o.solicitante_id
     LEFT JOIN ordenes_compra pr ON pr.id = o.proyecto_id
 """
@@ -123,7 +123,7 @@ class OrdenCreate(BaseModel):
     cantidad: Optional[float] = None
     monto_estimado: float = 0
     fecha_necesidad: Optional[str] = None
-    edificio_id: int
+    conjunto_id: int
     items: list[ItemIn] = []
     evidencias: list[EvidenciaIn] = []
     requiere_cotizaciones: bool = False
@@ -178,7 +178,7 @@ class SolicitudCreate(BaseModel):
     descripcion: Optional[str] = None
     fecha_limite: Optional[str] = None
     criterios_evaluacion: Optional[str] = None
-    edificio_id: int
+    conjunto_id: int
     num_cotizaciones_requeridas: int = 1  # 1 o 3
 
 
@@ -211,13 +211,13 @@ class FlujoCreate(BaseModel):
     monto_minimo: float = 0
     monto_maximo: Optional[float] = None
     approver_rol: str  # administrador | superadmin
-    edificio_id: int
+    conjunto_id: int
 
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
 @router.get("/stats")
-def get_stats(edificio_id: int, _: dict = Depends(_require_procurement)):
+def get_stats(conjunto_id: int, _: dict = Depends(_require_procurement)):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -232,13 +232,13 @@ def get_stats(edificio_id: int, _: dict = Depends(_require_procurement)):
                             WHERE estado NOT IN ('cancelada','rechazada')
                             AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())
                         ), 0) AS gasto_mes
-                    FROM ordenes_compra WHERE edificio_id = %s
-                """, (edificio_id,))
+                    FROM ordenes_compra WHERE conjunto_id = %s
+                """, (conjunto_id,))
                 row = dict(cur.fetchone())
 
                 cur.execute(
-                    "SELECT COUNT(*) FROM solicitudes_cotizacion WHERE edificio_id=%s AND estado='abierta'",
-                    (edificio_id,),
+                    "SELECT COUNT(*) FROM solicitudes_cotizacion WHERE conjunto_id=%s AND estado='abierta'",
+                    (conjunto_id,),
                 )
                 row["solicitudes_abiertas"] = int(cur.fetchone()["count"])
 
@@ -253,7 +253,7 @@ def get_stats(edificio_id: int, _: dict = Depends(_require_procurement)):
 
 @router.get("/ordenes")
 def list_ordenes(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     estado: Optional[str] = None,
     tipo_orden: Optional[str] = None,
     proveedor_id: Optional[int] = None,
@@ -263,8 +263,8 @@ def list_ordenes(
         with conn.cursor() as cur:
             query = _ORDEN_SELECT + " WHERE 1=1"
             params: list = []
-            if edificio_id:
-                query += " AND o.edificio_id = %s"; params.append(edificio_id)
+            if conjunto_id:
+                query += " AND o.conjunto_id = %s"; params.append(conjunto_id)
             if estado:
                 query += " AND o.estado = %s"; params.append(estado)
             if tipo_orden:
@@ -282,12 +282,12 @@ def get_pendientes(current_user: dict = Depends(_require_procurement)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT o.*, p.nombre AS proveedor_nombre, e.nombre AS edificio_nombre,
+                SELECT o.*, p.nombre AS proveedor_nombre, e.nombre AS conjunto_nombre,
                        u.nombre AS solicitante_nombre
                 FROM ordenes_compra o
                 JOIN orden_aprobaciones oa ON oa.orden_id = o.id AND oa.estado = 'pendiente'
                 LEFT JOIN proveedores p ON p.id = o.proveedor_id
-                JOIN edificios e ON e.id = o.edificio_id
+                JOIN conjuntos e ON e.id = o.conjunto_id
                 LEFT JOIN usuarios u ON u.id = o.solicitante_id
                 WHERE o.estado = 'pendiente_aprobacion' AND oa.approver_rol = %s
                 ORDER BY o.created_at
@@ -307,20 +307,20 @@ def create_orden(data: OrdenCreate, current_user: dict = Depends(_require_procur
     solicitante_id = int(current_user.get("sub"))
     with get_db() as conn:
         with conn.cursor() as cur:
-            numero = _gen_numero_orden(cur, data.edificio_id)
+            numero = _gen_numero_orden(cur, data.conjunto_id)
             import json
             evidencias_json = json.dumps([e.model_dump() for e in data.evidencias]) if data.evidencias else "[]"
             cur.execute("""
                 INSERT INTO ordenes_compra
                     (numero_orden, titulo, tipo_orden, clasificacion, proveedor_id,
                      descripcion, justificacion, cantidad, monto_estimado,
-                     fecha_necesidad, edificio_id, solicitante_id, evidencias,
+                     fecha_necesidad, conjunto_id, solicitante_id, evidencias,
                      requiere_cotizaciones, es_individual, requiere_aprobacion_consejo, proyecto_id)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) RETURNING id
             """, (
                 numero, data.titulo, data.tipo_orden, data.clasificacion, data.proveedor_id,
                 data.descripcion, data.justificacion, data.cantidad, data.monto_estimado,
-                data.fecha_necesidad, data.edificio_id, solicitante_id, evidencias_json,
+                data.fecha_necesidad, data.conjunto_id, solicitante_id, evidencias_json,
                 data.requiere_cotizaciones, data.es_individual, data.requiere_aprobacion_consejo,
                 data.proyecto_id,
             ))
@@ -484,7 +484,7 @@ def remove_item(orden_id: int, item_id: int, _: dict = Depends(_require_procurem
 def list_cotizaciones(
     solicitud_id: Optional[int] = None,
     orden_id: Optional[int] = None,
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     _: dict = Depends(_require_procurement),
 ):
     with get_db() as conn:
@@ -502,8 +502,8 @@ def list_cotizaciones(
                 query += " AND c.solicitud_id=%s"; params.append(solicitud_id)
             if orden_id:
                 query += " AND c.orden_id=%s"; params.append(orden_id)
-            if edificio_id:
-                query += " AND (s.edificio_id=%s OR s.edificio_id IS NULL)"; params.append(edificio_id)
+            if conjunto_id:
+                query += " AND (s.conjunto_id=%s OR s.conjunto_id IS NULL)"; params.append(conjunto_id)
             query += " ORDER BY c.monto"
             cur.execute(query, params)
             return [_safe_row(dict(r)) for r in cur.fetchall()]
@@ -548,11 +548,11 @@ def marcar_ganadora(cotizacion_id: int, current_user: dict = Depends(_require_pr
                 sol = cur.fetchone()
                 if sol:
                     uid = int(current_user.get("sub"))
-                    numero = _gen_numero_orden(cur, sol["edificio_id"])
+                    numero = _gen_numero_orden(cur, sol["conjunto_id"])
                     cur.execute("""
                         INSERT INTO ordenes_compra
                             (numero_orden, titulo, tipo_orden, proveedor_id, descripcion,
-                             monto_estimado, edificio_id, solicitante_id)
+                             monto_estimado, conjunto_id, solicitante_id)
                         VALUES (%s,%s,'compra_bienes',%s,%s,%s,%s,%s) RETURNING id
                     """, (
                         numero,
@@ -560,7 +560,7 @@ def marcar_ganadora(cotizacion_id: int, current_user: dict = Depends(_require_pr
                         cot["proveedor_id"],
                         sol["descripcion"],
                         float(cot["monto"]),
-                        sol["edificio_id"],
+                        sol["conjunto_id"],
                         uid,
                     ))
                     new_orden_id = cur.fetchone()["id"]
@@ -576,7 +576,7 @@ def marcar_ganadora(cotizacion_id: int, current_user: dict = Depends(_require_pr
 # ─── Solicitudes de cotización ────────────────────────────────────────────────
 
 @router.get("/solicitudes")
-def list_solicitudes(edificio_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
+def list_solicitudes(conjunto_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
@@ -588,8 +588,8 @@ def list_solicitudes(edificio_id: Optional[int] = None, _: dict = Depends(_requi
                 WHERE 1=1
             """
             params: list = []
-            if edificio_id:
-                query += " AND s.edificio_id=%s"; params.append(edificio_id)
+            if conjunto_id:
+                query += " AND s.conjunto_id=%s"; params.append(conjunto_id)
             query += " ORDER BY s.created_at DESC"
             cur.execute(query, params)
             return [_safe_row(dict(r)) for r in cur.fetchall()]
@@ -603,11 +603,11 @@ def create_solicitud(data: SolicitudCreate, current_user: dict = Depends(_requir
             cur.execute("""
                 INSERT INTO solicitudes_cotizacion
                     (titulo, tipo, descripcion, fecha_limite, criterios_evaluacion,
-                     edificio_id, created_by, num_cotizaciones_requeridas)
+                     conjunto_id, created_by, num_cotizaciones_requeridas)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (
                 data.titulo, data.tipo, data.descripcion, data.fecha_limite,
-                data.criterios_evaluacion, data.edificio_id, uid,
+                data.criterios_evaluacion, data.conjunto_id, uid,
                 data.num_cotizaciones_requeridas,
             ))
             return dict(cur.fetchone())
@@ -630,13 +630,13 @@ def cerrar_solicitud(solicitud_id: int, _: dict = Depends(_require_procurement))
 # ─── Flujos de aprobación ─────────────────────────────────────────────────────
 
 @router.get("/flujos")
-def list_flujos(edificio_id: Optional[int] = None, _: dict = Depends(_require_superadmin)):
+def list_flujos(conjunto_id: Optional[int] = None, _: dict = Depends(_require_superadmin)):
     with get_db() as conn:
         with conn.cursor() as cur:
             query = "SELECT f.*, u.nombre AS approver_nombre FROM flujos_aprobacion f LEFT JOIN usuarios u ON u.id=f.approver_id WHERE 1=1"
             params: list = []
-            if edificio_id:
-                query += " AND f.edificio_id=%s"; params.append(edificio_id)
+            if conjunto_id:
+                query += " AND f.conjunto_id=%s"; params.append(conjunto_id)
             query += " ORDER BY f.monto_minimo"
             cur.execute(query, params)
             return [_safe_row(dict(r)) for r in cur.fetchall()]
@@ -648,9 +648,9 @@ def create_flujo(data: FlujoCreate, _: dict = Depends(_require_superadmin)):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO flujos_aprobacion
-                    (nombre, tipo_orden, monto_minimo, monto_maximo, approver_rol, edificio_id)
+                    (nombre, tipo_orden, monto_minimo, monto_maximo, approver_rol, conjunto_id)
                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.nombre, data.tipo_orden, data.monto_minimo, data.monto_maximo, data.approver_rol, data.edificio_id))
+            """, (data.nombre, data.tipo_orden, data.monto_minimo, data.monto_maximo, data.approver_rol, data.conjunto_id))
             return _safe_row(dict(cur.fetchone()))
 
 
@@ -732,16 +732,16 @@ def decidir_asamblea(
 
 @router.get("/asamblea")
 def list_asamblea(
-    edificio_id: Optional[int] = None, current_user: dict = Depends(_require_procurement)
+    conjunto_id: Optional[int] = None, current_user: dict = Depends(_require_procurement)
 ):
     """Lista todas las órdenes que requieren o han pasado por aprobación de asamblea."""
     with get_db() as conn:
         with conn.cursor() as cur:
             query = _ORDEN_SELECT + " WHERE o.requiere_asamblea = TRUE"
             params: list = []
-            if edificio_id:
-                query += " AND o.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND o.conjunto_id = %s"
+                params.append(conjunto_id)
             query += " ORDER BY o.created_at DESC"
             cur.execute(query, params)
             return [_safe_row(dict(r)) for r in cur.fetchall()]
@@ -750,7 +750,7 @@ def list_asamblea(
 # ─── Kanban ───────────────────────────────────────────────────────────────────
 
 @router.get("/kanban")
-def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
+def get_kanban(conjunto_id: Optional[int] = None, _: dict = Depends(_require_procurement)):
     """Retorna órdenes clasificadas como 'proyecto' o 'actividad' agrupadas por estado para el tablero."""
     COLUMNAS = [
         "borrador",
@@ -767,16 +767,16 @@ def get_kanban(edificio_id: Optional[int] = None, _: dict = Depends(_require_pro
                        o.monto_estimado, o.fecha_necesidad, o.created_at,
                        o.requiere_asamblea, o.asamblea_estado,
                        p.nombre AS proveedor_nombre,
-                       e.nombre AS edificio_nombre
+                       e.nombre AS conjunto_nombre
                 FROM ordenes_compra o
                 LEFT JOIN proveedores p ON p.id = o.proveedor_id
-                JOIN edificios e ON e.id = o.edificio_id
+                JOIN conjuntos e ON e.id = o.conjunto_id
                 WHERE o.clasificacion IN ('proyecto', 'actividad')
             """
             params: list = []
-            if edificio_id:
-                query += " AND o.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND o.conjunto_id = %s"
+                params.append(conjunto_id)
             query += " ORDER BY o.created_at DESC"
             cur.execute(query, params)
             ordenes = [_safe_row(dict(r)) for r in cur.fetchall()]

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from db import get_db
@@ -9,12 +9,12 @@ router = APIRouter()
 
 class GuardiaCreate(BaseModel):
     usuario_id: int
-    edificio_id: int
+    conjunto_id: int
 
 
 class TurnoCreate(BaseModel):
     guardia_id: int
-    edificio_id: int
+    conjunto_id: int
     fecha_inicio: str   # ISO datetime
     fecha_fin: str
     tipo_turno: str     # dia | noche | fin_semana
@@ -34,26 +34,26 @@ class EventoCreate(BaseModel):
 
 
 @router.get("")
-def list_guardias(edificio_id: Optional[int] = None):
+def list_guardias(conjunto_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
-            if edificio_id:
+            if conjunto_id:
                 cur.execute("""
                     SELECT g.*, u.nombre, u.cedula, u.telefono, u.email,
-                           e.nombre as edificio_nombre
+                           e.nombre as conjunto_nombre
                     FROM guardias g
                     JOIN usuarios u ON u.id = g.usuario_id
-                    JOIN edificios e ON e.id = g.edificio_id
-                    WHERE g.edificio_id = %s AND g.activo = TRUE
+                    JOIN conjuntos e ON e.id = g.conjunto_id
+                    WHERE g.conjunto_id = %s AND g.activo = TRUE
                     ORDER BY u.nombre
-                """, (edificio_id,))
+                """, (conjunto_id,))
             else:
                 cur.execute("""
                     SELECT g.*, u.nombre, u.cedula, u.telefono, u.email,
-                           e.nombre as edificio_nombre
+                           e.nombre as conjunto_nombre
                     FROM guardias g
                     JOIN usuarios u ON u.id = g.usuario_id
-                    JOIN edificios e ON e.id = g.edificio_id
+                    JOIN conjuntos e ON e.id = g.conjunto_id
                     WHERE g.activo = TRUE ORDER BY u.nombre
                 """)
             return cur.fetchall()
@@ -64,14 +64,14 @@ def create_guardia(data: GuardiaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM guardias WHERE usuario_id = %s AND edificio_id = %s AND activo = TRUE",
-                (data.usuario_id, data.edificio_id),
+                "SELECT id FROM guardias WHERE usuario_id = %s AND conjunto_id = %s AND activo = TRUE",
+                (data.usuario_id, data.conjunto_id),
             )
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Este usuario ya está registrado como guardia en este edificio")
+                raise HTTPException(status_code=409, detail="Este usuario ya está registrado como guardia en este conjunto")
             cur.execute(
-                "INSERT INTO guardias (usuario_id, edificio_id) VALUES (%s,%s) RETURNING *",
-                (data.usuario_id, data.edificio_id),
+                "INSERT INTO guardias (usuario_id, conjunto_id) VALUES (%s,%s) RETURNING *",
+                (data.usuario_id, data.conjunto_id),
             )
             return cur.fetchone()
 
@@ -80,7 +80,7 @@ def create_guardia(data: GuardiaCreate):
 
 @router.get("/turnos")
 def list_turnos(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     guardia_id: Optional[int] = None,
     fecha_inicio: Optional[str] = None,
     fecha_fin: Optional[str] = None,
@@ -88,17 +88,17 @@ def list_turnos(
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
-                SELECT t.*, u.nombre as guardia_nombre, e.nombre as edificio_nombre
+                SELECT t.*, u.nombre as guardia_nombre, e.nombre as conjunto_nombre
                 FROM turnos t
                 JOIN guardias g ON g.id = t.guardia_id
                 JOIN usuarios u ON u.id = g.usuario_id
-                JOIN edificios e ON e.id = t.edificio_id
+                JOIN conjuntos e ON e.id = t.conjunto_id
                 WHERE 1=1
             """
             params = []
-            if edificio_id:
-                query += " AND t.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND t.conjunto_id = %s"
+                params.append(conjunto_id)
             if guardia_id:
                 query += " AND t.guardia_id = %s"
                 params.append(guardia_id)
@@ -118,9 +118,9 @@ def create_turno(data: TurnoCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO turnos (guardia_id, edificio_id, fecha_inicio, fecha_fin, tipo_turno, notas)
+                INSERT INTO turnos (guardia_id, conjunto_id, fecha_inicio, fecha_fin, tipo_turno, notas)
                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.guardia_id, data.edificio_id, data.fecha_inicio,
+            """, (data.guardia_id, data.conjunto_id, data.fecha_inicio,
                   data.fecha_fin, data.tipo_turno, data.notas))
             return cur.fetchone()
 
@@ -189,8 +189,8 @@ async def create_evento(
             return cur.fetchone()
 
 
-@router.get("/cuadro-turnos/{edificio_id}")
-def cuadro_turnos(edificio_id: int, mes: Optional[str] = None):
+@router.get("/cuadro-turnos/{conjunto_id}")
+def cuadro_turnos(conjunto_id: int, mes: Optional[str] = None):
     """Returns the monthly schedule grid for all guards in a building.
     `mes` should be YYYY-MM (defaults to current month)."""
     with get_db() as conn:
@@ -200,9 +200,9 @@ def cuadro_turnos(edificio_id: int, mes: Optional[str] = None):
                 FROM turnos t
                 JOIN guardias g ON g.id = t.guardia_id
                 JOIN usuarios u ON u.id = g.usuario_id
-                WHERE t.edificio_id = %s
+                WHERE t.conjunto_id = %s
                 AND DATE_TRUNC('month', t.fecha_inicio) =
                     DATE_TRUNC('month', COALESCE(%s::date, NOW()::date))
                 ORDER BY t.fecha_inicio, u.nombre
-            """, (edificio_id, (mes + "-01") if mes else None))
+            """, (conjunto_id, (mes + "-01") if mes else None))
             return cur.fetchall()

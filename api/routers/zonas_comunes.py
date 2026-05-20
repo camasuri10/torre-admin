@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from db import get_db
@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 class ZonaCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     torre_id: Optional[int] = None
     nombre: str
     descripcion: Optional[str] = None
@@ -73,23 +73,23 @@ class ReservaEntrega(BaseModel):
 
 
 @router.get("")
-def list_zonas(edificio_id: Optional[int] = None, incluir_inactivas: bool = False):
+def list_zonas(conjunto_id: Optional[int] = None, incluir_inactivas: bool = False):
     with get_db() as conn:
         with conn.cursor() as cur:
             base = """
-                SELECT z.*, e.nombre as edificio_nombre,
+                SELECT z.*, e.nombre as conjunto_nombre,
                        t.nombre as torre_nombre, t.numero as torre_numero
                 FROM zonas_comunes z
-                JOIN edificios e ON e.id = z.edificio_id
+                JOIN conjuntos e ON e.id = z.conjunto_id
                 LEFT JOIN torres t ON t.id = z.torre_id
                 WHERE 1=1
             """
             params = []
             if not incluir_inactivas:
                 base += " AND z.activo = TRUE"
-            if edificio_id:
-                base += " AND z.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                base += " AND z.conjunto_id = %s"
+                params.append(conjunto_id)
             base += " ORDER BY e.nombre, z.nombre"
             cur.execute(base, params)
             return cur.fetchall()
@@ -101,13 +101,13 @@ def create_zona(data: ZonaCreate):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO zonas_comunes
-                    (edificio_id, torre_id, nombre, descripcion, capacidad, icono,
+                    (conjunto_id, torre_id, nombre, descripcion, capacidad, icono,
                      duracion_min_horas, duracion_max_horas,
                      anticipacion_min_dias, anticipacion_max_dias,
                      horario_inicio, horario_fin,
                      requiere_inventario, costo_arriendo, costo_deposito)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.torre_id, data.nombre, data.descripcion,
+            """, (data.conjunto_id, data.torre_id, data.nombre, data.descripcion,
                   data.capacidad, data.icono,
                   data.duracion_min_horas, data.duracion_max_horas,
                   data.anticipacion_min_dias, data.anticipacion_max_dias,
@@ -141,7 +141,7 @@ def update_zona_config(zona_id: int, data: ZonaConfigUpdate):
 
 @router.get("/reservas")
 def list_reservas(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     zona_id: Optional[int] = None,
     fecha: Optional[str] = None,
     estado: Optional[str] = None,
@@ -156,19 +156,19 @@ def list_reservas(
                        u.nombre as usuario_nombre,
                        reg.nombre as registrado_por_nombre,
                        un.numero as unidad_numero,
-                       e.id as edificio_id, e.nombre as edificio_nombre
+                       e.id as conjunto_id, e.nombre as conjunto_nombre
                 FROM reservas r
                 JOIN zonas_comunes z ON z.id = r.zona_id
-                JOIN edificios e ON e.id = z.edificio_id
+                JOIN conjuntos e ON e.id = z.conjunto_id
                 JOIN usuarios u ON u.id = r.usuario_id
                 LEFT JOIN usuarios reg ON reg.id = r.registrado_por_id
                 LEFT JOIN unidades un ON un.id = r.unidad_id
                 WHERE 1=1
             """
             params = []
-            if edificio_id:
+            if conjunto_id:
                 query += " AND e.id = %s"
-                params.append(edificio_id)
+                params.append(conjunto_id)
             if zona_id:
                 query += " AND r.zona_id = %s"
                 params.append(zona_id)

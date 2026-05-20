@@ -1,4 +1,4 @@
-"""
+﻿"""
 ChatbotEngine: Orchestrates the AI provider + tool execution loop.
 """
 import json
@@ -17,13 +17,13 @@ _ROL_DISPLAY = {
 }
 
 _CAPACIDADES_POR_ROL = {
-    "superadmin": "gestión global de edificios, módulos, estadísticas de plataforma y todas las operaciones administrativas.",
-    "administrador": "gestión de usuarios, cuotas, comunicados, mantenimientos, reservas, paquetes y accesos de tu edificio.",
+    "superadmin": "gestión global de conjuntos, módulos, estadísticas de plataforma y todas las operaciones administrativas.",
+    "administrador": "gestión de usuarios, cuotas, comunicados, mantenimientos, reservas, paquetes y accesos de tu conjunto.",
     "propietario": "consulta de tus cuotas, comunicados, hacer reservas de zonas comunes y reportar problemas de mantenimiento.",
     "inquilino": "consulta de comunicados, zonas comunes y reportar problemas de mantenimiento.",
 }
 
-SYSTEM_PROMPT_TEMPLATE = """Eres el asistente inteligente de TorreAdmin para el edificio con ID {edificio_id}.
+SYSTEM_PROMPT_TEMPLATE = """Eres el asistente inteligente de TorreAdmin para el conjunto con ID {conjunto_id}.
 Hoy es {fecha}.
 Rol del usuario autenticado: {rol_display} (ID: {usuario_id}).
 
@@ -79,14 +79,14 @@ class ChatbotEngine:
         """
         Process a user message and return the assistant's response.
 
-        context keys: token, edificio_id, usuario_id, rol, edificio_nombre, api_base
+        context keys: token, conjunto_id, usuario_id, rol, conjunto_nombre, api_base
         Returns: { message: str, actions: list[{tool, success, summary}] }
         """
         rol = context.get("rol", "propietario")
         tools = get_tools_for_role(rol)
 
         system_content = SYSTEM_PROMPT_TEMPLATE.format(
-            edificio_id=context.get("edificio_id", ""),
+            conjunto_id=context.get("conjunto_id", ""),
             fecha=str(date.today()),
             rol_display=_ROL_DISPLAY.get(rol, rol),
             usuario_id=context.get("usuario_id", ""),

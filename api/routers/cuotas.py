@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+﻿from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -21,7 +21,7 @@ class PagoRegistro(BaseModel):
 
 
 class GenerarCuotasRequest(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     mes: str           # "2026-05"
     monto: float
     fecha_vencimiento: str
@@ -29,8 +29,8 @@ class GenerarCuotasRequest(BaseModel):
 
 # ── Resumen — before /{cuota_id} to avoid route conflict ─────────────────────
 
-@router.get("/resumen/{edificio_id}")
-def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
+@router.get("/resumen/{conjunto_id}")
+def resumen_financiero(conjunto_id: int, mes: Optional[str] = None):
     mes_actual = mes or datetime.now().strftime("%Y-%m")
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -45,8 +45,8 @@ def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
                 FROM cuotas c
                 JOIN unidades u ON u.id = c.unidad_id
                 JOIN torres t ON t.id = u.torre_id
-                WHERE t.edificio_id = %s AND c.mes = %s
-            """, (edificio_id, mes_actual))
+                WHERE t.conjunto_id = %s AND c.mes = %s
+            """, (conjunto_id, mes_actual))
             return cur.fetchone()
 
 
@@ -54,7 +54,7 @@ def resumen_financiero(edificio_id: int, mes: Optional[str] = None):
 
 @router.get("")
 def list_cuotas(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     estado: Optional[str] = None,
     mes: Optional[str] = None,
     usuario_id: Optional[int] = None,
@@ -62,22 +62,22 @@ def list_cuotas(
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
-                SELECT c.*, u.numero as unidad_numero, e.nombre as edificio_nombre,
-                       e.id as edificio_id,
+                SELECT c.*, u.numero as unidad_numero, e.nombre as conjunto_nombre,
+                       e.id as conjunto_id,
                        t.nombre as torre_nombre,
                        usr.nombre as residente_nombre
                 FROM cuotas c
                 JOIN unidades u ON u.id = c.unidad_id
                 JOIN torres t ON t.id = u.torre_id
-                JOIN edificios e ON e.id = t.edificio_id
+                JOIN conjuntos e ON e.id = t.conjunto_id
                 LEFT JOIN ocupaciones o ON o.unidad_id = u.id AND o.activo = TRUE
                 LEFT JOIN usuarios usr ON usr.id = o.usuario_id
                 WHERE 1=1
             """
             params = []
-            if edificio_id:
+            if conjunto_id:
                 query += " AND e.id = %s"
-                params.append(edificio_id)
+                params.append(conjunto_id)
             if estado:
                 query += " AND c.estado = %s"
                 params.append(estado)
@@ -105,17 +105,17 @@ def create_cuota(data: CuotaCreate):
 
 @router.post("/generar-mes", status_code=201)
 def generar_cuotas_mes(data: GenerarCuotasRequest):
-    """Crea cuotas para todas las unidades del edificio para el mes dado."""
+    """Crea cuotas para todas las unidades del conjunto para el mes dado."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT u.id FROM unidades u
                 JOIN torres t ON t.id = u.torre_id
-                WHERE t.edificio_id = %s AND u.activo = TRUE
-            """, (data.edificio_id,))
+                WHERE t.conjunto_id = %s AND u.activo = TRUE
+            """, (data.conjunto_id,))
             unidades = cur.fetchall()
             if not unidades:
-                raise HTTPException(status_code=404, detail="No hay unidades en el edificio")
+                raise HTTPException(status_code=404, detail="No hay unidades en el conjunto")
 
             creadas = 0
             omitidas = 0

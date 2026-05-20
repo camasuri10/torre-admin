@@ -1,4 +1,4 @@
-"""
+﻿"""
 TorreAdmin API — FastAPI entry point.
 Deployed as Vercel Serverless Function via api/index.py.
 """
@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from db import init_db, seed_db
 from routers import (
-    auth, edificios, usuarios, cuotas, mantenimientos,
+    auth, conjuntos, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
     vehiculos, mascotas, proveedores, backoffice, encuestas,
@@ -62,7 +62,7 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router,           prefix="/api/auth",           tags=["Auth"])
-app.include_router(edificios.router,      prefix="/api/edificios",      tags=["Edificios"])
+app.include_router(conjuntos.router,      prefix="/api/conjuntos",      tags=["conjuntos"])
 app.include_router(usuarios.router,       prefix="/api/usuarios",       tags=["Usuarios"])
 app.include_router(cuotas.router,         prefix="/api/cuotas",         tags=["Finanzas"])
 app.include_router(mantenimientos.router, prefix="/api/mantenimientos", tags=["Mantenimiento"])
@@ -275,7 +275,7 @@ def migrate_v11():
         ("consejo_miembros table", """
             CREATE TABLE IF NOT EXISTS consejo_miembros (
                 id          SERIAL PRIMARY KEY,
-                edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
                 nombre      VARCHAR(255) NOT NULL,
                 cargo       VARCHAR(100) NOT NULL,
                 tipo        VARCHAR(20) NOT NULL DEFAULT 'activo',
@@ -284,7 +284,7 @@ def migrate_v11():
             );
         """),
         ("consejo_miembros index",
-         "CREATE INDEX IF NOT EXISTS idx_consejo_edificio ON consejo_miembros(edificio_id);"),
+         "CREATE INDEX IF NOT EXISTS idx_consejo_conjunto ON consejo_miembros(conjunto_id);"),
         ("ordenes proyecto_id",
          "ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS proyecto_id INTEGER REFERENCES ordenes_compra(id);"),
         ("ordenes proyecto_id index",
@@ -336,7 +336,7 @@ def migrate_v7():
         ("encuestas table", """
             CREATE TABLE IF NOT EXISTS encuestas (
                 id SERIAL PRIMARY KEY,
-                edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
                 titulo TEXT NOT NULL, descripcion TEXT,
                 estado TEXT NOT NULL DEFAULT 'borrador'
                     CHECK (estado IN ('borrador','activa','cerrada')),
@@ -383,7 +383,7 @@ def migrate_v7():
             );
         """),
         ("encuestas indices", """
-            CREATE INDEX IF NOT EXISTS idx_encuestas_edificio  ON encuestas(edificio_id);
+            CREATE INDEX IF NOT EXISTS idx_encuestas_conjunto  ON encuestas(conjunto_id);
             CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas  ON encuesta_preguntas(encuesta_id);
             CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones   ON encuesta_sesiones(encuesta_id);
             CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas ON encuesta_respuestas(sesion_id);
@@ -425,7 +425,7 @@ def migrate_v8():
                                     'borrador','pendiente_aprobacion','aprobada',
                                     'rechazada','en_ejecucion','completada','cancelada')),
                 fecha_necesidad DATE,
-                edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
                 solicitante_id  INTEGER REFERENCES usuarios(id),
                 motivo_cancelacion TEXT,
                 created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -452,7 +452,7 @@ def migrate_v8():
                 fecha_limite    DATE,
                 criterios_evaluacion TEXT,
                 estado          TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
-                edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+                conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
                 created_by      INTEGER REFERENCES usuarios(id),
                 created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -485,7 +485,7 @@ def migrate_v8():
                 nivel           INTEGER NOT NULL DEFAULT 1,
                 approver_rol    TEXT NOT NULL,
                 approver_id     INTEGER REFERENCES usuarios(id),
-                edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+                conjunto_id     INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
                 activo          BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -505,14 +505,14 @@ def migrate_v8():
             );
         """),
         ("procurement indices", """
-            CREATE INDEX IF NOT EXISTS idx_ordenes_edificio    ON ordenes_compra(edificio_id);
+            CREATE INDEX IF NOT EXISTS idx_ordenes_conjunto    ON ordenes_compra(conjunto_id);
             CREATE INDEX IF NOT EXISTS idx_ordenes_estado      ON ordenes_compra(estado);
             CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor   ON ordenes_compra(proveedor_id);
             CREATE INDEX IF NOT EXISTS idx_orden_items         ON orden_items(orden_id);
             CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol    ON cotizaciones(solicitud_id);
             CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden  ON cotizaciones(orden_id);
             CREATE INDEX IF NOT EXISTS idx_orden_aprob         ON orden_aprobaciones(orden_id);
-            CREATE INDEX IF NOT EXISTS idx_flujos_edificio     ON flujos_aprobacion(edificio_id);
+            CREATE INDEX IF NOT EXISTS idx_flujos_conjunto     ON flujos_aprobacion(conjunto_id);
         """),
     ]
     results = []

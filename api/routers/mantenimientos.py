@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, List
 from db import get_db
@@ -11,7 +11,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
 
 class MantenimientoCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     unidad_id: Optional[int] = None
     titulo: str
     descripcion: Optional[str] = None
@@ -52,7 +52,7 @@ class MantenimientoUpdate(BaseModel):
 
 
 class AlertaCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     titulo: str
     descripcion: Optional[str] = None
     tipo: str
@@ -60,7 +60,7 @@ class AlertaCreate(BaseModel):
 
 
 class InventarioCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     nombre: str
     tipo: str   # zona | componente
     descripcion: Optional[str] = None
@@ -75,7 +75,7 @@ class InventarioUpdate(BaseModel):
 
 _MANTENIMIENTO_SELECT = """
     SELECT m.*,
-           e.nombre as edificio_nombre,
+           e.nombre as conjunto_nombre,
            u.numero as unidad_numero,
            sol.nombre as solicitante_nombre,
            asig.nombre as asignado_nombre,
@@ -86,7 +86,7 @@ _MANTENIMIENTO_SELECT = """
            (SELECT json_agg(json_build_object('id',a.id,'tipo',a.tipo,'url',a.url,'nombre',a.nombre_archivo))
             FROM mantenimiento_archivos a WHERE a.mantenimiento_id = m.id) as archivos
     FROM mantenimientos m
-    JOIN edificios e ON e.id = m.edificio_id
+    JOIN conjuntos e ON e.id = m.conjunto_id
     LEFT JOIN unidades u ON u.id = m.unidad_id
     LEFT JOIN usuarios sol ON sol.id = m.solicitante_id
     LEFT JOIN usuarios asig ON asig.id = m.asignado_a
@@ -100,14 +100,14 @@ _MANTENIMIENTO_SELECT = """
 # ── Inventario — MUST be before /{mantenimiento_id} ───────────────────────────
 
 @router.get("/inventario")
-def list_inventario(edificio_id: Optional[int] = None, tipo: Optional[str] = None, solo_activos: bool = True):
+def list_inventario(conjunto_id: Optional[int] = None, tipo: Optional[str] = None, solo_activos: bool = True):
     with get_db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM inventario_mantenimiento WHERE 1=1"
             params = []
-            if edificio_id:
-                query += " AND edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND conjunto_id = %s"
+                params.append(conjunto_id)
             if tipo:
                 query += " AND tipo = %s"
                 params.append(tipo)
@@ -123,9 +123,9 @@ def create_inventario(data: InventarioCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO inventario_mantenimiento (edificio_id, nombre, tipo, descripcion)
+                INSERT INTO inventario_mantenimiento (conjunto_id, nombre, tipo, descripcion)
                 VALUES (%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.nombre, data.tipo, data.descripcion))
+            """, (data.conjunto_id, data.nombre, data.tipo, data.descripcion))
             return cur.fetchone()
 
 
@@ -158,19 +158,19 @@ def update_inventario(item_id: int, data: InventarioUpdate):
 # ── Alertas — MUST be defined BEFORE /{mantenimiento_id} to avoid route conflict ──
 
 @router.get("/alertas")
-def list_alertas(edificio_id: Optional[int] = None):
+def list_alertas(conjunto_id: Optional[int] = None):
     with get_db() as conn:
         with conn.cursor() as cur:
-            if edificio_id:
+            if conjunto_id:
                 cur.execute(
-                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
-                    "JOIN edificios e ON e.id = a.edificio_id WHERE a.edificio_id = %s ORDER BY a.fecha_programada",
-                    (edificio_id,),
+                    "SELECT a.*, e.nombre as conjunto_nombre FROM mantenimiento_alertas a "
+                    "JOIN conjuntos e ON e.id = a.conjunto_id WHERE a.conjunto_id = %s ORDER BY a.fecha_programada",
+                    (conjunto_id,),
                 )
             else:
                 cur.execute(
-                    "SELECT a.*, e.nombre as edificio_nombre FROM mantenimiento_alertas a "
-                    "JOIN edificios e ON e.id = a.edificio_id ORDER BY a.fecha_programada"
+                    "SELECT a.*, e.nombre as conjunto_nombre FROM mantenimiento_alertas a "
+                    "JOIN conjuntos e ON e.id = a.conjunto_id ORDER BY a.fecha_programada"
                 )
             return cur.fetchall()
 
@@ -180,9 +180,9 @@ def create_alerta(data: AlertaCreate):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO mantenimiento_alertas (edificio_id, titulo, descripcion, tipo, fecha_programada)
+                INSERT INTO mantenimiento_alertas (conjunto_id, titulo, descripcion, tipo, fecha_programada)
                 VALUES (%s,%s,%s,%s,%s) RETURNING *
-            """, (data.edificio_id, data.titulo, data.descripcion, data.tipo, data.fecha_programada))
+            """, (data.conjunto_id, data.titulo, data.descripcion, data.tipo, data.fecha_programada))
             return cur.fetchone()
 
 
@@ -203,7 +203,7 @@ def update_alerta(alerta_id: int, estado: str):
 # ── Vencimientos — also before /{mantenimiento_id} ────────────────────────────
 
 @router.get("/vencimientos")
-def list_vencimientos(edificio_id: Optional[int] = None, dias: int = 30):
+def list_vencimientos(conjunto_id: Optional[int] = None, dias: int = 30):
     """Mantenimientos con fecha_vencimiento en los próximos N días."""
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -214,9 +214,9 @@ def list_vencimientos(edificio_id: Optional[int] = None, dias: int = 30):
                   AND m.estado NOT IN ('resuelto','cancelado')
             """
             params = [dias]
-            if edificio_id:
-                query += " AND m.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND m.conjunto_id = %s"
+                params.append(conjunto_id)
             query += " ORDER BY m.fecha_vencimiento"
             cur.execute(query, params)
             return cur.fetchall()
@@ -226,7 +226,7 @@ def list_vencimientos(edificio_id: Optional[int] = None, dias: int = 30):
 
 @router.get("")
 def list_mantenimientos(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     estado: Optional[str] = None,
     prioridad: Optional[str] = None,
     es_programado: Optional[bool] = None,
@@ -237,9 +237,9 @@ def list_mantenimientos(
         with conn.cursor() as cur:
             query = _MANTENIMIENTO_SELECT + " WHERE 1=1"
             params = []
-            if edificio_id:
-                query += " AND m.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND m.conjunto_id = %s"
+                params.append(conjunto_id)
             if estado:
                 query += " AND m.estado = %s"
                 params.append(estado)
@@ -277,13 +277,13 @@ def create_mantenimiento(data: MantenimientoCreate):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO mantenimientos
-                    (edificio_id, unidad_id, titulo, descripcion, categoria, prioridad,
+                    (conjunto_id, unidad_id, titulo, descripcion, categoria, prioridad,
                      solicitante_id, es_programado, periodicidad, proveedor_id,
                      contrato_url, contrato_id, inventario_id,
                      fecha_vencimiento, fecha_proxima_ejecucion, presupuesto, torre_id)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (
-                data.edificio_id, data.unidad_id, data.titulo, data.descripcion,
+                data.conjunto_id, data.unidad_id, data.titulo, data.descripcion,
                 data.categoria, data.prioridad, data.solicitante_id,
                 data.es_programado, data.periodicidad, data.proveedor_id,
                 data.contrato_url, data.contrato_id, data.inventario_id,
@@ -297,11 +297,11 @@ def create_mantenimiento(data: MantenimientoCreate):
                     and data.periodicidad in ("trimestral", "anual")):
                 for dias in (30, 15):
                     cur.execute("""
-                        INSERT INTO mantenimiento_alertas (edificio_id, titulo, tipo, fecha_programada)
+                        INSERT INTO mantenimiento_alertas (conjunto_id, titulo, tipo, fecha_programada)
                         SELECT %s, %s, 'preventivo', (%s::date - %s * INTERVAL '1 day')
                         WHERE (%s::date - %s * INTERVAL '1 day') > CURRENT_DATE
                     """, (
-                        data.edificio_id,
+                        data.conjunto_id,
                         f"Próx. mantenimiento en {dias} días: {data.titulo}",
                         data.fecha_proxima_ejecucion, dias,
                         data.fecha_proxima_ejecucion, dias,
@@ -406,11 +406,11 @@ def update_mantenimiento(mantenimiento_id: int, data: MantenimientoUpdateWithUse
                     and data.periodicidad in ("trimestral", "anual")):
                 for dias in (30, 15):
                     cur.execute("""
-                        INSERT INTO mantenimiento_alertas (edificio_id, titulo, tipo, fecha_programada)
+                        INSERT INTO mantenimiento_alertas (conjunto_id, titulo, tipo, fecha_programada)
                         SELECT %s, %s, 'preventivo', (%s::date - %s * INTERVAL '1 day')
                         WHERE (%s::date - %s * INTERVAL '1 day') > CURRENT_DATE
                     """, (
-                        row["edificio_id"],
+                        row["conjunto_id"],
                         f"Próx. mantenimiento en {dias} días: {row['titulo']}",
                         data.fecha_proxima_ejecucion, dias,
                         data.fecha_proxima_ejecucion, dias,
@@ -454,14 +454,14 @@ def clonar_mantenimiento(mantenimiento_id: int):
 
             cur.execute("""
                 INSERT INTO mantenimientos
-                    (edificio_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
+                    (conjunto_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
                      solicitante_id, es_programado, periodicidad, proveedor_id,
                      contrato_url, contrato_id, inventario_id,
                      fecha_vencimiento, fecha_proxima_ejecucion, presupuesto)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING *
             """, (
-                original["edificio_id"], original["unidad_id"], original["torre_id"],
+                original["conjunto_id"], original["unidad_id"], original["torre_id"],
                 original["titulo"], original["descripcion"],
                 original["categoria"], original["prioridad"],
                 original["solicitante_id"],
@@ -533,14 +533,14 @@ def crear_hijos_recurrentes(mantenimiento_id: int):
                 fecha_hijo = hoy + timedelta(days=dias * i)
                 cur.execute("""
                     INSERT INTO mantenimientos
-                        (edificio_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
+                        (conjunto_id, unidad_id, torre_id, titulo, descripcion, categoria, prioridad,
                          solicitante_id, es_programado, periodicidad, proveedor_id,
                          contrato_url, contrato_id, inventario_id, presupuesto, padre_id,
                          fecha_proxima_ejecucion)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id, titulo, fecha_proxima_ejecucion
                 """, (
-                    padre["edificio_id"], padre["unidad_id"], padre["torre_id"],
+                    padre["conjunto_id"], padre["unidad_id"], padre["torre_id"],
                     f"{padre['titulo']} (instancia {i})", padre["descripcion"],
                     padre["categoria"], padre["prioridad"], padre["solicitante_id"],
                     True, padre["periodicidad"], padre["proveedor_id"],

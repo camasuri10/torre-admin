@@ -1,4 +1,4 @@
-/** Etiqueta de unidad con torre completa (nombre + número). */
+﻿/** Etiqueta de unidad con torre completa (nombre + número). */
 export function formatUnidadLabel(u: {
   numero: string;
   piso?: number | null;

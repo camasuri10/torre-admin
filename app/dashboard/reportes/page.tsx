@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -19,23 +19,23 @@ function StatCard({ label, value, sub, color = "bg-blue-50 text-blue-700" }: any
 }
 
 export default function ReportesPage() {
-  const edificioId = getUser()?.edificio_id ?? 0;
+  const conjuntoId = getUser()?.conjunto_id ?? 0;
   const [tab, setTab] = useState<"general" | "finanzas" | "mantenimiento" | "accesos" | "paquetes" | "guardias">("general");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!edificioId) { setData(null); return; }
+    if (!conjuntoId) { setData(null); return; }
     setLoading(true);
     try {
       let result: any;
       switch (tab) {
-        case "general":       result = await api.reportes.dashboard(edificioId); break;
-        case "finanzas":      result = await api.reportes.finanzas(edificioId, 6); break;
-        case "mantenimiento": result = await api.reportes.mantenimiento(edificioId); break;
-        case "accesos":       result = await api.reportes.accesos(edificioId, 7); break;
-        case "paquetes":      result = await api.reportes.paquetes(edificioId); break;
-        case "guardias":      result = await api.reportes.guardias(edificioId); break;
+        case "general":       result = await api.reportes.dashboard(conjuntoId); break;
+        case "finanzas":      result = await api.reportes.finanzas(conjuntoId, 6); break;
+        case "mantenimiento": result = await api.reportes.mantenimiento(conjuntoId); break;
+        case "accesos":       result = await api.reportes.accesos(conjuntoId, 7); break;
+        case "paquetes":      result = await api.reportes.paquetes(conjuntoId); break;
+        case "guardias":      result = await api.reportes.guardias(conjuntoId); break;
       }
       setData(result);
     } catch {

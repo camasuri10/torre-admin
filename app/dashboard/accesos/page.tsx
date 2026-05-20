@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -63,7 +63,7 @@ const EMPTY_FORM = {
 
 export default function AccesosPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
 
   const [accesos, setAccesos] = useState<Acceso[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -79,8 +79,8 @@ export default function AccesosPage() {
   async function load() {
     try {
       const [data, s] = await Promise.all([
-        api.accesos.list({ edificio_id: edificioId }),
-        api.accesos.stats(edificioId),
+        api.accesos.list({ conjunto_id: conjuntoId }),
+        api.accesos.stats(conjuntoId),
       ]);
       setAccesos(data);
       setStats(s);
@@ -93,7 +93,7 @@ export default function AccesosPage() {
 
   useEffect(() => {
     load();
-    api.edificios.unidades(edificioId)
+    api.conjuntos.unidades(conjuntoId)
       .then((u: any) => setUnidades(Array.isArray(u) ? u : []))
       .catch(() => {});
   }, []);
@@ -103,7 +103,7 @@ export default function AccesosPage() {
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("edificio_id", String(edificioId));
+      fd.append("conjunto_id", String(conjuntoId));
       fd.append("visitante_nombre", form.visitante_nombre);
       if (form.visitante_documento) fd.append("visitante_documento", form.visitante_documento);
       if (form.descripcion) fd.append("descripcion", form.descripcion);

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tool definitions and role-based filtering for the chatbot engine.
 Each tool maps to one or more internal API calls executed server-side.
 """
@@ -18,13 +18,13 @@ _ROLE_LEVEL = {
 # ── Tool catalog ──────────────────────────────────────────────────────────────
 # Each entry: name, description, parameters (JSON Schema), min_rol, handler fn.
 # Handler receives (params: dict, context: dict) where context has:
-#   token, edificio_id, usuario_id, rol, api_base
+#   token, conjunto_id, usuario_id, rol, api_base
 
 TOOLS: list[dict] = [
     # ── Available to all authenticated roles ──────────────────────────────────
     {
         "name": "get_dashboard_stats",
-        "description": "Obtiene estadísticas generales del edificio: unidades, ocupación, cuotas, mantenimientos activos y recaudo.",
+        "description": "Obtiene estadísticas generales del conjunto: unidades, ocupación, cuotas, mantenimientos activos y recaudo.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -34,7 +34,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_comunicados",
-        "description": "Lista los comunicados/anuncios del edificio.",
+        "description": "Lista los comunicados/anuncios del conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -49,7 +49,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_zonas_comunes",
-        "description": "Lista las zonas comunes disponibles en el edificio (salón comunal, piscina, gimnasio, etc.).",
+        "description": "Lista las zonas comunes disponibles en el conjunto (salón comunal, piscina, gimnasio, etc.).",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -73,7 +73,7 @@ TOOLS: list[dict] = [
     # ── Propietario+ ──────────────────────────────────────────────────────────
     {
         "name": "get_cuotas",
-        "description": "Consulta el estado de cuotas/administración del usuario autenticado o del edificio completo si es admin.",
+        "description": "Consulta el estado de cuotas/administración del usuario autenticado o del conjunto completo si es admin.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -104,7 +104,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_mantenimientos",
-        "description": "Lista las solicitudes de mantenimiento del edificio.",
+        "description": "Lista las solicitudes de mantenimiento del conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -142,7 +142,7 @@ TOOLS: list[dict] = [
     # ── Administrador+ ────────────────────────────────────────────────────────
     {
         "name": "get_usuarios",
-        "description": "Lista los usuarios/residentes del edificio.",
+        "description": "Lista los usuarios/residentes del conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -157,7 +157,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "crear_usuario",
-        "description": "Crea un nuevo usuario (propietario, inquilino u otro rol) en el edificio.",
+        "description": "Crea un nuevo usuario (propietario, inquilino u otro rol) en el conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -206,7 +206,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "crear_comunicado",
-        "description": "Crea y publica un comunicado para los residentes del edificio.",
+        "description": "Crea y publica un comunicado para los residentes del conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -239,7 +239,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "registrar_acceso",
-        "description": "Registra el ingreso de un visitante al edificio.",
+        "description": "Registra el ingreso de un visitante al conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -255,7 +255,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_paquetes",
-        "description": "Lista los paquetes/encomiendas pendientes de entrega en el edificio.",
+        "description": "Lista los paquetes/encomiendas pendientes de entrega en el conjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -272,7 +272,7 @@ TOOLS: list[dict] = [
     # ── Superadmin ────────────────────────────────────────────────────────────
     {
         "name": "get_stats_globales",
-        "description": "Obtiene KPIs globales de toda la plataforma: edificios, usuarios, cuotas, ocupación.",
+        "description": "Obtiene KPIs globales de toda la plataforma: conjuntos, usuarios, cuotas, ocupación.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -281,8 +281,8 @@ TOOLS: list[dict] = [
         "min_rol": "superadmin",
     },
     {
-        "name": "get_edificios",
-        "description": "Lista todos los edificios registrados en la plataforma.",
+        "name": "get_conjuntos",
+        "description": "Lista todos los conjuntos registrados en la plataforma.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -292,11 +292,11 @@ TOOLS: list[dict] = [
     },
     {
         "name": "gestionar_modulos",
-        "description": "Activa o desactiva módulos de un edificio específico.",
+        "description": "Activa o desactiva módulos de un conjunto específico.",
         "parameters": {
             "type": "object",
             "properties": {
-                "edificio_id": {"type": "integer", "description": "ID del edificio"},
+                "conjunto_id": {"type": "integer", "description": "ID del conjunto"},
                 "modulos": {
                     "type": "array",
                     "description": "Lista de módulos a cambiar",
@@ -310,7 +310,7 @@ TOOLS: list[dict] = [
                     },
                 },
             },
-            "required": ["edificio_id", "modulos"],
+            "required": ["conjunto_id", "modulos"],
         },
         "min_rol": "superadmin",
     },
@@ -338,12 +338,12 @@ def get_tools_for_role(rol: str) -> list[dict]:
 async def execute_tool(tool_name: str, params: dict, context: dict) -> dict:
     """
     Execute a tool by making an authenticated internal HTTP call to the API.
-    context: {token, edificio_id, usuario_id, rol, api_base}
+    context: {token, conjunto_id, usuario_id, rol, api_base}
     """
     from datetime import date
 
     token = context["token"]
-    edificio_id = context.get("edificio_id")
+    conjunto_id = context.get("conjunto_id")
     usuario_id = context.get("usuario_id")
     api_base = context.get("api_base", "")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -358,7 +358,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict) -> dict:
 
 
 async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, headers: dict) -> dict:
-    eid = ctx.get("edificio_id")
+    eid = ctx.get("conjunto_id")
     uid = ctx.get("usuario_id")
     rol = ctx.get("rol")
     today = str(__import__("datetime").date.today())
@@ -369,7 +369,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         return r.json()
 
     elif name == "get_comunicados":
-        params = f"?edificio_id={eid}"
+        params = f"?conjunto_id={eid}"
         if p.get("tipo"):
             params += f"&tipo={p['tipo']}"
         r = await client.get(f"/api/comunicados{params}", headers=headers)
@@ -378,7 +378,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         return {"comunicados": data[:10], "total": len(data)}
 
     elif name == "get_zonas_comunes":
-        r = await client.get(f"/api/zonas-comunes?edificio_id={eid}", headers=headers)
+        r = await client.get(f"/api/zonas-comunes?conjunto_id={eid}", headers=headers)
         r.raise_for_status()
         return {"zonas": r.json()}
 
@@ -393,7 +393,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         if rol == "propietario":
             params = f"?usuario_id={uid}"
         else:
-            params = f"?edificio_id={eid}"
+            params = f"?conjunto_id={eid}"
         if p.get("estado"):
             params += f"&estado={p['estado']}"
         r = await client.get(f"/api/cuotas{params}", headers=headers)
@@ -416,7 +416,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         return {"reserva": r.json(), "mensaje": "Reserva creada exitosamente."}
 
     elif name == "get_mantenimientos":
-        params = f"?edificio_id={eid}"
+        params = f"?conjunto_id={eid}"
         if p.get("estado"):
             params += f"&estado={p['estado']}"
         r = await client.get(f"/api/mantenimientos{params}", headers=headers)
@@ -426,7 +426,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
 
     elif name == "crear_mantenimiento":
         payload = {
-            "edificio_id": eid,
+            "conjunto_id": eid,
             "titulo": p["titulo"],
             "descripcion": p["descripcion"],
             "categoria": p.get("categoria", "otro"),
@@ -439,7 +439,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         return {"mantenimiento": r.json(), "mensaje": "Solicitud de mantenimiento creada."}
 
     elif name == "get_usuarios":
-        params = f"?edificio_id={eid}"
+        params = f"?conjunto_id={eid}"
         if p.get("rol"):
             params += f"&rol={p['rol']}"
         r = await client.get(f"/api/usuarios{params}", headers=headers)
@@ -455,14 +455,14 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
             "telefono": p.get("telefono"),
             "cedula": p.get("cedula"),
             "password": p.get("password"),
-            "edificio_id": eid,
+            "conjunto_id": eid,
         }
         r = await client.post("/api/usuarios", json=payload, headers=headers)
         r.raise_for_status()
         return {"usuario": r.json(), "mensaje": f"Usuario {p['nombre']} creado exitosamente."}
 
     elif name == "get_morosos":
-        r = await client.get(f"/api/cuotas?edificio_id={eid}&estado=vencida", headers=headers)
+        r = await client.get(f"/api/cuotas?conjunto_id={eid}&estado=vencida", headers=headers)
         r.raise_for_status()
         data = r.json()
         return {"morosos": data, "total": len(data)}
@@ -478,7 +478,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
 
     elif name == "crear_comunicado":
         payload = {
-            "edificio_id": eid,
+            "conjunto_id": eid,
             "titulo": p["titulo"],
             "contenido": p["contenido"],
             "tipo": p.get("tipo", "general"),
@@ -491,7 +491,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
 
     elif name == "registrar_paquete":
         payload = {
-            "edificio_id": eid,
+            "conjunto_id": eid,
             "unidad_id": p["unidad_id"],
             "remitente": p["remitente"],
             "descripcion": p["descripcion"],
@@ -504,7 +504,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
 
     elif name == "registrar_acceso":
         payload = {
-            "edificio_id": eid,
+            "conjunto_id": eid,
             "visitante_nombre": p["visitante_nombre"],
             "visitante_documento": p.get("visitante_documento", ""),
             "destino_unidad_id": p["destino_unidad_id"],
@@ -517,7 +517,7 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         return {"acceso": r.json(), "mensaje": "Acceso registrado."}
 
     elif name == "get_paquetes":
-        params = f"?edificio_id={eid}"
+        params = f"?conjunto_id={eid}"
         if p.get("estado"):
             params += f"&estado={p['estado']}"
         r = await client.get(f"/api/paquetes{params}", headers=headers)
@@ -530,15 +530,15 @@ async def _dispatch(name: str, p: dict, ctx: dict, client: httpx.AsyncClient, he
         r.raise_for_status()
         return r.json()
 
-    elif name == "get_edificios":
-        r = await client.get("/api/superadmin/edificios", headers=headers)
+    elif name == "get_conjuntos":
+        r = await client.get("/api/superadmin/conjuntos", headers=headers)
         r.raise_for_status()
-        return {"edificios": r.json()}
+        return {"conjuntos": r.json()}
 
     elif name == "gestionar_modulos":
-        target_eid = p["edificio_id"]
+        target_eid = p["conjunto_id"]
         payload = {"modulos": p["modulos"]}
-        r = await client.put(f"/api/superadmin/edificios/{target_eid}/modulos", json=payload, headers=headers)
+        r = await client.put(f"/api/superadmin/conjuntos/{target_eid}/modulos", json=payload, headers=headers)
         r.raise_for_status()
         return {"mensaje": "Módulos actualizados correctamente.", "resultado": r.json()}
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getUser, type AuthUser } from "@/lib/auth";
@@ -183,17 +183,17 @@ export default function GestionPage() {
     const u = getUser();
     if (!u) return;
     setUser(u);
-    const edificioId = u.edificio_id;
-    if (!edificioId) return;
-    setEid(edificioId);
-    loadInitial(edificioId);
+    const conjuntoId = u.conjunto_id;
+    if (!conjuntoId) return;
+    setEid(conjuntoId);
+    loadInitial(conjuntoId);
   }, []);
 
-  async function loadInitial(edificioId: number) {
+  async function loadInitial(conjuntoId: number) {
     setLoadingOrdenes(true);
     const [statsR, ordenesR, provsR] = await Promise.allSettled([
-      api.procurement.stats(edificioId),
-      api.procurement.ordenes.list({ edificio_id: edificioId }),
+      api.procurement.stats(conjuntoId),
+      api.procurement.ordenes.list({ conjunto_id: conjuntoId }),
       proveedoresApi.list(),
     ]);
     if (statsR.status === "fulfilled") setStats(statsR.value);
@@ -209,7 +209,7 @@ export default function GestionPage() {
     if (!eid) return;
     setLoadingOrdenes(true);
     try {
-      const params: any = { edificio_id: eid };
+      const params: any = { conjunto_id: eid };
       const e = opts?.estado !== undefined ? opts.estado : filterEstado;
       const t = opts?.tipo !== undefined ? opts.tipo : filterTipo;
       if (e) params.estado = e;
@@ -321,7 +321,7 @@ export default function GestionPage() {
     try {
       const payload = {
         ...oForm,
-        edificio_id: eid,
+        conjunto_id: eid,
         proveedor_id: oForm.proveedor_id ? parseInt(oForm.proveedor_id) : null,
         monto_estimado: parseFloat(oForm.monto_estimado) || 0,
         clasificacion: oClasificacion || null,
@@ -355,7 +355,7 @@ export default function GestionPage() {
         tipo_orden: selectedOrden.tipo_orden ?? "compra_bienes",
         clasificacion: "actividad",
         proyecto_id: selectedOrden.id,
-        edificio_id: eid,
+        conjunto_id: eid,
         es_individual: false,
         monto_estimado: 0,
       });
@@ -399,7 +399,7 @@ export default function GestionPage() {
     if (!eid) return;
     setSavingSol(true);
     try {
-      await api.procurement.solicitudes.create({ ...solForm, edificio_id: eid });
+      await api.procurement.solicitudes.create({ ...solForm, conjunto_id: eid });
       setShowSolModal(false);
       loadSolicitudes();
     } finally {

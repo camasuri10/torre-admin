@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
-import { setToken, setEdificiosDisponibles, setOrgsDisponibles, setUserTemp } from "@/lib/auth";
+import { setToken, setConjuntosDisponibles, setOrgsDisponibles, setUserTemp } from "@/lib/auth";
 
 const DEMO_CREDENTIALS = [
   { rol: "Super Admin (2 orgs)", email: "superadmin@torreadmin.co",  password: "Super123!" },
@@ -36,9 +36,9 @@ export default function LoginPage() {
       }
 
       if (data.requires_building_selection) {
-        setEdificiosDisponibles(data.edificios);
+        setConjuntosDisponibles(data.conjuntos);
         setUserTemp(data.user_temp);
-        router.push("/login/seleccionar-edificio");
+        router.push("/login/seleccionar-conjunto");
         return;
       }
 
@@ -53,7 +53,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       const msg = err?.message ?? "";
-      if (msg.includes("400") || msg.includes("sin edificio")) {
+      if (msg.includes("400") || msg.includes("sin conjunto")) {
         setError("Tu usuario no tiene un conjunto asignado. Contacta al Super Admin.");
       } else {
         setError("Credenciales inválidas. Verifica tu email y contraseña.");

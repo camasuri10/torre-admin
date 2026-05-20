@@ -1,4 +1,4 @@
-import os
+﻿import os
 import time
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -105,7 +105,7 @@ async def chat_message(
 
     context = {
         "token": raw_token,
-        "edificio_id": current_user.get("edificio_id"),
+        "conjunto_id": current_user.get("conjunto_id"),
         "usuario_id": current_user.get("sub") or current_user.get("usuario_id"),
         "rol": rol,
         "api_base": api_base,
@@ -250,7 +250,7 @@ async def test_connection(body: TestRequest = TestRequest(), bo=Depends(_require
         result = await engine.process(
             message="Hola, ¿estás funcionando correctamente? Responde solo con 'Sí, estoy listo.'",
             history=[],
-            context={"token": "", "edificio_id": 1, "usuario_id": 1, "rol": "backoffice", "api_base": ""},
+            context={"token": "", "conjunto_id": 1, "usuario_id": 1, "rol": "backoffice", "api_base": ""},
         )
         latencia = int((time.monotonic() - start) * 1000)
         return {"ok": True, "message": result.get("message", ""), "latencia_ms": latencia}

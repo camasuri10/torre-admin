@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from db import get_db
@@ -10,7 +10,7 @@ VEHICULO_TIPOS = ("carro", "moto", "bicicleta", "otro")
 
 
 class AccesoCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     visitante_nombre: str
     visitante_documento: Optional[str] = None
     descripcion: Optional[str] = None
@@ -40,28 +40,28 @@ async def _foto_from_upload(foto: Optional[UploadFile]) -> Optional[str]:
 
 @router.get("")
 def list_accesos(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     fecha: Optional[str] = None,
     activos: Optional[bool] = None,   # True = still inside (no salida)
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
-                SELECT a.*, e.nombre as edificio_nombre,
+                SELECT a.*, e.nombre as conjunto_nombre,
                        u.numero as unidad_numero,
                        anf.nombre as anfitrion_nombre,
                        reg.nombre as registrado_por_nombre
                 FROM accesos a
-                JOIN edificios e ON e.id = a.edificio_id
+                JOIN conjuntos e ON e.id = a.conjunto_id
                 LEFT JOIN unidades u ON u.id = a.destino_unidad_id
                 LEFT JOIN usuarios anf ON anf.id = a.anfitrion_id
                 LEFT JOIN usuarios reg ON reg.id = a.registrado_por
                 WHERE 1=1
             """
             params = []
-            if edificio_id:
-                query += " AND a.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND a.conjunto_id = %s"
+                params.append(conjunto_id)
             if fecha:
                 query += " AND DATE(a.fecha_entrada) = %s"
                 params.append(fecha)
@@ -74,7 +74,7 @@ def list_accesos(
 
 @router.post("", status_code=201)
 async def registrar_ingreso(
-    edificio_id: int = Form(...),
+    conjunto_id: int = Form(...),
     visitante_nombre: str = Form(...),
     visitante_documento: Optional[str] = Form(None),
     descripcion: Optional[str] = Form(None),
@@ -95,12 +95,12 @@ async def registrar_ingreso(
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO accesos
-                    (edificio_id, visitante_nombre, visitante_documento, descripcion, foto_url,
+                    (conjunto_id, visitante_nombre, visitante_documento, descripcion, foto_url,
                      vehiculo_tipo, vehiculo_placa, destino_unidad_id, anfitrion_id, motivo,
                      autorizado, registrado_por)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
             """, (
-                edificio_id, visitante_nombre, visitante_documento or None, descripcion or None,
+                conjunto_id, visitante_nombre, visitante_documento or None, descripcion or None,
                 foto_url, vtipo, placa, destino_unidad_id, anfitrion_id, motivo,
                 autorizado, registrado_por,
             ))
@@ -127,8 +127,8 @@ def registrar_salida(acceso_id: int, data: SalidaRegistro):
             return row
 
 
-@router.get("/stats/{edificio_id}")
-def acceso_stats(edificio_id: int):
+@router.get("/stats/{conjunto_id}")
+def acceso_stats(conjunto_id: int):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -136,6 +136,6 @@ def acceso_stats(edificio_id: int):
                     COUNT(*) FILTER (WHERE DATE(fecha_entrada) = CURRENT_DATE) AS ingresos_hoy,
                     COUNT(*) FILTER (WHERE fecha_salida IS NULL AND DATE(fecha_entrada) = CURRENT_DATE) AS dentro_ahora,
                     COUNT(*) FILTER (WHERE autorizado = FALSE AND DATE(fecha_entrada) = CURRENT_DATE) AS no_autorizados_hoy
-                FROM accesos WHERE edificio_id = %s
-            """, (edificio_id,))
+                FROM accesos WHERE conjunto_id = %s
+            """, (conjunto_id,))
             return cur.fetchone()

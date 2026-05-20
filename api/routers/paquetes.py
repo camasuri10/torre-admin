@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+﻿from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from db import get_db
@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 class PaqueteCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     destinatario_id: Optional[int] = None
     unidad_id: Optional[int] = None
     remitente: Optional[str] = None
@@ -26,28 +26,28 @@ class EntregaRegistro(BaseModel):
 
 @router.get("")
 def list_paquetes(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     unidad_id: Optional[int] = None,
     estado: Optional[str] = None,
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
-                SELECT p.*, e.nombre as edificio_nombre,
+                SELECT p.*, e.nombre as conjunto_nombre,
                        u.numero as unidad_numero,
                        dest.nombre as destinatario_nombre,
                        rec.nombre as recibido_por_nombre
                 FROM paquetes p
-                JOIN edificios e ON e.id = p.edificio_id
+                JOIN conjuntos e ON e.id = p.conjunto_id
                 LEFT JOIN unidades u ON u.id = p.unidad_id
                 LEFT JOIN usuarios dest ON dest.id = p.destinatario_id
                 LEFT JOIN usuarios rec ON rec.id = p.recibido_por
                 WHERE 1=1
             """
             params = []
-            if edificio_id:
-                query += " AND p.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND p.conjunto_id = %s"
+                params.append(conjunto_id)
             if unidad_id:
                 query += " AND p.unidad_id = %s"
                 params.append(unidad_id)
@@ -64,12 +64,12 @@ def get_paquete(paquete_id: int):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT p.*, e.nombre as edificio_nombre, u.numero as unidad_numero,
+                SELECT p.*, e.nombre as conjunto_nombre, u.numero as unidad_numero,
                        dest.nombre as destinatario_nombre, rec.nombre as recibido_por_nombre,
                        (SELECT json_agg(json_build_object('canal',n.canal,'enviado_at',n.enviado_at,'leido',n.leido))
                         FROM paquete_notificaciones n WHERE n.paquete_id = p.id) as notificaciones
                 FROM paquetes p
-                JOIN edificios e ON e.id = p.edificio_id
+                JOIN conjuntos e ON e.id = p.conjunto_id
                 LEFT JOIN unidades u ON u.id = p.unidad_id
                 LEFT JOIN usuarios dest ON dest.id = p.destinatario_id
                 LEFT JOIN usuarios rec ON rec.id = p.recibido_por
@@ -83,7 +83,7 @@ def get_paquete(paquete_id: int):
 
 @router.post("", status_code=201)
 async def registrar_paquete(
-    edificio_id: int = Form(...),
+    conjunto_id: int = Form(...),
     unidad_id: Optional[int] = Form(None),
     destinatario_id: Optional[int] = Form(None),
     residente_nombre: Optional[str] = Form(None),
@@ -106,10 +106,10 @@ async def registrar_paquete(
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO paquetes
-                    (edificio_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
+                    (conjunto_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
                      empresa_mensajeria, numero_guia, recibido_por, notas, foto_url, estado)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'recibido') RETURNING *
-            """, (edificio_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
+            """, (conjunto_id, destinatario_id, unidad_id, residente_nombre, remitente, descripcion,
                   empresa_mensajeria, numero_guia, recibido_por, notas, foto_url))
             paquete = cur.fetchone()
 
@@ -207,8 +207,8 @@ def editar_paquete(paquete_id: int, data: PaqueteUpdate):
             return row
 
 
-@router.get("/stats/{edificio_id}")
-def paquete_stats(edificio_id: int):
+@router.get("/stats/{conjunto_id}")
+def paquete_stats(conjunto_id: int):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -217,6 +217,6 @@ def paquete_stats(edificio_id: int):
                     COUNT(*) FILTER (WHERE estado = 'notificado') AS notificados,
                     COUNT(*) FILTER (WHERE estado = 'entregado') AS entregados,
                     COUNT(*) FILTER (WHERE DATE(fecha_recepcion) = CURRENT_DATE) AS hoy
-                FROM paquetes WHERE edificio_id = %s
-            """, (edificio_id,))
+                FROM paquetes WHERE conjunto_id = %s
+            """, (conjunto_id,))
             return cur.fetchone()

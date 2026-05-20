@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -31,7 +31,7 @@ function KpiCard({ icon, label, value, sub, color, valueColor }: {
 export default function DashboardPage() {
   const router = useRouter();
   const user = getUser();
-  const edificioId = user?.edificio_id;
+  const conjuntoId = user?.conjunto_id;
 
   const [stats, setStats] = useState<any>(null);
   const [pendientes, setPendientes] = useState<any[]>([]);
@@ -42,24 +42,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // SA/Backoffice with global context ("Todos") go to their respective panels
-    if (user?.rol === "superadmin" && !user?.edificio_id) {
+    if (user?.rol === "superadmin" && !user?.conjunto_id) {
       router.replace("/dashboard/superadmin");
       return;
     }
-    if (user?.rol === "backoffice" && !user?.edificio_id) {
+    if (user?.rol === "backoffice" && !user?.conjunto_id) {
       router.replace("/dashboard/backoffice");
       return;
     }
-    if (!edificioId) { setLoading(false); return; }
+    if (!conjuntoId) { setLoading(false); return; }
 
     const load = async () => {
       try {
         const [s, mant, com, cuotas, paq] = await Promise.allSettled([
-          api.reportes.dashboard(edificioId),
-          api.mantenimientos.list({ edificio_id: edificioId, estado: "pendiente" }),
-          api.comunicados.list({ edificio_id: edificioId }),
-          api.cuotas.list({ edificio_id: edificioId, estado: "vencido" }),
-          api.paquetes.stats(edificioId),
+          api.reportes.dashboard(conjuntoId),
+          api.mantenimientos.list({ conjunto_id: conjuntoId, estado: "pendiente" }),
+          api.comunicados.list({ conjunto_id: conjuntoId }),
+          api.cuotas.list({ conjunto_id: conjuntoId, estado: "vencido" }),
+          api.paquetes.stats(conjuntoId),
         ]);
         if (s.status === "fulfilled") setStats(s.value);
         if (mant.status === "fulfilled") setPendientes(mant.value.slice(0, 5));
@@ -73,10 +73,10 @@ export default function DashboardPage() {
       }
     };
     load();
-  }, [edificioId, router, user?.rol]);
+  }, [conjuntoId, router, user?.rol]);
 
   // SA/Backoffice without a specific building context redirect to their panels
-  if ((user?.rol === "superadmin" || user?.rol === "backoffice") && !user?.edificio_id) return null;
+  if ((user?.rol === "superadmin" || user?.rol === "backoffice") && !user?.conjunto_id) return null;
 
   const recaudoPct = stats
     ? Math.round((stats.recaudo_mes / (stats.meta_recaudo || 1)) * 100)
@@ -208,7 +208,7 @@ export default function DashboardPage() {
                 }`} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{s.titulo}</div>
-                  <div className="text-xs text-gray-500">{s.unidad_numero} · {s.edificio_nombre}</div>
+                  <div className="text-xs text-gray-500">{s.unidad_numero} · {s.conjunto_nombre}</div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
                   s.estado === "en_proceso" || s.estado === "En Proceso"

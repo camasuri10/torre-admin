@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { api, vehiculosApi, mascotasApi } from "@/lib/api";
-import { getUser, getEdificiosDisponibles } from "@/lib/auth";
+import { getUser, getConjuntosDisponibles } from "@/lib/auth";
 import { formatUnidadLabel } from "@/lib/format-unidad";
 
 const EMPTY_RESIDENTE = { nombre: "", tipo_documento: "CC", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
@@ -15,8 +15,8 @@ type Tab = "info" | "vehiculos" | "mascotas";
 
 export default function ResidentesPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
-  const edificioNombre = getEdificiosDisponibles().find((e) => e.id === edificioId)?.nombre ?? `Conjunto ${edificioId}`;
+  const conjuntoId = user?.conjunto_id ?? 1;
+  const conjuntoNombre = getConjuntosDisponibles().find((e) => e.id === conjuntoId)?.nombre ?? `Conjunto ${conjuntoId}`;
 
   const [residentes, setResidentes] = useState<any[]>([]);
   const [unidades, setUnidades]     = useState<any[]>([]);
@@ -68,7 +68,7 @@ export default function ResidentesPage() {
 
   const load = useCallback(async () => {
     try {
-      const params: any = { edificio_id: edificioId };
+      const params: any = { conjunto_id: conjuntoId };
       if (filterEstado === "inactivos") params.solo_inactivos = true;
       const data = await api.usuarios.list(params);
       setResidentes(Array.isArray(data) ? data : []);
@@ -76,15 +76,15 @@ export default function ResidentesPage() {
     } finally {
       setLoading(false);
     }
-  }, [edificioId, filterEstado]);
+  }, [conjuntoId, filterEstado]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    api.edificios.unidades(edificioId)
+    api.conjuntos.unidades(conjuntoId)
       .then((u: any[]) => setUnidades(Array.isArray(u) ? u : []))
       .catch(() => {});
-  }, [edificioId]);
+  }, [conjuntoId]);
 
   async function openDetail(r: any) {
     setSelected(r);
@@ -115,8 +115,8 @@ export default function ResidentesPage() {
     setCreateError("");
     try {
       const { unidad_id, tipo_ocupacion, ...userData } = form;
-      // edificio_id se pasa siempre → backend inserta en usuario_edificios automáticamente
-      const newUser = await api.usuarios.create({ ...userData, edificio_id: edificioId });
+      // conjunto_id se pasa siempre → backend inserta en usuario_conjuntos automáticamente
+      const newUser = await api.usuarios.create({ ...userData, conjunto_id: conjuntoId });
       const primaryId = unidad_id ? Number(unidad_id) : null;
       const allUnitIds = primaryId
         ? [primaryId, ...unidadesExtra.filter((id) => id !== primaryId)]
@@ -332,7 +332,7 @@ export default function ResidentesPage() {
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Nuevo residente</h3>
             <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
-              🏢 {edificioNombre}
+              🏢 {conjuntoNombre}
             </span>
           </div>
           {createError && (
@@ -526,7 +526,7 @@ export default function ResidentesPage() {
               </div>
             )}
           </div>
-          <p className="text-xs text-gray-400">El residente quedará asociado automáticamente a este edificio.</p>
+          <p className="text-xs text-gray-400">El residente quedará asociado automáticamente a este conjunto.</p>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => { setShowForm(false); setMascotaNueva(EMPTY_MASCOTA_NUEVA); setVehiculoNuevo(EMPTY_VEHICULO_NUEVO); setCreateError(""); }} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
             <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60">
@@ -602,7 +602,7 @@ export default function ResidentesPage() {
                     }`}>{r.tipo_ocupacion ?? r.rol}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700 font-medium">{r.unidad_numero ?? "—"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{r.edificio_nombre ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{r.conjunto_nombre ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{r.telefono ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{r.email ?? "—"}</td>
                 </tr>
@@ -665,9 +665,9 @@ export default function ResidentesPage() {
                         <span>🪪</span><span>{selected.cedula}</span>
                       </div>
                     )}
-                    {selected.edificio_nombre && (
+                    {selected.conjunto_nombre && (
                       <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-2 truncate">
-                        <span>🏢</span><span className="truncate">{selected.edificio_nombre}</span>
+                        <span>🏢</span><span className="truncate">{selected.conjunto_nombre}</span>
                       </div>
                     )}
                   </div>
@@ -798,7 +798,7 @@ export default function ResidentesPage() {
                             </div>
                             <div>
                               <div className="font-semibold text-gray-900 text-sm">Apto {o.unidad_numero}</div>
-                              {o.edificio_nombre && <div className="text-xs text-gray-500">{o.edificio_nombre}</div>}
+                              {o.conjunto_nombre && <div className="text-xs text-gray-500">{o.conjunto_nombre}</div>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { api } from "@/lib/api";
@@ -14,7 +14,7 @@ const ESTADO_COLORS: Record<string, string> = {
 
 export default function PaquetesPage() {
   const user      = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
 
   const [paquetes, setPaquetes]       = useState<any[]>([]);
   const [stats, setStats]             = useState<any>(null);
@@ -42,10 +42,10 @@ export default function PaquetesPage() {
     setLoading(true);
     try {
       const [p, s, uns, usrs] = await Promise.all([
-        api.paquetes.list({ edificio_id: edificioId, ...(filtroEstado ? { estado: filtroEstado } : {}) }),
-        api.paquetes.stats(edificioId),
-        api.edificios.unidades(edificioId),
-        api.usuarios.list({ edificio_id: edificioId }),
+        api.paquetes.list({ conjunto_id: conjuntoId, ...(filtroEstado ? { estado: filtroEstado } : {}) }),
+        api.paquetes.stats(conjuntoId),
+        api.conjuntos.unidades(conjuntoId),
+        api.usuarios.list({ conjunto_id: conjuntoId }),
       ]);
       setPaquetes(p);
       setStats(s);
@@ -56,7 +56,7 @@ export default function PaquetesPage() {
     } finally {
       setLoading(false);
     }
-  }, [filtroEstado, edificioId]);
+  }, [filtroEstado, conjuntoId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -64,7 +64,7 @@ export default function PaquetesPage() {
     e.preventDefault();
     const form = formRef.current!;
     const fd = new FormData(form);
-    fd.append("edificio_id", String(edificioId));
+    fd.append("conjunto_id", String(conjuntoId));
     if (formResidenteId) {
       fd.append("destinatario_id", formResidenteId);
       const res = usuarios.find((u: any) => u.id === Number(formResidenteId));

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -43,7 +43,7 @@ const TIPO_PREGUNTA_LABELS: Record<string, string> = {
 type Comunicado = {
   id: number; titulo: string; contenido: string; tipo: string;
   fecha: string; created_at: string; autor_nombre: string | null;
-  edificio_nombre: string | null; canales: string | null;
+  conjunto_nombre: string | null; canales: string | null;
   fecha_programada: string | null; imagen_url: string | null; leido?: boolean;
 };
 type EnvioRecord = {
@@ -208,7 +208,7 @@ function ResultadoPregunta({ p }: { p: any }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ComunicadosPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
   const usuarioId = user ? parseInt(user.sub) : 0;
   const canEdit = ["administrador", "superadmin"].includes(user?.rol ?? "");
   const isResidente = ["propietario", "inquilino"].includes(user?.rol ?? "");
@@ -262,7 +262,7 @@ export default function ComunicadosPage() {
   // ── Load functions ─────────────────────────────────────────────────────────
   async function loadComunicados() {
     try {
-      const data = await api.comunicados.list({ edificio_id: edificioId, usuario_id: usuarioId });
+      const data = await api.comunicados.list({ conjunto_id: conjuntoId, usuario_id: usuarioId });
       setComunicados(data);
     } catch (err) {
       console.error("Error cargando comunicados", err);
@@ -274,7 +274,7 @@ export default function ComunicadosPage() {
   async function loadEncuestas() {
     setLoadingEnc(true);
     try {
-      const data = await api.encuestas.list(edificioId);
+      const data = await api.encuestas.list(conjuntoId);
       setEncuestas(data);
     } catch (err) {
       console.error("Error cargando encuestas", err);
@@ -286,7 +286,7 @@ export default function ComunicadosPage() {
   async function loadUnidades() {
     if (unidades.length > 0) return;
     try {
-      const data = await api.edificios.unidades(edificioId);
+      const data = await api.conjuntos.unidades(conjuntoId);
       setUnidades(data);
     } catch {
       // ignore
@@ -325,7 +325,7 @@ export default function ComunicadosPage() {
         ? null
         : comSelectedUnidades.length > 0 ? JSON.stringify(comSelectedUnidades) : null;
       await api.comunicados.create({
-        edificio_id: edificioId, titulo: form.titulo, contenido: form.contenido,
+        conjunto_id: conjuntoId, titulo: form.titulo, contenido: form.contenido,
         tipo: form.tipo, canales: form.canales,
         fecha_programada: form.fecha_programada || undefined,
         imagen_url, unidades_destino,
@@ -414,7 +414,7 @@ export default function ComunicadosPage() {
         });
       } else {
         await api.encuestas.create({
-          edificio_id: edificioId, titulo: formEnc.titulo,
+          conjunto_id: conjuntoId, titulo: formEnc.titulo,
           descripcion: formEnc.descripcion || null,
           anonima: formEnc.anonima,
           fecha_cierre: formEnc.fecha_cierre || null,
@@ -757,7 +757,7 @@ export default function ComunicadosPage() {
                           <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
                             <span>📅 {formatFecha(c.fecha || c.created_at)}</span>
                             {c.autor_nombre && <span>✍️ {c.autor_nombre}</span>}
-                            {c.edificio_nombre && <span>🏢 {c.edificio_nombre}</span>}
+                            {c.conjunto_nombre && <span>🏢 {c.conjunto_nombre}</span>}
                             {canEdit && (
                               <span className="flex gap-1">
                                 {canales.map((canal) => (

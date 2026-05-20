@@ -1,4 +1,4 @@
-"""Mascotas router — registro de mascotas por residente."""
+﻿"""Mascotas router — registro de mascotas por residente."""
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional

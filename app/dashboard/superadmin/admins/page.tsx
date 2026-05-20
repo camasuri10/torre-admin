@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ interface Admin {
   activo: boolean;
   eps?: string | null;
   aseguradora_riesgo?: string | null;
-  edificios: { id: number; nombre: string }[];
+  conjuntos: { id: number; nombre: string }[];
 }
 
 const ROL_COLORS: Record<string, string> = {
@@ -46,18 +46,18 @@ const emptyForm = {
   nombre: "", email: "", password: "", tipo_documento: "CC", cedula: "", telefono: "",
   rol: "administrador",
   eps: "", aseguradora_riesgo: "", proveedor_id: "",
-  edificio_ids: [] as number[],
-  asignarEdificio: false,
+  conjunto_ids: [] as number[],
+  asignarConjunto: false,
 };
 
-const emptyEdificioRapido = { nombre: "", direccion: "", pisos: 1 };
+const emptyConjuntoRapido = { nombre: "", direccion: "", pisos: 1 };
 
 export default function AdminsPage() {
   const router = useRouter();
   const [pageTab, setPageTab]       = useState<PageTab>("admins");
   const [admins, setAdmins]         = useState<Admin[]>([]);
   const [staff, setStaff]           = useState<Admin[]>([]);
-  const [edificios, setEdificios]   = useState<any[]>([]);
+  const [conjuntos, setConjuntos]   = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
@@ -67,18 +67,18 @@ export default function AdminsPage() {
   const [form, setForm]             = useState(emptyForm);
 
   // Quick building creation within admin form
-  const [showEdificioRapido, setShowEdificioRapido] = useState(false);
-  const [edificioRapidoForm, setEdificioRapidoForm] = useState(emptyEdificioRapido);
-  const [edificioRapidoSaving, setEdificioRapidoSaving] = useState(false);
-  const [edificioRapidoError, setEdificioRapidoError] = useState("");
+  const [showConjuntoRapido, setShowConjuntoRapido] = useState(false);
+  const [conjuntoRapidoForm, setConjuntoRapidoForm] = useState(emptyConjuntoRapido);
+  const [conjuntoRapidoSaving, setConjuntoRapidoSaving] = useState(false);
+  const [conjuntoRapidoError, setConjuntoRapidoError] = useState("");
 
   // View modal
   const [viewingAdmin, setViewingAdmin] = useState<Admin | null>(null);
 
-  // Edit modal (personal data + edificios)
+  // Edit modal (personal data + conjuntos)
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
   const [editPersonal, setEditPersonal] = useState({ nombre: "", tipo_documento: "CC", cedula: "", telefono: "", eps: "", aseguradora_riesgo: "" });
-  const [editEdificios, setEditEdificios] = useState<number[]>([]);
+  const [editConjuntos, setEditConjuntos] = useState<number[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -94,28 +94,28 @@ export default function AdminsPage() {
       const [adminsData, staffData, edData, provData] = await Promise.all([
         superadminApi.admins.list(),
         superadminApi.staff.list(),
-        superadminApi.edificios.list(),
+        superadminApi.conjuntos.list(),
         proveedoresApi.list(),
       ]);
       setAdmins(adminsData.admins ?? []);
       setStaff(staffData.staff ?? []);
-      setEdificios(edData.edificios ?? []);
+      setConjuntos(edData.conjuntos ?? []);
       setProveedores(provData.proveedores ?? []);
     } catch { setError("Error al cargar datos"); }
     finally { setLoading(false); }
   }
 
-  function toggleEdificio(id: number) {
+  function toggleConjunto(id: number) {
     setForm((prev) => ({
       ...prev,
-      edificio_ids: prev.edificio_ids.includes(id)
-        ? prev.edificio_ids.filter((e) => e !== id)
-        : [...prev.edificio_ids, id],
+      conjunto_ids: prev.conjunto_ids.includes(id)
+        ? prev.conjunto_ids.filter((e) => e !== id)
+        : [...prev.conjunto_ids, id],
     }));
   }
 
-  function toggleEditEdificio(id: number) {
-    setEditEdificios((prev) => prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]);
+  function toggleEditConjunto(id: number) {
+    setEditConjuntos((prev) => prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]);
   }
 
   function openEdit(admin: Admin) {
@@ -128,7 +128,7 @@ export default function AdminsPage() {
       eps: admin.eps ?? "",
       aseguradora_riesgo: admin.aseguradora_riesgo ?? "",
     });
-    setEditEdificios(admin.edificios.map((e) => e.id));
+    setEditConjuntos(admin.conjuntos.map((e) => e.id));
     setEditError("");
   }
 
@@ -149,7 +149,7 @@ export default function AdminsPage() {
         Object.keys(personalPayload).length > 0
           ? superadminApi.admins.update(editingAdmin.id, personalPayload)
           : Promise.resolve(),
-        superadminApi.admins.updateAsignaciones(editingAdmin.id, { edificio_ids: editEdificios }),
+        superadminApi.admins.updateAsignaciones(editingAdmin.id, { conjunto_ids: editConjuntos }),
       ]);
       setEditingAdmin(null);
       loadData();
@@ -171,7 +171,7 @@ export default function AdminsPage() {
         rol: form.rol,
         eps: form.eps || undefined,
         aseguradora_riesgo: form.aseguradora_riesgo || undefined,
-        edificio_ids: form.edificio_ids,
+        conjunto_ids: form.conjunto_ids,
       };
       if (form.rol !== "administrador" && form.proveedor_id) {
         payload.proveedor_id = parseInt(form.proveedor_id);
@@ -179,28 +179,28 @@ export default function AdminsPage() {
       await superadminApi.admins.create(payload);
       setShowForm(false);
       setForm(emptyForm);
-      setShowEdificioRapido(false);
+      setShowConjuntoRapido(false);
       loadData();
     } catch { setError("Error al crear. Verifica que el email no esté registrado."); }
     finally { setSaving(false); }
   }
 
-  async function handleCrearEdificioRapido(e: React.FormEvent) {
+  async function handleCrearConjuntoRapido(e: React.FormEvent) {
     e.preventDefault();
-    setEdificioRapidoSaving(true); setEdificioRapidoError("");
+    setConjuntoRapidoSaving(true); setConjuntoRapidoError("");
     try {
-      const data = await superadminApi.edificios.create(edificioRapidoForm);
-      // Reload edificios and auto-select the new one
-      const edData = await superadminApi.edificios.list();
-      const nuevosEdificios = edData.edificios ?? [];
-      setEdificios(nuevosEdificios);
+      const data = await superadminApi.conjuntos.create(conjuntoRapidoForm);
+      // Reload conjuntos and auto-select the new one
+      const edData = await superadminApi.conjuntos.list();
+      const nuevosConjuntos = edData.conjuntos ?? [];
+      setConjuntos(nuevosConjuntos);
       if (data?.id) {
-        setForm((prev) => ({ ...prev, edificio_ids: [...prev.edificio_ids, data.id] }));
+        setForm((prev) => ({ ...prev, conjunto_ids: [...prev.conjunto_ids, data.id] }));
       }
-      setShowEdificioRapido(false);
-      setEdificioRapidoForm(emptyEdificioRapido);
-    } catch { setEdificioRapidoError("Error al crear el edificio."); }
-    finally { setEdificioRapidoSaving(false); }
+      setShowConjuntoRapido(false);
+      setConjuntoRapidoForm(emptyConjuntoRapido);
+    } catch { setConjuntoRapidoError("Error al crear el conjunto."); }
+    finally { setConjuntoRapidoSaving(false); }
   }
 
   const q = search.trim().toLowerCase();
@@ -266,7 +266,7 @@ export default function AdminsPage() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico *</label>
               <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="persona@edificio.co" className={INPUT} />
+                placeholder="persona@conjunto.co" className={INPUT} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña *</label>
@@ -330,57 +330,57 @@ export default function AdminsPage() {
               </div>
             )}
 
-            {/* Edificios */}
+            {/* Conjuntos */}
             <div className="sm:col-span-2">
               <label className="flex items-center gap-2 cursor-pointer mb-3">
-                <input type="checkbox" checked={form.asignarEdificio}
-                  onChange={() => setForm({ ...form, asignarEdificio: !form.asignarEdificio, edificio_ids: [] })}
+                <input type="checkbox" checked={form.asignarConjunto}
+                  onChange={() => setForm({ ...form, asignarConjunto: !form.asignarConjunto, conjunto_ids: [] })}
                   className="accent-primary" />
-                <span className="text-sm font-medium text-gray-700">¿Asignar a un edificio?</span>
+                <span className="text-sm font-medium text-gray-700">¿Asignar a un conjunto?</span>
               </label>
 
-              {form.asignarEdificio && (
+              {form.asignarConjunto && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-medium text-gray-600">Conjuntos asignados</label>
                     <button
                       type="button"
-                      onClick={() => { setShowEdificioRapido((v) => !v); setEdificioRapidoError(""); }}
+                      onClick={() => { setShowConjuntoRapido((v) => !v); setConjuntoRapidoError(""); }}
                       className="text-xs text-primary font-medium hover:underline"
                     >
-                      + Crear nuevo edificio
+                      + Crear nuevo conjunto
                     </button>
                   </div>
 
                   {/* Quick building creation */}
-                  {showEdificioRapido && (
+                  {showConjuntoRapido && (
                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear edificio rápido</p>
-                      <form onSubmit={handleCrearEdificioRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear conjunto rápido</p>
+                      <form onSubmit={handleCrearConjuntoRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
-                          <input required value={edificioRapidoForm.nombre}
-                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, nombre: e.target.value })}
+                          <input required value={conjuntoRapidoForm.nombre}
+                            onChange={(e) => setConjuntoRapidoForm({ ...conjuntoRapidoForm, nombre: e.target.value })}
                             placeholder="Torres del Norte" className={INPUT} />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-                          <input type="number" min={1} value={edificioRapidoForm.pisos}
-                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, pisos: parseInt(e.target.value) || 1 })}
+                          <input type="number" min={1} value={conjuntoRapidoForm.pisos}
+                            onChange={(e) => setConjuntoRapidoForm({ ...conjuntoRapidoForm, pisos: parseInt(e.target.value) || 1 })}
                             className={INPUT} />
                         </div>
                         <div className="sm:col-span-3">
                           <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
-                          <input required value={edificioRapidoForm.direccion}
-                            onChange={(e) => setEdificioRapidoForm({ ...edificioRapidoForm, direccion: e.target.value })}
+                          <input required value={conjuntoRapidoForm.direccion}
+                            onChange={(e) => setConjuntoRapidoForm({ ...conjuntoRapidoForm, direccion: e.target.value })}
                             placeholder="Cra 15 #85-32, Bogotá" className={INPUT} />
                         </div>
-                        {edificioRapidoError && <p className="sm:col-span-3 text-red-600 text-xs">{edificioRapidoError}</p>}
+                        {conjuntoRapidoError && <p className="sm:col-span-3 text-red-600 text-xs">{conjuntoRapidoError}</p>}
                         <div className="sm:col-span-3 flex gap-2">
-                          <button type="submit" disabled={edificioRapidoSaving}
+                          <button type="submit" disabled={conjuntoRapidoSaving}
                             className="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-60">
-                            {edificioRapidoSaving ? "Creando…" : "Crear y seleccionar"}
-                          </button>                          <button type="button" onClick={() => setShowEdificioRapido(false)}
+                            {conjuntoRapidoSaving ? "Creando…" : "Crear y seleccionar"}
+                          </button>                          <button type="button" onClick={() => setShowConjuntoRapido(false)}
                             className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-200 hover:text-gray-700">
                             Cancelar
                           </button>
@@ -390,9 +390,9 @@ export default function AdminsPage() {
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {edificios.map((e: any) => (
+                    {conjuntos.map((e: any) => (
                       <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">
-                        <input type="checkbox" checked={form.edificio_ids.includes(e.id)} onChange={() => toggleEdificio(e.id)} className="accent-primary" />
+                        <input type="checkbox" checked={form.conjunto_ids.includes(e.id)} onChange={() => toggleConjunto(e.id)} className="accent-primary" />
                         <span className="text-sm text-gray-700">{e.nombre}</span>
                       </label>
                     ))}
@@ -407,7 +407,7 @@ export default function AdminsPage() {
                 className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
                 {saving ? "Guardando…" : "Crear"}
               </button>
-              <button type="button" onClick={() => { setShowForm(false); setShowEdificioRapido(false); }}
+              <button type="button" onClick={() => { setShowForm(false); setShowConjuntoRapido(false); }}
                 className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
                 Cancelar
               </button>
@@ -460,11 +460,11 @@ export default function AdminsPage() {
                 </div>
               </div>
 
-              {viewingAdmin.edificios?.length > 0 && (
+              {viewingAdmin.conjuntos?.length > 0 && (
                 <div className="pt-2">
                   <p className="text-xs text-gray-400 mb-1.5">Conjuntos asignados</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {viewingAdmin.edificios.map((e) => (
+                    {viewingAdmin.conjuntos.map((e) => (
                       <span key={e.id} className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">{e.nombre}</span>
                     ))}
                   </div>
@@ -543,9 +543,9 @@ export default function AdminsPage() {
 
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Conjuntos asignados</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {edificios.map((e: any) => (
+                {conjuntos.map((e: any) => (
                   <label key={e.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 cursor-pointer hover:border-primary/30 hover:bg-blue-50/30 transition-colors">
-                    <input type="checkbox" checked={editEdificios.includes(e.id)} onChange={() => toggleEditEdificio(e.id)} className="accent-primary" />
+                    <input type="checkbox" checked={editConjuntos.includes(e.id)} onChange={() => toggleEditConjunto(e.id)} className="accent-primary" />
                     <span className="text-sm text-gray-700">{e.nombre}</span>
                   </label>
                 ))}
@@ -642,9 +642,9 @@ function PersonalTable({ list, emptyMsg, onEdit, onView, showRol }: {
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex flex-wrap gap-1">
-                    {(a.edificios ?? []).length === 0 ? (
-                      <span className="text-xs text-gray-400 italic">Sin edificio</span>
-                    ) : a.edificios.map((e: any) => (
+                    {(a.conjuntos ?? []).length === 0 ? (
+                      <span className="text-xs text-gray-400 italic">Sin conjunto</span>
+                    ) : a.conjuntos.map((e: any) => (
                       <span key={e.id} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{e.nombre}</span>
                     ))}
                   </div>

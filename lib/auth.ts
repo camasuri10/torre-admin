@@ -1,5 +1,5 @@
-const TOKEN_KEY = "torre_auth_token";
-const EDIFICIOS_KEY = "torre_edificios_disponibles";
+﻿const TOKEN_KEY = "torre_auth_token";
+const EDIFICIOS_KEY = "torre_conjuntos_disponibles";
 const ORGS_KEY = "torre_orgs_disponibles";
 const USER_TEMP_KEY = "torre_user_temp";
 
@@ -8,13 +8,13 @@ export interface AuthUser {
   email: string;
   nombre: string;
   rol: "superadmin" | "administrador" | "propietario" | "inquilino" | "portero" | "servicios" | "backoffice";
-  edificio_id?: number;
+  conjunto_id?: number;
   organizacion_id?: number;
   organizacion_nombre?: string;
   exp: number;
 }
 
-export interface EdificioBasic {
+export interface ConjuntoBasic {
   id: number;
   nombre: string;
 }
@@ -68,7 +68,7 @@ export function isAuthenticated(): boolean {
   return getUser() !== null;
 }
 
-export function getEdificiosDisponibles(): EdificioBasic[] {
+export function getConjuntosDisponibles(): ConjuntoBasic[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(EDIFICIOS_KEY);
@@ -78,8 +78,8 @@ export function getEdificiosDisponibles(): EdificioBasic[] {
   }
 }
 
-export function setEdificiosDisponibles(edificios: EdificioBasic[]): void {
-  localStorage.setItem(EDIFICIOS_KEY, JSON.stringify(edificios));
+export function setConjuntosDisponibles(conjuntos: ConjuntoBasic[]): void {
+  localStorage.setItem(EDIFICIOS_KEY, JSON.stringify(conjuntos));
 }
 
 export function getUserTemp(): UserTemp | null {

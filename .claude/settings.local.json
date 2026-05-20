@@ -11,7 +11,12 @@
       "Bash(sed -n '50,75p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/mantenimiento/page.tsx)",
       "Bash(sed -n '30,55p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/paquetes/page.tsx)",
       "Bash(sed -n '35,60p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/reportes/page.tsx)",
-      "Bash(start *)"
+      "Bash(start *)",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(powershell -Command ' *)",
+      "Bash(powershell -Command \"grep -n 'class conjunto' api/routers/superadmin.py api/routers/edificios.py api/routers/backoffice.py 2>&1 | head -20\")",
+      "Bash(powershell -Command \"Select-String -Path 'api/routers/superadmin.py','api/routers/edificios.py' -Pattern 'class conjunto|class Conjunto|AdminConjunto'\")"
     ]
   }
 }

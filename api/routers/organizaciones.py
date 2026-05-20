@@ -1,4 +1,4 @@
-"""Organizaciones — gestión de tenants por parte del Backoffice."""
+﻿"""Organizaciones — gestión de tenants por parte del Backoffice."""
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -66,7 +66,7 @@ def _org_stats(cur, org_id: int) -> dict:
 
     cur.execute("SAVEPOINT _org_stats")
 
-    num_edificios = _count("SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s", (org_id,))
+    num_conjuntos = _count("SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s", (org_id,))
     cur.execute("SAVEPOINT _org_stats")
 
     num_superadmins = _count(
@@ -81,18 +81,18 @@ def _org_stats(cur, org_id: int) -> dict:
     )
     cur.execute("SAVEPOINT _org_stats")
 
-    num_edificios_con_modulos = _count(
-        """SELECT COUNT(DISTINCT em.edificio_id) FROM edificio_modulos em
-           JOIN edificios e ON e.id = em.edificio_id
+    num_conjuntos_con_modulos = _count(
+        """SELECT COUNT(DISTINCT em.conjunto_id) FROM conjunto_modulos em
+           JOIN conjuntos e ON e.id = em.conjunto_id
            WHERE e.organizacion_id = %s AND em.activo = TRUE""",
         (org_id,),
     )
 
     return {
-        "num_edificios": num_edificios,
+        "num_conjuntos": num_conjuntos,
         "num_superadmins": num_superadmins,
         "num_usuarios": num_usuarios,
-        "num_edificios_con_modulos": num_edificios_con_modulos,
+        "num_conjuntos_con_modulos": num_conjuntos_con_modulos,
     }
 
 
@@ -151,10 +151,10 @@ def get_org(org_id: int, _: dict = Depends(_require_backoffice)):
 
             # Buildings
             cur.execute(
-                "SELECT e.id, e.nombre, e.direccion, e.pisos FROM edificios e WHERE e.organizacion_id = %s ORDER BY e.nombre",
+                "SELECT e.id, e.nombre, e.direccion, e.pisos FROM conjuntos e WHERE e.organizacion_id = %s ORDER BY e.nombre",
                 (org_id,),
             )
-            org["edificios"] = [dict(r) for r in cur.fetchall()]
+            org["conjuntos"] = [dict(r) for r in cur.fetchall()]
 
     return {"organizacion": org}
 

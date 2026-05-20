@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -14,7 +14,7 @@ type Message = {
 
 type Props = {
   user: AuthUser;
-  edificioId: number | null | undefined;
+  conjuntoId: number | null | undefined;
 };
 
 const WELCOME_MSG: Message = {
@@ -29,7 +29,7 @@ const QUICK_ACTIONS: Record<string, string[]> = {
   propietario: ["Ver mis cuotas", "Reservar una zona común", "Reportar un problema"],
 };
 
-export default function ChatbotBubble({ user, edificioId }: Props) {
+export default function ChatbotBubble({ user, conjuntoId }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [input, setInput] = useState("");

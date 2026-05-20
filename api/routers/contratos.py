@@ -1,4 +1,4 @@
-"""Gestión de contratos — tareas/timeline, comentarios, pagos y generación de PDF."""
+﻿"""Gestión de contratos — tareas/timeline, comentarios, pagos y generación de PDF."""
 import io
 from datetime import date, datetime
 from decimal import Decimal
@@ -289,7 +289,7 @@ def generar_pdf_contrato(contrato_id: int, current_user: dict = Depends(_require
     """Genera y descarga un contrato de servicios en PDF usando reportlab."""
     with get_db() as conn:
         with conn.cursor() as cur:
-            # Datos del contrato + proveedor + edificio
+            # Datos del contrato + proveedor + conjunto
             cur.execute("""
                 SELECT cs.*,
                        p.nombre AS proveedor_nombre,
@@ -297,11 +297,11 @@ def generar_pdf_contrato(contrato_id: int, current_user: dict = Depends(_require
                        p.contacto AS proveedor_contacto,
                        p.telefono AS proveedor_telefono,
                        p.email AS proveedor_email,
-                       e.nombre AS edificio_nombre,
-                       e.direccion AS edificio_direccion
+                       e.nombre AS conjunto_nombre,
+                       e.direccion AS conjunto_direccion
                 FROM contratos_servicio cs
                 JOIN proveedores p ON p.id = cs.proveedor_id
-                LEFT JOIN edificios e ON e.id = cs.edificio_id
+                LEFT JOIN conjuntos e ON e.id = cs.conjunto_id
                 WHERE cs.id = %s AND cs.activo = TRUE
             """, (contrato_id,))
             row = cur.fetchone()
@@ -365,8 +365,8 @@ def _build_pdf(c: dict) -> bytes:
     def hr(): return HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#aaaaaa"))
 
     # Helpers for formatting
-    entidad = c.get("edificio_nombre") or "Propiedad Horizontal"
-    direccion = c.get("edificio_direccion") or ""
+    entidad = c.get("conjunto_nombre") or "Propiedad Horizontal"
+    direccion = c.get("conjunto_direccion") or ""
     proveedor = c.get("proveedor_nombre") or ""
     nit = c.get("proveedor_nit") or "N/A"
     contacto = c.get("proveedor_contacto") or "N/A"

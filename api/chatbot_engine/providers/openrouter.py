@@ -1,4 +1,4 @@
-from .openai_provider import OpenAIProvider
+﻿from .openai_provider import OpenAIProvider
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4-flash:free"

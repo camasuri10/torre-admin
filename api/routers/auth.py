@@ -1,4 +1,4 @@
-"""TorreAdmin Auth Router — JWT-based authentication with multi-org and multi-building support."""
+﻿"""TorreAdmin Auth Router — JWT-based authentication with multi-org and multi-building support."""
 import os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -28,7 +28,7 @@ class LoginRequest(BaseModel):
 
 class BuildingSelectRequest(BaseModel):
     user_id: int
-    edificio_id: int
+    conjunto_id: int
 
 
 class OrgSelectRequest(BaseModel):
@@ -38,7 +38,7 @@ class OrgSelectRequest(BaseModel):
 
 def create_token(
     user: dict,
-    edificio_id: Optional[int],
+    conjunto_id: Optional[int],
     organizacion_id: Optional[int] = None,
     organizacion_nombre: Optional[str] = None,
 ) -> str:
@@ -47,7 +47,7 @@ def create_token(
         "email": user["email"],
         "nombre": user["nombre"],
         "rol": user["rol"],
-        "edificio_id": edificio_id,
+        "conjunto_id": conjunto_id,
         "organizacion_id": organizacion_id,
         "organizacion_nombre": organizacion_nombre,
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
@@ -79,7 +79,7 @@ def _get_user_orgs(cur, user_id: int) -> list:
     return [dict(r) for r in cur.fetchall()]
 
 
-def _get_user_edificios(cur, user: dict, org_id: Optional[int] = None) -> list:
+def _get_user_conjuntos(cur, user: dict, org_id: Optional[int] = None) -> list:
     """Returns [{id, nombre}] of buildings the user belongs to."""
     rol = user["rol"]
     uid = user["id"]
@@ -89,7 +89,7 @@ def _get_user_edificios(cur, user: dict, org_id: Optional[int] = None) -> list:
         if not org_id:
             return []
         cur.execute(
-            "SELECT id, nombre FROM edificios WHERE organizacion_id = %s ORDER BY nombre",
+            "SELECT id, nombre FROM conjuntos WHERE organizacion_id = %s ORDER BY nombre",
             (org_id,),
         )
         return [dict(r) for r in cur.fetchall()]
@@ -97,17 +97,17 @@ def _get_user_edificios(cur, user: dict, org_id: Optional[int] = None) -> list:
     if rol == "backoffice":
         if org_id:
             cur.execute(
-                "SELECT id, nombre FROM edificios WHERE organizacion_id = %s ORDER BY nombre",
+                "SELECT id, nombre FROM conjuntos WHERE organizacion_id = %s ORDER BY nombre",
                 (org_id,),
             )
         else:
-            cur.execute("SELECT id, nombre FROM edificios ORDER BY nombre")
+            cur.execute("SELECT id, nombre FROM conjuntos ORDER BY nombre")
         return [dict(r) for r in cur.fetchall()]
 
     if rol in ("administrador", "portero", "servicios"):
         cur.execute(
-            """SELECT e.id, e.nombre FROM edificios e
-               JOIN usuario_edificios ue ON ue.edificio_id = e.id
+            """SELECT e.id, e.nombre FROM conjuntos e
+               JOIN usuario_conjuntos ue ON ue.conjunto_id = e.id
                WHERE ue.usuario_id = %s AND ue.activo = TRUE
                ORDER BY e.nombre""",
             (uid,),
@@ -116,8 +116,8 @@ def _get_user_edificios(cur, user: dict, org_id: Optional[int] = None) -> list:
 
     # propietario / inquilino — via torres
     cur.execute(
-        """SELECT DISTINCT e.id, e.nombre FROM edificios e
-           JOIN torres t ON t.edificio_id = e.id
+        """SELECT DISTINCT e.id, e.nombre FROM conjuntos e
+           JOIN torres t ON t.conjunto_id = e.id
            JOIN unidades u ON u.torre_id = t.id
            JOIN ocupaciones o ON o.unidad_id = u.id
            WHERE o.usuario_id = %s AND o.activo = TRUE
@@ -158,12 +158,12 @@ def login(data: LoginRequest):
                         "nombre": user["nombre"],
                         "email": user["email"],
                         "rol": user["rol"],
-                        "edificio_id": None,
-                        "edificio_nombre": "Todos",
+                        "conjunto_id": None,
+                        "conjunto_nombre": "Todos",
                         "organizacion_id": None,
                         "organizacion_nombre": None,
                     },
-                    "edificio": None,
+                    "conjunto": None,
                 }
 
             # SuperAdmin: check org assignments
@@ -187,12 +187,12 @@ def login(data: LoginRequest):
                         "token_type": "bearer",
                         "user": {
                             **user_info,
-                            "edificio_id": None,
-                            "edificio_nombre": "Todos",
+                            "conjunto_id": None,
+                            "conjunto_nombre": "Todos",
                             "organizacion_id": org["id"],
                             "organizacion_nombre": org["nombre"],
                         },
-                        "edificio": None,
+                        "conjunto": None,
                     }
 
                 # Multiple orgs — frontend must call /seleccionar-organizacion
@@ -210,10 +210,10 @@ def login(data: LoginRequest):
                 org_row = cur.fetchone()
                 org_nombre = org_row["nombre"] if org_row else None
 
-            edificios = _get_user_edificios(cur, user)
+            conjuntos = _get_user_conjuntos(cur, user)
 
-    if not edificios:
-        raise HTTPException(status_code=400, detail="Usuario sin edificio asignado")
+    if not conjuntos:
+        raise HTTPException(status_code=400, detail="Usuario sin conjunto asignado")
 
     user_info = {
         "id": user["id"],
@@ -224,18 +224,18 @@ def login(data: LoginRequest):
         "organizacion_nombre": org_nombre,
     }
 
-    if len(edificios) == 1:
-        token = create_token(user, edificios[0]["id"], org_id, org_nombre)
+    if len(conjuntos) == 1:
+        token = create_token(user, conjuntos[0]["id"], org_id, org_nombre)
         return {
             "access_token": token,
             "token_type": "bearer",
-            "user": {**user_info, "edificio_id": edificios[0]["id"], "edificio_nombre": edificios[0]["nombre"]},
-            "edificio": edificios[0],
+            "user": {**user_info, "conjunto_id": conjuntos[0]["id"], "conjunto_nombre": conjuntos[0]["nombre"]},
+            "conjunto": conjuntos[0],
         }
 
     return {
         "requires_building_selection": True,
-        "edificios": edificios,
+        "conjuntos": conjuntos,
         "user_temp": user_info,
     }
 
@@ -284,16 +284,16 @@ def seleccionar_organizacion(data: OrgSelectRequest):
             "nombre": user["nombre"],
             "email": user["email"],
             "rol": user["rol"],
-            "edificio_id": None,
-            "edificio_nombre": "Todos",
+            "conjunto_id": None,
+            "conjunto_nombre": "Todos",
             "organizacion_id": org["id"],
             "organizacion_nombre": org["nombre"],
         },
     }
 
 
-@router.post("/seleccionar-edificio")
-def seleccionar_edificio(data: BuildingSelectRequest):
+@router.post("/seleccionar-conjunto")
+def seleccionar_conjunto(data: BuildingSelectRequest):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -311,8 +311,8 @@ def seleccionar_edificio(data: BuildingSelectRequest):
 
             if user["rol"] == "superadmin":
                 cur.execute(
-                    "SELECT organizacion_id FROM edificios WHERE id = %s",
-                    (data.edificio_id,),
+                    "SELECT organizacion_id FROM conjuntos WHERE id = %s",
+                    (data.conjunto_id,),
                 )
                 e_row = cur.fetchone()
                 if e_row:
@@ -322,11 +322,11 @@ def seleccionar_edificio(data: BuildingSelectRequest):
                         (data.user_id, org_id),
                     )
                     if not cur.fetchone():
-                        raise HTTPException(status_code=403, detail="Sin acceso a ese edificio")
+                        raise HTTPException(status_code=403, detail="Sin acceso a ese conjunto")
             elif user["rol"] == "backoffice":
                 cur.execute(
-                    "SELECT organizacion_id FROM edificios WHERE id = %s",
-                    (data.edificio_id,),
+                    "SELECT organizacion_id FROM conjuntos WHERE id = %s",
+                    (data.conjunto_id,),
                 )
                 e_row = cur.fetchone()
                 if e_row:
@@ -337,14 +337,14 @@ def seleccionar_edificio(data: BuildingSelectRequest):
                 org_row = cur.fetchone()
                 org_nombre = org_row["nombre"] if org_row else None
 
-            edificios = _get_user_edificios(cur, user, org_id)
+            conjuntos = _get_user_conjuntos(cur, user, org_id)
 
-    ids = [e["id"] for e in edificios]
-    if data.edificio_id not in ids:
-        raise HTTPException(status_code=403, detail="Sin acceso a ese edificio")
+    ids = [e["id"] for e in conjuntos]
+    if data.conjunto_id not in ids:
+        raise HTTPException(status_code=403, detail="Sin acceso a ese conjunto")
 
-    edificio = next(e for e in edificios if e["id"] == data.edificio_id)
-    token = create_token(user, data.edificio_id, org_id, org_nombre)
+    conjunto = next(e for e in conjuntos if e["id"] == data.conjunto_id)
+    token = create_token(user, data.conjunto_id, org_id, org_nombre)
 
     return {
         "access_token": token,
@@ -354,12 +354,12 @@ def seleccionar_edificio(data: BuildingSelectRequest):
             "nombre": user["nombre"],
             "email": user["email"],
             "rol": user["rol"],
-            "edificio_id": data.edificio_id,
-            "edificio_nombre": edificio["nombre"],
+            "conjunto_id": data.conjunto_id,
+            "conjunto_nombre": conjunto["nombre"],
             "organizacion_id": org_id,
             "organizacion_nombre": org_nombre,
         },
-        "edificio": edificio,
+        "conjunto": conjunto,
     }
 
 
@@ -373,7 +373,7 @@ def seleccionar_todos(current_user: dict = Depends(get_current_user)):
             cur.execute("SELECT * FROM usuarios WHERE id = %s AND activo = TRUE", (int(current_user["sub"]),))
             user = dict(cur.fetchone())
 
-    # Backoffice: vista global sin filtros. SA: todos los edificios de la org activa.
+    # Backoffice: vista global sin filtros. SA: todos los conjuntos de la org activa.
     if user["rol"] == "backoffice":
         org_id, org_nombre = None, None
     else:
@@ -389,16 +389,16 @@ def seleccionar_todos(current_user: dict = Depends(get_current_user)):
             "nombre": user["nombre"],
             "email": user["email"],
             "rol": user["rol"],
-            "edificio_id": None,
-            "edificio_nombre": "Todos",
+            "conjunto_id": None,
+            "conjunto_nombre": "Todos",
             "organizacion_id": org_id,
             "organizacion_nombre": org_nombre,
         },
     }
 
 
-@router.get("/mis-edificios")
-def mis_edificios(current_user: dict = Depends(get_current_user)):
+@router.get("/mis-conjuntos")
+def mis_conjuntos(current_user: dict = Depends(get_current_user)):
     """Returns all buildings the authenticated user belongs to."""
     user_id = int(current_user["sub"])
     rol = current_user["rol"]
@@ -407,9 +407,9 @@ def mis_edificios(current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             user_stub = {"id": user_id, "rol": rol}
-            edificios = _get_user_edificios(cur, user_stub, org_id)
+            conjuntos = _get_user_conjuntos(cur, user_stub, org_id)
 
-    return {"edificios": edificios}
+    return {"conjuntos": conjuntos}
 
 
 @router.get("/mis-organizaciones")

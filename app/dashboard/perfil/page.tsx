@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -94,10 +94,10 @@ export default function PerfilPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-gray-50">
-          {perfil?.edificio_nombre && (
+          {perfil?.conjunto_nombre && (
             <div>
               <div className="text-xs text-gray-400 mb-0.5">Conjunto / Torre</div>
-              <div className="font-medium text-gray-800">{perfil.edificio_nombre}</div>
+              <div className="font-medium text-gray-800">{perfil.conjunto_nombre}</div>
             </div>
           )}
           {perfil?.unidad_numero && (
@@ -123,7 +123,7 @@ export default function PerfilPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
         <div>
           <h3 className="text-sm font-semibold text-gray-700">Preferencias de notificación</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Elige cómo quieres recibir notificaciones del edificio</p>
+          <p className="text-xs text-gray-400 mt-0.5">Elige cómo quieres recibir notificaciones del conjunto</p>
         </div>
 
         <div className="space-y-3">

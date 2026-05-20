@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getUser, type AuthUser } from "@/lib/auth";
@@ -46,14 +46,14 @@ export default function ConsejoPage() {
     const u = getUser();
     if (!u) return;
     setUser(u);
-    if (u.edificio_id) {
-      setEid(u.edificio_id);
-      loadMiembros(u.edificio_id);
+    if (u.conjunto_id) {
+      setEid(u.conjunto_id);
+      loadMiembros(u.conjunto_id);
     }
   }, []);
 
-  async function loadMiembros(edificioId?: number) {
-    const id = edificioId ?? eid;
+  async function loadMiembros(conjuntoId?: number) {
+    const id = conjuntoId ?? eid;
     if (!id) return;
     setLoading(true);
     try {
@@ -64,8 +64,8 @@ export default function ConsejoPage() {
     }
   }
 
-  async function loadUnidades(edificioId?: number): Promise<any[]> {
-    const id = edificioId ?? eid;
+  async function loadUnidades(conjuntoId?: number): Promise<any[]> {
+    const id = conjuntoId ?? eid;
     if (!id) return [];
     const data = await api.consejo.unidades(id);
     const list = Array.isArray(data) ? data : [];

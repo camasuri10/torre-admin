@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -42,10 +42,10 @@ type TorreForm = { nombre: string; numero: string; pisos: string; tipo: TorreTip
 const emptyTorreForm: TorreForm = { nombre: "", numero: "", pisos: "", tipo: "torre" };
 const emptyUnidadForm = { numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "", torre_id: "" };
 
-export default function EdificioGestionPage() {
+export default function ConjuntoGestionPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const edificioId = parseInt(id);
+  const conjuntoId = parseInt(id);
 
   const [tab, setTab]       = useState<Tab>("modulos");
   const [nombre, setNombre] = useState("");
@@ -90,41 +90,41 @@ export default function EdificioGestionPage() {
     const sa = user?.rol === "superadmin";
     const admin = user?.rol === "administrador";
     if (!user || (!sa && !admin)) { router.replace("/dashboard"); return; }
-    if (admin && user.edificio_id !== edificioId) { router.replace("/dashboard"); return; }
+    if (admin && user.conjunto_id !== conjuntoId) { router.replace("/dashboard"); return; }
     setIsSA(sa);
 
     Promise.allSettled([
-      superadminApi.edificios.getModulos(edificioId),
-      superadminApi.edificios.list(),
+      superadminApi.conjuntos.getModulos(conjuntoId),
+      superadminApi.conjuntos.list(),
     ]).then(([modulosRes, listRes]) => {
       if (modulosRes.status === "fulfilled") setModulos(modulosRes.value.modulos);
       if (listRes.status === "fulfilled") {
-        const ed = listRes.value.edificios?.find((e: any) => e.id === edificioId);
+        const ed = listRes.value.conjuntos?.find((e: any) => e.id === conjuntoId);
         if (ed) setNombre(ed.nombre);
       }
-    }).catch(() => setError("Error al cargar datos del edificio"))
+    }).catch(() => setError("Error al cargar datos del conjunto"))
       .finally(() => setLoading(false));
-  }, [router, edificioId]);
+  }, [router, conjuntoId]);
 
   // ── Torres ───────────────────────────────────────────────────────────────────
   const loadTorres = useCallback(async () => {
     setTorresLoading(true);
     try {
-      const data = await api.edificios.torres.list(edificioId);
+      const data = await api.conjuntos.torres.list(conjuntoId);
       setTorres(data?.torres ?? data ?? []);
     } catch { setError("Error al cargar torres"); }
     finally { setTorresLoading(false); }
-  }, [edificioId]);
+  }, [conjuntoId]);
 
   // ── Unidades ─────────────────────────────────────────────────────────────────
   const loadUnidades = useCallback(async (torreId?: number) => {
     setUnidadesLoading(true);
     try {
-      const data = await api.edificios.unidades(edificioId, torreId);
+      const data = await api.conjuntos.unidades(conjuntoId, torreId);
       setUnidades(data ?? []);
     } catch { setError("Error al cargar unidades"); }
     finally { setUnidadesLoading(false); }
-  }, [edificioId]);
+  }, [conjuntoId]);
 
   function handleTabChange(t: Tab) {
     setTab(t);
@@ -144,7 +144,7 @@ export default function EdificioGestionPage() {
   async function handleSaveModulos() {
     setSaving(true); setError("");
     try {
-      await superadminApi.edificios.updateModulos(edificioId, modulos.map((m) => ({ clave: m.clave, activo: m.activo })));
+      await superadminApi.conjuntos.updateModulos(conjuntoId, modulos.map((m) => ({ clave: m.clave, activo: m.activo })));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch { setError("Error al guardar los módulos"); }
@@ -156,7 +156,7 @@ export default function EdificioGestionPage() {
     e.preventDefault();
     setTorreSaving(true); setTorreError("");
     try {
-      await api.edificios.torres.create(edificioId, {
+      await api.conjuntos.torres.create(conjuntoId, {
         nombre: torreForm.nombre,
         numero: torreForm.numero || undefined,
         pisos: torreForm.pisos ? parseInt(torreForm.pisos) : undefined,
@@ -180,7 +180,7 @@ export default function EdificioGestionPage() {
     if (!editTorre) return;
     setEditTSaving(true); setEditTError("");
     try {
-      await api.edificios.torres.update(edificioId, editTorre.id, {
+      await api.conjuntos.torres.update(conjuntoId, editTorre.id, {
         nombre: editTForm.nombre,
         numero: editTForm.numero || undefined,
         pisos: editTForm.pisos ? parseInt(editTForm.pisos) : undefined,
@@ -195,7 +195,7 @@ export default function EdificioGestionPage() {
   async function handleDeleteTorre(t: Torre) {
     if (!confirm(`¿Eliminar la subdivisión "${t.nombre}"? No se puede deshacer.`)) return;
     try {
-      await api.edificios.torres.delete(edificioId, t.id);
+      await api.conjuntos.torres.delete(conjuntoId, t.id);
       loadTorres();
     } catch (err: any) {
       const msg = err?.message?.includes("unidades activas")
@@ -211,7 +211,7 @@ export default function EdificioGestionPage() {
     if (!addForm.torre_id) { setAddError("Debe seleccionar una torre"); return; }
     setAddSaving(true); setAddError("");
     try {
-      await api.edificios.createUnidad(edificioId, {
+      await api.conjuntos.createUnidad(conjuntoId, {
         torre_id: parseInt(addForm.torre_id),
         numero: addForm.numero,
         piso: addForm.piso,
@@ -237,7 +237,7 @@ export default function EdificioGestionPage() {
     if (!editUnidad) return;
     setEditUSaving(true); setEditUError("");
     try {
-      await api.edificios.updateUnidad(edificioId, editUnidad.id, {
+      await api.conjuntos.updateUnidad(conjuntoId, editUnidad.id, {
         numero: editUForm.numero,
         piso: editUForm.piso,
         tipo: editUForm.tipo,
@@ -253,7 +253,7 @@ export default function EdificioGestionPage() {
   async function handleDeleteUnidad(u: Unidad) {
     if (!confirm(`¿Eliminar la unidad ${u.numero}?`)) return;
     try {
-      await api.edificios.deleteUnidad(edificioId, u.id);
+      await api.conjuntos.deleteUnidad(conjuntoId, u.id);
       loadUnidades(filterTorreId);
     } catch (err: any) {
       alert(err?.message?.includes("residentes activos")
@@ -270,12 +270,12 @@ export default function EdificioGestionPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <Link href={isSA ? "/dashboard/superadmin/edificios" : "/dashboard"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
+      <Link href={isSA ? "/dashboard/superadmin/conjuntos" : "/dashboard"} className="text-gray-400 hover:text-gray-600 transition-colors text-sm inline-block">
         ← {isSA ? "Conjuntos" : "Panel"}
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-gray-900">{nombre || `Conjunto #${edificioId}`}</h2>
+        <h2 className="text-xl font-bold text-gray-900">{nombre || `Conjunto #${conjuntoId}`}</h2>
         <p className="text-sm text-gray-500 mt-0.5">
           {modulosActivos} de {modulos.length} módulos activos
           {torres.length > 0 && ` · ${torres.length} torre${torres.length !== 1 ? "s" : ""}`}

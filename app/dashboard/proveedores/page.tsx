@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { api, proveedoresApi, superadminApi } from "@/lib/api";
@@ -26,7 +26,7 @@ const EMPTY_CONTRATO = {
   aprobacion_asamblea_url: "",
   valor: "",
   moneda: "COP",
-  edificio_id: "",
+  conjunto_id: "",
   fecha_auditoria: "",
   num_cotizaciones_requeridas: "1",
 };
@@ -56,11 +56,11 @@ export default function ProveedoresPage() {
   const isSuperAdmin = user?.rol === "superadmin";
   const isAdmin = user?.rol === "administrador";
   const canManage = isSuperAdmin || isAdmin;
-  const edificioId = user?.edificio_id;
+  const conjuntoId = user?.conjunto_id;
 
   const [proveedores, setProveedores] = useState<any[]>([]);
-  const [edificios, setEdificios]     = useState<any[]>([]);
-  const [filtroEdificio, setFiltroEdificio] = useState<number>(0);
+  const [conjuntos, setConjuntos]     = useState<any[]>([]);
+  const [filtroConjunto, setFiltroConjunto] = useState<number>(0);
   const [loading, setLoading]         = useState(true);
   const [showForm, setShowForm]       = useState(false);
   const [editando, setEditando]       = useState<any | null>(null);
@@ -69,11 +69,11 @@ export default function ProveedoresPage() {
 
   // Asociaciones y contratos per-proveedor
   const [expandedId, setExpandedId]       = useState<number | null>(null);
-  // Asociaciones edificio
+  // Asociaciones conjunto
   const [asociaciones, setAsociaciones]   = useState<Record<number, any[]>>({});
   const [asociacionesLoading, setAsociacionesLoading] = useState<Record<number, boolean>>({});
   const [showAddAsoc, setShowAddAsoc]     = useState<number | null>(null);
-  const [asocEdificio, setAsocEdificio]   = useState("");
+  const [asocConjunto, setAsocConjunto]   = useState("");
   const [asocSaving, setAsocSaving]       = useState(false);
   // Contratos
   const [contratos, setContratos]         = useState<Record<number, any[]>>({});
@@ -121,17 +121,17 @@ export default function ProveedoresPage() {
     setLoading(true);
     try {
       const params: any = {};
-      if (filtroEdificio) params.edificio_id = filtroEdificio;
+      if (filtroConjunto) params.conjunto_id = filtroConjunto;
       const p = await proveedoresApi.list(params);
       setProveedores(Array.isArray(p) ? p : (p?.proveedores ?? []));
     } catch { } finally { setLoading(false); }
-  }, [filtroEdificio]);
+  }, [filtroConjunto]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (isSuperAdmin) {
-      superadminApi.edificios.list().then((r: any) => setEdificios(r?.edificios ?? [])).catch(() => {});
+      superadminApi.conjuntos.list().then((r: any) => setConjuntos(r?.conjuntos ?? [])).catch(() => {});
     }
   }, [isSuperAdmin]);
 
@@ -167,23 +167,23 @@ export default function ProveedoresPage() {
   async function loadAsociaciones(proveedorId: number) {
     setAsociacionesLoading((prev) => ({ ...prev, [proveedorId]: true }));
     try {
-      const data = await proveedoresApi.edificios.list(proveedorId);
+      const data = await proveedoresApi.conjuntos.list(proveedorId);
       setAsociaciones((prev) => ({ ...prev, [proveedorId]: data?.asociaciones ?? [] }));
     } catch { } finally { setAsociacionesLoading((prev) => ({ ...prev, [proveedorId]: false })); }
   }
 
   async function handleAddAsoc(e: React.FormEvent, proveedorId: number) {
     e.preventDefault();
-    // Admin: auto-use their edificio
-    const effEdificio = asocEdificio || (isAdmin && edificioId ? String(edificioId) : "");
-    if (!effEdificio) return;
+    // Admin: auto-use their conjunto
+    const effConjunto = asocConjunto || (isAdmin && conjuntoId ? String(conjuntoId) : "");
+    if (!effConjunto) return;
     setAsocSaving(true);
     try {
-      await proveedoresApi.edificios.add(proveedorId, {
-        edificio_id: parseInt(effEdificio),
+      await proveedoresApi.conjuntos.add(proveedorId, {
+        conjunto_id: parseInt(effConjunto),
       });
       setShowAddAsoc(null);
-      setAsocEdificio("");
+      setAsocConjunto("");
       await loadAsociaciones(proveedorId);
     } catch { } finally { setAsocSaving(false); }
   }
@@ -191,7 +191,7 @@ export default function ProveedoresPage() {
   async function handleRemoveAsoc(proveedorId: number, peId: number) {
     if (!confirm("¿Quitar esta asociación?")) return;
     try {
-      await proveedoresApi.edificios.remove(proveedorId, peId);
+      await proveedoresApi.conjuntos.remove(proveedorId, peId);
       await loadAsociaciones(proveedorId);
     } catch { alert("Error al quitar la asociación"); }
   }
@@ -212,19 +212,19 @@ export default function ProveedoresPage() {
   function openAddContrato(proveedorId: number) {
     // For admin, pre-fill with their building if it's associated; else leave empty
     const asocs = asociaciones[proveedorId] ?? [];
-    const myAsoc = isAdmin && edificioId
-      ? asocs.find((a: any) => a.edificio_id === edificioId)
+    const myAsoc = isAdmin && conjuntoId
+      ? asocs.find((a: any) => a.conjunto_id === conjuntoId)
       : null;
-    const defaultEdificio = myAsoc ? String(edificioId) : (isSuperAdmin ? "" : String(edificioId ?? ""));
-    setContratoForm({ ...EMPTY_CONTRATO, edificio_id: defaultEdificio });
+    const defaultConjunto = myAsoc ? String(conjuntoId) : (isSuperAdmin ? "" : String(conjuntoId ?? ""));
+    setContratoForm({ ...EMPTY_CONTRATO, conjunto_id: defaultConjunto });
     setContratoError("");
     setShowAddContrato(proveedorId);
   }
 
   async function handleCreateContrato(e: React.FormEvent, proveedorId: number) {
     e.preventDefault();
-    if (!contratoForm.edificio_id) {
-      setContratoError("Selecciona un edificio");
+    if (!contratoForm.conjunto_id) {
+      setContratoError("Selecciona un conjunto");
       return;
     }
     setContratoSaving(true); setContratoError("");
@@ -239,7 +239,7 @@ export default function ProveedoresPage() {
         aprobacion_asamblea_url: contratoForm.aprobacion_asamblea_url || undefined,
         valor: contratoForm.valor ? parseFloat(contratoForm.valor) : undefined,
         moneda: contratoForm.moneda || "COP",
-        edificio_id: contratoForm.edificio_id ? parseInt(contratoForm.edificio_id) : undefined,
+        conjunto_id: contratoForm.conjunto_id ? parseInt(contratoForm.conjunto_id) : undefined,
         fecha_auditoria: contratoForm.fecha_auditoria || undefined,
         num_cotizaciones_requeridas: parseInt(contratoForm.num_cotizaciones_requeridas) || 1,
       });
@@ -427,13 +427,13 @@ export default function ProveedoresPage() {
       </div>
 
       {/* Filtro conjunto (solo SA) */}
-      {isSuperAdmin && edificios.length > 0 && (
+      {isSuperAdmin && conjuntos.length > 0 && (
         <div className="flex items-center gap-3">
           <label className="text-sm text-gray-600 font-medium">Conjunto:</label>
-          <select value={filtroEdificio} onChange={(e) => setFiltroEdificio(Number(e.target.value))}
+          <select value={filtroConjunto} onChange={(e) => setFiltroConjunto(Number(e.target.value))}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value={0}>Todos los conjuntos</option>
-            {edificios.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            {conjuntos.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </select>
         </div>
       )}
@@ -613,7 +613,7 @@ export default function ProveedoresPage() {
                         <div className="flex flex-wrap gap-2 mb-2">
                           {(asociaciones[p.id] ?? []).map((a: any) => (
                             <div key={a.id} className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700">
-                              <span>{a.edificio_nombre}</span>
+                              <span>{a.conjunto_nombre}</span>
                               {canManage && (
                                 <button onClick={() => handleRemoveAsoc(p.id, a.id)}
                                   className="text-red-400 hover:text-red-600 ml-1">✕</button>
@@ -628,29 +628,29 @@ export default function ProveedoresPage() {
                           {isSuperAdmin ? (
                             <>
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Edificio</label>
-                                <select value={asocEdificio}
-                                  onChange={(e) => setAsocEdificio(e.target.value)}
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
+                                <select value={asocConjunto}
+                                  onChange={(e) => setAsocConjunto(e.target.value)}
                                   className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
                                   <option value="">— elegir</option>
-                                  {edificios.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                  {conjuntos.map((e: any) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                                 </select>
                               </div>
                             </>
                           ) : (
-                            <p className="text-xs text-gray-500">Tu edificio: <strong>Edificio #{edificioId}</strong></p>
+                            <p className="text-xs text-gray-500">Tu conjunto: <strong>Conjunto #{conjuntoId}</strong></p>
                           )}
-                          <button type="submit" disabled={asocSaving || (isSuperAdmin && !asocEdificio)}
+                          <button type="submit" disabled={asocSaving || (isSuperAdmin && !asocConjunto)}
                             className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-60">
                             {asocSaving ? "…" : "Asociar"}
                           </button>
-                          <button type="button" onClick={() => { setShowAddAsoc(null); setAsocEdificio(""); }}
+                          <button type="button" onClick={() => { setShowAddAsoc(null); setAsocConjunto(""); }}
                             className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5">✕</button>
                         </form>
                       ) : (
                         <button onClick={() => setShowAddAsoc(p.id)}
                           className="text-xs text-primary font-medium hover:underline">
-                          + Asociar edificio
+                          + Asociar conjunto
                         </button>
                       )}
                     </div>
@@ -677,8 +677,8 @@ export default function ProveedoresPage() {
                               <div className="text-xs text-gray-700 space-y-0.5 flex-1 min-w-0">
                                 <div className="font-medium text-gray-900 flex items-center flex-wrap gap-1">
                                   {TIPO_SERVICIO_LABELS[c.tipo_servicio] ?? c.tipo_servicio}
-                                  {c.edificio_nombre && (
-                                    <span className="font-normal text-gray-500">— {c.edificio_nombre}</span>
+                                  {c.conjunto_nombre && (
+                                    <span className="font-normal text-gray-500">— {c.conjunto_nombre}</span>
                                   )}
                                   {diasFin !== null && diasFin >= 0 && diasFin < 15 && <span className="text-red-600 font-semibold">⚠️ Vence en {diasFin}d</span>}
                                   {diasFin !== null && diasFin >= 0 && diasFin >= 15 && diasFin < 30 && <span className="text-yellow-600">⚡ Vence en {diasFin}d</span>}
@@ -739,12 +739,12 @@ export default function ProveedoresPage() {
                           <>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
-                              <select value={contratoForm.edificio_id}
-                                onChange={(e) => setContratoForm({ ...contratoForm, edificio_id: e.target.value })}
+                              <select value={contratoForm.conjunto_id}
+                                onChange={(e) => setContratoForm({ ...contratoForm, conjunto_id: e.target.value })}
                                 className={INPUT}>
                                 <option value="">— ninguno</option>
-                                {(asociaciones[p.id] ?? []).filter((a: any) => a.edificio_id).map((a: any) => (
-                                  <option key={a.edificio_id} value={a.edificio_id}>{a.edificio_nombre}</option>
+                                {(asociaciones[p.id] ?? []).filter((a: any) => a.conjunto_id).map((a: any) => (
+                                  <option key={a.conjunto_id} value={a.conjunto_id}>{a.conjunto_nombre}</option>
                                 ))}
                               </select>
                             </div>
@@ -752,7 +752,7 @@ export default function ProveedoresPage() {
                         ) : (
                           <div className="col-span-2 sm:col-span-1">
                             <label className="block text-xs font-medium text-gray-600 mb-1">Conjunto</label>
-                            <input disabled value={`Conjunto #${edificioId}`} className={`${INPUT} bg-gray-50`} />
+                            <input disabled value={`Conjunto #${conjuntoId}`} className={`${INPUT} bg-gray-50`} />
                           </div>
                         )}
 
@@ -961,7 +961,7 @@ export default function ProveedoresPage() {
                 <h3 className="font-semibold text-gray-900">Gestión de Contrato</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {TIPO_SERVICIO_LABELS[gestionContrato.tipo_servicio] ?? gestionContrato.tipo_servicio}
-                  {gestionContrato.edificio_nombre ? ` — ${gestionContrato.edificio_nombre}` : ""}
+                  {gestionContrato.conjunto_nombre ? ` — ${gestionContrato.conjunto_nombre}` : ""}
                 </p>
               </div>
               <button onClick={() => setShowGestionModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
@@ -1116,7 +1116,7 @@ export default function ProveedoresPage() {
                       <div className="text-5xl">📄</div>
                       <div className="text-center">
                         <div className="font-semibold text-gray-800 mb-1">Contrato en PDF</div>
-                        <div className="text-sm text-gray-500 max-w-xs">Genera y descarga el contrato de servicio en formato PDF con todos los datos del proveedor y del edificio.</div>
+                        <div className="text-sm text-gray-500 max-w-xs">Genera y descarga el contrato de servicio en formato PDF con todos los datos del proveedor y del conjunto.</div>
                       </div>
                       <button
                         onClick={handleDownloadPDF}

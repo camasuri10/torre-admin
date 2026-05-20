@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -52,7 +52,7 @@ export default function BackofficeDashboard() {
 
   const scopeParams = {
     organizacion_id: user?.organizacion_id,
-    edificio_id: user?.edificio_id,
+    conjunto_id: user?.conjunto_id,
   };
 
   const loadData = useCallback(async () => {
@@ -77,7 +77,7 @@ export default function BackofficeDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [user?.organizacion_id, user?.edificio_id]);
+  }, [user?.organizacion_id, user?.conjunto_id]);
 
   useEffect(() => {
     loadData();
@@ -148,7 +148,7 @@ export default function BackofficeDashboard() {
 
   const scopeLabel = [
     user?.organizacion_nombre,
-    user?.edificio_id ? "Edificio específico" : null,
+    user?.conjunto_id ? "Conjunto específico" : null,
   ].filter(Boolean).join(" · ") || "Plataforma completa";
 
   return (
@@ -172,7 +172,7 @@ export default function BackofficeDashboard() {
 
       <div ref={finanzasRef} className={rowVisible("estructura") ? "" : "hidden"}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard icon="🏘️" label="Edificios" value={stats.edificios} color="blue"
+          <KpiCard icon="🏘️" label="Conjuntos" value={stats.conjuntos} color="blue"
             active={activeKpi === "estructura"} onClick={() => toggleKpi("estructura")} />
           <KpiCard icon="🔌" label="Módulos disponibles" value={stats.modulos_total ?? 0} color="green"
             active={activeKpi === "modulos"} onClick={() => toggleKpi("modulos")} />
@@ -225,13 +225,13 @@ export default function BackofficeDashboard() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-gray-700 truncate">{m.nombre}</span>
                     <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                      {m.activaciones}/{stats.edificios}
+                      {m.activaciones}/{stats.conjuntos}
                     </span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5">
                     <div
                       className="bg-primary h-1.5 rounded-full transition-all duration-500"
-                      style={{ width: stats.edificios > 0 ? `${Math.round((m.activaciones / stats.edificios) * 100)}%` : "0%" }}
+                      style={{ width: stats.conjuntos > 0 ? `${Math.round((m.activaciones / stats.conjuntos) * 100)}%` : "0%" }}
                     />
                   </div>
                 </div>

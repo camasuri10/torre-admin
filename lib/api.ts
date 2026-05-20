@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TorreAdmin API client.
  * All fetch calls go through here so the base URL is configured in one place.
  */
@@ -47,10 +47,10 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
-  seleccionarEdificio: (user_id: number, edificio_id: number) =>
-    request<any>("/api/auth/seleccionar-edificio", {
+  seleccionarConjunto: (user_id: number, conjunto_id: number) =>
+    request<any>("/api/auth/seleccionar-conjunto", {
       method: "POST",
-      body: JSON.stringify({ user_id, edificio_id }),
+      body: JSON.stringify({ user_id, conjunto_id }),
     }),
   seleccionarOrganizacion: (user_id: number, organizacion_id: number) =>
     request<any>("/api/auth/seleccionar-organizacion", {
@@ -59,7 +59,7 @@ export const authApi = {
     }),
   seleccionarTodos: () =>
     request<any>("/api/auth/seleccionar-todos", { method: "POST", body: JSON.stringify({}) }),
-  misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
+  misConjuntos: () => request<{ conjuntos: { id: number; nombre: string }[] }>("/api/auth/mis-conjuntos"),
   misOrganizaciones: () => request<{ organizaciones: { id: number; nombre: string }[] }>("/api/auth/mis-organizaciones"),
   me: () => request<any>("/api/auth/me"),
 };
@@ -76,31 +76,31 @@ export const superadminApi = {
     if (estado) params.set("estado", estado);
     return request<any>(`/api/superadmin/stats/mantenimientos-detalle?${params}`);
   },
-  analytics: (edificio_id?: number) => {
-    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+  analytics: (conjunto_id?: number) => {
+    const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);
   },
-  edificios: {
-    list: () => request<any>("/api/superadmin/edificios"),
-    create: (data: any) => request<any>("/api/superadmin/edificios", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: number, data: any) => request<any>(`/api/superadmin/edificios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
+  conjuntos: {
+    list: () => request<any>("/api/superadmin/conjuntos"),
+    create: (data: any) => request<any>("/api/superadmin/conjuntos", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: any) => request<any>(`/api/superadmin/conjuntos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    getModulos: (id: number) => request<any>(`/api/superadmin/conjuntos/${id}/modulos`),
     updateModulos: (id: number, modulos: { clave: string; activo: boolean }[]) =>
-      request<any>(`/api/superadmin/edificios/${id}/modulos`, { method: "PUT", body: JSON.stringify({ modulos }) }),
+      request<any>(`/api/superadmin/conjuntos/${id}/modulos`, { method: "PUT", body: JSON.stringify({ modulos }) }),
   },
   admins: {
     list: () => request<any>("/api/superadmin/admins"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    updateAsignaciones: (id: number, data: { edificio_ids: number[] }) =>
-      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
+    updateAsignaciones: (id: number, data: { conjunto_ids: number[] }) =>
+      request<any>(`/api/superadmin/admins/${id}/conjuntos`, { method: "PUT", body: JSON.stringify(data) }),
   },
   staff: {
     list: () => request<any>("/api/superadmin/staff"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    updateAsignaciones: (id: number, data: { edificio_ids: number[] }) =>
-      request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
+    updateAsignaciones: (id: number, data: { conjunto_ids: number[] }) =>
+      request<any>(`/api/superadmin/admins/${id}/conjuntos`, { method: "PUT", body: JSON.stringify(data) }),
   },
 };
 
@@ -128,7 +128,7 @@ export const mascotasApi = {
 
 // ── Proveedores ───────────────────────────────────────────────────────────────
 export const proveedoresApi = {
-  list: (params?: { edificio_id?: number }) => {
+  list: (params?: { conjunto_id?: number }) => {
     const q = params ? new URLSearchParams(params as any).toString() : "";
     return request<any>(`/api/proveedores${q ? "?" + q : ""}`);
   },
@@ -161,51 +161,51 @@ export const proveedoresApi = {
         request<void>(`/api/proveedores/empleados/documentos/${doc_id}`, { method: "DELETE" }),
     },
   },
-  edificios: {
-    list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/edificios`),
-    add: (proveedor_id: number, data: { edificio_id: number }) =>
-      request<any>(`/api/proveedores/${proveedor_id}/edificios`, { method: "POST", body: JSON.stringify(data) }),
+  conjuntos: {
+    list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/conjuntos`),
+    add: (proveedor_id: number, data: { conjunto_id: number }) =>
+      request<any>(`/api/proveedores/${proveedor_id}/conjuntos`, { method: "POST", body: JSON.stringify(data) }),
     remove: (proveedor_id: number, pe_id: number) =>
-      request<void>(`/api/proveedores/${proveedor_id}/edificios/${pe_id}`, { method: "DELETE" }),
+      request<void>(`/api/proveedores/${proveedor_id}/conjuntos/${pe_id}`, { method: "DELETE" }),
   },
 };
 
-// ── Edificios ─────────────────────────────────────────────────────────────────
+// ── Conjuntos ─────────────────────────────────────────────────────────────────
 export const api = {
-  edificios: {
-    list: () => request<any[]>("/api/edificios/"),
-    get: (id: number) => request<any>(`/api/edificios/${id}`),
-    stats: (id: number) => request<any>(`/api/edificios/${id}/stats`),
+  conjuntos: {
+    list: () => request<any[]>("/api/conjuntos/"),
+    get: (id: number) => request<any>(`/api/conjuntos/${id}`),
+    stats: (id: number) => request<any>(`/api/conjuntos/${id}/stats`),
     unidades: (id: number, torre_id?: number) => {
       const q = torre_id ? `?torre_id=${torre_id}` : "";
-      return request<any[]>(`/api/edificios/${id}/unidades${q}`);
+      return request<any[]>(`/api/conjuntos/${id}/unidades${q}`);
     },
-    create: (data: any) => request<any>("/api/edificios/", { method: "POST", body: JSON.stringify(data) }),
-    getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
+    create: (data: any) => request<any>("/api/conjuntos/", { method: "POST", body: JSON.stringify(data) }),
+    getModulos: (id: number) => request<any>(`/api/superadmin/conjuntos/${id}/modulos`),
     // Torres
     torres: {
-      list: (edificio_id: number) => request<any>(`/api/edificios/${edificio_id}/torres`),
-      create: (edificio_id: number, data: { nombre: string; numero?: string; pisos?: number; tipo?: string }) =>
-        request<any>(`/api/edificios/${edificio_id}/torres`, { method: "POST", body: JSON.stringify(data) }),
-      update: (edificio_id: number, torre_id: number, data: { nombre?: string; numero?: string; pisos?: number; tipo?: string }) =>
-        request<any>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "PUT", body: JSON.stringify(data) }),
-      delete: (edificio_id: number, torre_id: number) =>
-        request<void>(`/api/edificios/${edificio_id}/torres/${torre_id}`, { method: "DELETE" }),
-      unidades: (edificio_id: number, torre_id: number) =>
-        request<any[]>(`/api/edificios/${edificio_id}/torres/${torre_id}/unidades`),
+      list: (conjunto_id: number) => request<any>(`/api/conjuntos/${conjunto_id}/torres`),
+      create: (conjunto_id: number, data: { nombre: string; numero?: string; pisos?: number; tipo?: string }) =>
+        request<any>(`/api/conjuntos/${conjunto_id}/torres`, { method: "POST", body: JSON.stringify(data) }),
+      update: (conjunto_id: number, torre_id: number, data: { nombre?: string; numero?: string; pisos?: number; tipo?: string }) =>
+        request<any>(`/api/conjuntos/${conjunto_id}/torres/${torre_id}`, { method: "PUT", body: JSON.stringify(data) }),
+      delete: (conjunto_id: number, torre_id: number) =>
+        request<void>(`/api/conjuntos/${conjunto_id}/torres/${torre_id}`, { method: "DELETE" }),
+      unidades: (conjunto_id: number, torre_id: number) =>
+        request<any[]>(`/api/conjuntos/${conjunto_id}/torres/${torre_id}/unidades`),
     },
     // Unidades
     createUnidad: (id: number, data: { torre_id: number; numero: string; piso?: number; tipo?: string; area_m2?: number; coeficiente?: number }) =>
-      request<any>(`/api/edificios/${id}/unidades`, { method: "POST", body: JSON.stringify(data) }),
+      request<any>(`/api/conjuntos/${id}/unidades`, { method: "POST", body: JSON.stringify(data) }),
     updateUnidad: (id: number, uid: number, data: any) =>
-      request<any>(`/api/edificios/${id}/unidades/${uid}`, { method: "PUT", body: JSON.stringify(data) }),
+      request<any>(`/api/conjuntos/${id}/unidades/${uid}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteUnidad: (id: number, uid: number) =>
-      request<void>(`/api/edificios/${id}/unidades/${uid}`, { method: "DELETE" }),
+      request<void>(`/api/conjuntos/${id}/unidades/${uid}`, { method: "DELETE" }),
   },
 
   // ── Usuarios ───────────────────────────────────────────────────────────────
   usuarios: {
-    list: (params?: { rol?: string; edificio_id?: number; tipo_ocupacion?: string; solo_inactivos?: boolean }) => {
+    list: (params?: { rol?: string; conjunto_id?: number; tipo_ocupacion?: string; solo_inactivos?: boolean }) => {
       const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null && v !== ""));
       const q = new URLSearchParams(filtered as any).toString();
       return request<any[]>(`/api/usuarios/${q ? "?" + q : ""}`);
@@ -220,31 +220,31 @@ export const api = {
 
   // ── Finanzas ───────────────────────────────────────────────────────────────
   cuotas: {
-    list: (params?: { edificio_id?: number; estado?: string; mes?: string; usuario_id?: number }) => {
+    list: (params?: { conjunto_id?: number; estado?: string; mes?: string; usuario_id?: number }) => {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/cuotas${q ? "?" + q : ""}`);
     },
     create: (data: any) => request<any>("/api/cuotas", { method: "POST", body: JSON.stringify(data) }),
-    generarMes: (data: { edificio_id: number; mes: string; monto: number; fecha_vencimiento: string }) =>
+    generarMes: (data: { conjunto_id: number; mes: string; monto: number; fecha_vencimiento: string }) =>
       request<any>("/api/cuotas/generar-mes", { method: "POST", body: JSON.stringify(data) }),
     pagar: (id: number, data: any) => request<any>(`/api/cuotas/${id}/pagar`, { method: "PATCH", body: JSON.stringify(data) }),
     marcarVencido: (id: number) => request<any>(`/api/cuotas/${id}/estado?estado=vencido`, { method: "PATCH" }),
-    resumen: (edificio_id: number, mes?: string) => {
+    resumen: (conjunto_id: number, mes?: string) => {
       const q = mes ? `?mes=${mes}` : "";
-      return request<any>(`/api/cuotas/resumen/${edificio_id}${q}`);
+      return request<any>(`/api/cuotas/resumen/${conjunto_id}${q}`);
     },
   },
 
   // ── Mantenimiento ──────────────────────────────────────────────────────────
   mantenimientos: {
-    list: (params?: { edificio_id?: number; estado?: string; prioridad?: string; es_programado?: boolean }) => {
+    list: (params?: { conjunto_id?: number; estado?: string; prioridad?: string; es_programado?: boolean }) => {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/mantenimientos/${q ? "?" + q : ""}`);
     },
     get: (id: number) => request<any>(`/api/mantenimientos/${id}`),
-    vencimientos: (edificio_id?: number, dias = 30) => {
+    vencimientos: (conjunto_id?: number, dias = 30) => {
       const params: any = { dias };
-      if (edificio_id) params.edificio_id = edificio_id;
+      if (conjunto_id) params.conjunto_id = conjunto_id;
       const q = new URLSearchParams(params).toString();
       return request<any[]>(`/api/mantenimientos/vencimientos?${q}`);
     },
@@ -254,8 +254,8 @@ export const api = {
     uploadArchivo: (id: number, formData: FormData) =>
       fetch(`${BASE}/api/mantenimientos/${id}/archivos`, { method: "POST", body: formData }).then((r) => r.json()),
     alertas: {
-      list: (edificio_id?: number) => {
-        const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+      list: (conjunto_id?: number) => {
+        const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
         return request<any[]>(`/api/mantenimientos/alertas/${q}`);
       },
       create: (data: any) => request<any>("/api/mantenimientos/alertas/", { method: "POST", body: JSON.stringify(data) }),
@@ -263,9 +263,9 @@ export const api = {
         request<any>(`/api/mantenimientos/alertas/${id}?estado=${estado}`, { method: "PATCH" }),
     },
     inventario: {
-      list: (edificio_id?: number, tipo?: string) => {
+      list: (conjunto_id?: number, tipo?: string) => {
         const params: any = {};
-        if (edificio_id) params.edificio_id = edificio_id;
+        if (conjunto_id) params.conjunto_id = conjunto_id;
         if (tipo) params.tipo = tipo;
         const q = new URLSearchParams(params).toString();
         return request<any[]>(`/api/mantenimientos/inventario${q ? "?" + q : ""}`);
@@ -277,7 +277,7 @@ export const api = {
 
   // ── Comunicados ────────────────────────────────────────────────────────────
   comunicados: {
-    list: (params?: { edificio_id?: number; tipo?: string; usuario_id?: number }) => {
+    list: (params?: { conjunto_id?: number; tipo?: string; usuario_id?: number }) => {
       const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null));
       const q = new URLSearchParams(filtered as any).toString();
       return request<any[]>(`/api/comunicados/${q ? "?" + q : ""}`);
@@ -295,9 +295,9 @@ export const api = {
 
   // ── Zonas Comunes ──────────────────────────────────────────────────────────
   zonas: {
-    list: (edificio_id?: number, incluir_inactivas = false) => {
+    list: (conjunto_id?: number, incluir_inactivas = false) => {
       const params: any = {};
-      if (edificio_id) params.edificio_id = edificio_id;
+      if (conjunto_id) params.conjunto_id = conjunto_id;
       if (incluir_inactivas) params.incluir_inactivas = true;
       const q = new URLSearchParams(params).toString();
       return request<any[]>(`/api/zonas-comunes/${q ? "?" + q : ""}`);
@@ -308,7 +308,7 @@ export const api = {
     disponibilidad: (id: number, fecha: string) =>
       request<any>(`/api/zonas-comunes/${id}/disponibilidad?fecha=${fecha}`),
     reservas: {
-      list: (params?: { edificio_id?: number; zona_id?: number; fecha?: string; estado?: string }) => {
+      list: (params?: { conjunto_id?: number; zona_id?: number; fecha?: string; estado?: string }) => {
         const q = new URLSearchParams(params as any).toString();
         return request<any[]>(`/api/zonas-comunes/reservas${q ? "?" + q : ""}`);
       },
@@ -327,18 +327,18 @@ export const api = {
 
   // ── Accesos ────────────────────────────────────────────────────────────────
   accesos: {
-    list: (params?: { edificio_id?: number; fecha?: string; activos?: boolean }) => {
+    list: (params?: { conjunto_id?: number; fecha?: string; activos?: boolean }) => {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/accesos/${q ? "?" + q : ""}`);
     },
     registrar: (formData: FormData) => formRequest<any>("/api/accesos/", formData),
     salida: (id: number) => request<any>(`/api/accesos/${id}/salida`, { method: "PATCH", body: JSON.stringify({}) }),
-    stats: (edificio_id: number) => request<any>(`/api/accesos/stats/${edificio_id}`),
+    stats: (conjunto_id: number) => request<any>(`/api/accesos/stats/${conjunto_id}`),
   },
 
   // ── Paquetes ───────────────────────────────────────────────────────────────
   paquetes: {
-    list: (params?: { edificio_id?: number; unidad_id?: number; estado?: string }) => {
+    list: (params?: { conjunto_id?: number; unidad_id?: number; estado?: string }) => {
       const q = new URLSearchParams(params as any).toString();
       return request<any[]>(`/api/paquetes/${q ? "?" + q : ""}`);
     },
@@ -346,18 +346,18 @@ export const api = {
     registrar: (formData: FormData) => formRequest<any>("/api/paquetes/", formData),
     entregar: (id: number, data: any) =>
       request<any>(`/api/paquetes/${id}/entregar`, { method: "PATCH", body: JSON.stringify(data) }),
-    stats: (edificio_id: number) => request<any>(`/api/paquetes/stats/${edificio_id}`),
+    stats: (conjunto_id: number) => request<any>(`/api/paquetes/stats/${conjunto_id}`),
   },
 
   // ── Guardias ───────────────────────────────────────────────────────────────
   guardias: {
-    list: (edificio_id?: number) => {
-      const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+    list: (conjunto_id?: number) => {
+      const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
       return request<any[]>(`/api/guardias${q}`);
     },
     create: (data: any) => request<any>("/api/guardias", { method: "POST", body: JSON.stringify(data) }),
     turnos: {
-      list: (params?: { edificio_id?: number; guardia_id?: number }) => {
+      list: (params?: { conjunto_id?: number; guardia_id?: number }) => {
         const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null));
         const q = new URLSearchParams(filtered as any).toString();
         return request<any[]>(`/api/guardias/turnos${q ? "?" + q : ""}`);
@@ -375,40 +375,40 @@ export const api = {
         }).then((r) => r.json());
       },
     },
-    cuadro: (edificio_id: number, mes?: string) => {
+    cuadro: (conjunto_id: number, mes?: string) => {
       const q = mes ? `?mes=${mes}` : "";
-      return request<any[]>(`/api/guardias/cuadro-turnos/${edificio_id}${q}`);
+      return request<any[]>(`/api/guardias/cuadro-turnos/${conjunto_id}${q}`);
     },
   },
 
   // ── Chat ───────────────────────────────────────────────────────────────────
   chat: {
-    mensajes: (edificio_id: number, limit = 100) =>
-      request<any[]>(`/api/chat/${edificio_id}?limit=${limit}`),
-    mensajesDM: (edificio_id: number, usuario_a: number, usuario_b: number, limit = 100) =>
-      request<any[]>(`/api/chat/${edificio_id}?usuario_a=${usuario_a}&usuario_b=${usuario_b}&limit=${limit}`),
+    mensajes: (conjunto_id: number, limit = 100) =>
+      request<any[]>(`/api/chat/${conjunto_id}?limit=${limit}`),
+    mensajesDM: (conjunto_id: number, usuario_a: number, usuario_b: number, limit = 100) =>
+      request<any[]>(`/api/chat/${conjunto_id}?usuario_a=${usuario_a}&usuario_b=${usuario_b}&limit=${limit}`),
     enviar: (data: any) => request<any>("/api/chat", { method: "POST", body: JSON.stringify(data) }),
-    conversaciones: (edificio_id: number, usuario_id: number) =>
-      request<any[]>(`/api/chat/${edificio_id}/conversaciones/${usuario_id}`),
-    marcarLeidos: (edificio_id: number, usuario_id: number, otro_id?: number) =>
-      request<any>(`/api/chat/${edificio_id}/marcar-leidos?usuario_id=${usuario_id}${otro_id !== undefined ? `&otro_id=${otro_id}` : ""}`, { method: "PATCH" }),
-    noLeidos: (edificio_id: number, usuario_id: number) =>
-      request<any>(`/api/chat/${edificio_id}/no-leidos?usuario_id=${usuario_id}`),
+    conversaciones: (conjunto_id: number, usuario_id: number) =>
+      request<any[]>(`/api/chat/${conjunto_id}/conversaciones/${usuario_id}`),
+    marcarLeidos: (conjunto_id: number, usuario_id: number, otro_id?: number) =>
+      request<any>(`/api/chat/${conjunto_id}/marcar-leidos?usuario_id=${usuario_id}${otro_id !== undefined ? `&otro_id=${otro_id}` : ""}`, { method: "PATCH" }),
+    noLeidos: (conjunto_id: number, usuario_id: number) =>
+      request<any>(`/api/chat/${conjunto_id}/no-leidos?usuario_id=${usuario_id}`),
   },
 
   // ── Backoffice ─────────────────────────────────────────────────────────────
   backoffice: {
-    stats: (params?: { organizacion_id?: number; edificio_id?: number }) => {
+    stats: (params?: { organizacion_id?: number; conjunto_id?: number }) => {
       const q = new URLSearchParams();
       if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
-      if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
+      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
       const qs = q.toString();
       return request<any>(`/api/backoffice/stats${qs ? `?${qs}` : ""}`);
     },
-    analytics: (params?: { organizacion_id?: number; edificio_id?: number }) => {
+    analytics: (params?: { organizacion_id?: number; conjunto_id?: number }) => {
       const q = new URLSearchParams();
       if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
-      if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
+      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
       const qs = q.toString();
       return request<any>(`/api/backoffice/analytics${qs ? `?${qs}` : ""}`);
     },
@@ -422,8 +422,8 @@ export const api = {
 
   // ── Encuestas ──────────────────────────────────────────────────────────────
   encuestas: {
-    list: (edificio_id: number) =>
-      request<any[]>(`/api/encuestas?edificio_id=${edificio_id}`),
+    list: (conjunto_id: number) =>
+      request<any[]>(`/api/encuestas?conjunto_id=${conjunto_id}`),
     get: (id: number) => request<any>(`/api/encuestas/${id}`),
     create: (data: any) =>
       request<any>("/api/encuestas", { method: "POST", body: JSON.stringify(data) }),
@@ -444,10 +444,10 @@ export const api = {
 
   // ── Procurement ────────────────────────────────────────────────────────────
   procurement: {
-    stats: (edificio_id: number) =>
-      request<any>(`/api/procurement/stats?edificio_id=${edificio_id}`),
+    stats: (conjunto_id: number) =>
+      request<any>(`/api/procurement/stats?conjunto_id=${conjunto_id}`),
     ordenes: {
-      list: (params?: { edificio_id?: number; estado?: string; tipo_orden?: string }) => {
+      list: (params?: { conjunto_id?: number; estado?: string; tipo_orden?: string }) => {
         const q = params ? new URLSearchParams(params as any).toString() : "";
         return request<any[]>(`/api/procurement/ordenes${q ? "?" + q : ""}`);
       },
@@ -492,20 +492,20 @@ export const api = {
         request<any>(`/api/procurement/cotizaciones/${cot_id}`, { method: "DELETE" }),
     },
     asamblea: {
-      list: (edificio_id?: number) => {
-        const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+      list: (conjunto_id?: number) => {
+        const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
         return request<any[]>(`/api/procurement/asamblea${q}`);
       },
     },
-    kanban: (edificio_id?: number) => {
-      const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
+    kanban: (conjunto_id?: number) => {
+      const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
       return request<any>(`/api/procurement/kanban${q}`);
     },
     aprobaciones: {
       pendientes: () => request<any[]>("/api/procurement/aprobaciones/pendientes"),
     },
     cotizaciones: {
-      list: (params?: { solicitud_id?: number; orden_id?: number; edificio_id?: number }) => {
+      list: (params?: { solicitud_id?: number; orden_id?: number; conjunto_id?: number }) => {
         const q = params ? new URLSearchParams(params as any).toString() : "";
         return request<any[]>(`/api/procurement/cotizaciones${q ? "?" + q : ""}`);
       },
@@ -515,16 +515,16 @@ export const api = {
         request<any>(`/api/procurement/cotizaciones/${id}/ganadora`, { method: "PATCH", body: "{}" }),
     },
     solicitudes: {
-      list: (edificio_id: number) =>
-        request<any[]>(`/api/procurement/solicitudes?edificio_id=${edificio_id}`),
+      list: (conjunto_id: number) =>
+        request<any[]>(`/api/procurement/solicitudes?conjunto_id=${conjunto_id}`),
       create: (data: any) =>
         request<any>("/api/procurement/solicitudes", { method: "POST", body: JSON.stringify(data) }),
       cerrar: (id: number) =>
         request<any>(`/api/procurement/solicitudes/${id}/cerrar`, { method: "PATCH", body: "{}" }),
     },
     flujos: {
-      list: (edificio_id: number) =>
-        request<any[]>(`/api/procurement/flujos?edificio_id=${edificio_id}`),
+      list: (conjunto_id: number) =>
+        request<any[]>(`/api/procurement/flujos?conjunto_id=${conjunto_id}`),
       create: (data: any) =>
         request<any>("/api/procurement/flujos", { method: "POST", body: JSON.stringify(data) }),
       delete: (id: number) =>
@@ -533,10 +533,10 @@ export const api = {
   },
 
   consejo: {
-    list: (edificio_id: number) => request<any[]>(`/api/consejo/${edificio_id}`),
-    unidades: (edificio_id: number) => request<any[]>(`/api/consejo/unidades/${edificio_id}`),
-    create: (edificio_id: number, data: any) =>
-      request<any>(`/api/consejo/${edificio_id}`, { method: "POST", body: JSON.stringify(data) }),
+    list: (conjunto_id: number) => request<any[]>(`/api/consejo/${conjunto_id}`),
+    unidades: (conjunto_id: number) => request<any[]>(`/api/consejo/unidades/${conjunto_id}`),
+    create: (conjunto_id: number, data: any) =>
+      request<any>(`/api/consejo/${conjunto_id}`, { method: "POST", body: JSON.stringify(data) }),
     update: (miembro_id: number, data: any) =>
       request<any>(`/api/consejo/miembros/${miembro_id}`, { method: "PATCH", body: JSON.stringify(data) }),
     delete: (miembro_id: number) =>
@@ -589,14 +589,14 @@ export const api = {
 
   // ── Reportes ───────────────────────────────────────────────────────────────
   reportes: {
-    dashboard: (edificio_id: number) => request<any>(`/api/reportes/dashboard/${edificio_id}`),
-    finanzas: (edificio_id: number, meses = 6) =>
-      request<any[]>(`/api/reportes/finanzas/${edificio_id}?meses=${meses}`),
-    mantenimiento: (edificio_id: number) => request<any>(`/api/reportes/mantenimiento/${edificio_id}`),
-    accesos: (edificio_id: number, dias = 7) =>
-      request<any[]>(`/api/reportes/accesos/${edificio_id}?dias=${dias}`),
-    paquetes: (edificio_id: number) => request<any>(`/api/reportes/paquetes/${edificio_id}`),
-    guardias: (edificio_id: number) => request<any[]>(`/api/reportes/guardias/${edificio_id}`),
+    dashboard: (conjunto_id: number) => request<any>(`/api/reportes/dashboard/${conjunto_id}`),
+    finanzas: (conjunto_id: number, meses = 6) =>
+      request<any[]>(`/api/reportes/finanzas/${conjunto_id}?meses=${meses}`),
+    mantenimiento: (conjunto_id: number) => request<any>(`/api/reportes/mantenimiento/${conjunto_id}`),
+    accesos: (conjunto_id: number, dias = 7) =>
+      request<any[]>(`/api/reportes/accesos/${conjunto_id}?dias=${dias}`),
+    paquetes: (conjunto_id: number) => request<any>(`/api/reportes/paquetes/${conjunto_id}`),
+    guardias: (conjunto_id: number) => request<any[]>(`/api/reportes/guardias/${conjunto_id}`),
   },
 
   // ── Chatbot IA ─────────────────────────────────────────────────────────────

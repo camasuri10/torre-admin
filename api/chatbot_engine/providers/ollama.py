@@ -1,4 +1,4 @@
-from .openai_provider import OpenAIProvider
+﻿from .openai_provider import OpenAIProvider
 
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_MODEL = "llama3.1"

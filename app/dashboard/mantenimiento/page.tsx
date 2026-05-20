@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { api, proveedoresApi } from "@/lib/api";
@@ -34,7 +34,7 @@ const NEEDS_NEXT_DATE = ["trimestral", "anual"];
 
 export default function MantenimientoPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
 
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
@@ -75,7 +75,7 @@ export default function MantenimientoPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params: any = { edificio_id: edificioId };
+    const params: any = { conjunto_id: conjuntoId };
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroPrioridad) params.prioridad = filtroPrioridad;
     if (filtroProgramado !== null) params.es_programado = filtroProgramado;
@@ -84,14 +84,14 @@ export default function MantenimientoPage() {
     if (fechaHasta) params.fecha_hasta = fechaHasta;
     const [s, a, inv] = await Promise.allSettled([
       api.mantenimientos.list(params),
-      api.mantenimientos.alertas.list(edificioId),
-      api.mantenimientos.inventario.list(edificioId),
+      api.mantenimientos.alertas.list(conjuntoId),
+      api.mantenimientos.inventario.list(conjuntoId),
     ]);
     if (s.status === "fulfilled") setSolicitudes(s.value);
     if (a.status === "fulfilled") setAlertas(a.value);
     if (inv.status === "fulfilled") setInventario(inv.value);
     setLoading(false);
-  }, [edificioId, filtroEstado, filtroPrioridad, filtroProgramado, fechaDesde, fechaHasta]);
+  }, [conjuntoId, filtroEstado, filtroPrioridad, filtroProgramado, fechaDesde, fechaHasta]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -147,7 +147,7 @@ export default function MantenimientoPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const body: any = {
-      edificio_id: edificioId,
+      conjunto_id: conjuntoId,
       titulo: fd.get("titulo"),
       descripcion: fd.get("descripcion"),
       categoria: fd.get("categoria"),
@@ -187,7 +187,7 @@ export default function MantenimientoPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     await api.mantenimientos.alertas.create({
-      edificio_id: edificioId,
+      conjunto_id: conjuntoId,
       titulo: fd.get("titulo"),
       descripcion: fd.get("descripcion"),
       tipo: fd.get("tipo"),
@@ -256,7 +256,7 @@ export default function MantenimientoPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const body: any = {
-      edificio_id: edificioId,
+      conjunto_id: conjuntoId,
       nombre: fd.get("nombre"),
       tipo: fd.get("tipo"),
       descripcion: fd.get("descripcion") || null,
@@ -325,7 +325,7 @@ export default function MantenimientoPage() {
           { label: "En proceso", value: enProceso, color: "bg-blue-50 text-blue-700" },
           { label: "Resueltos", value: resueltos, color: "bg-green-50 text-green-700" },
           { label: "Prioridad alta", value: altas, color: "bg-red-50 text-red-700" },
-          { label: "Alertas preventivas", value: alertasProximas, color: "bg-purple-50 text-purple-700", tooltip: "Revisiones programadas pendientes (mantenimiento preventivo del edificio)" },
+          { label: "Alertas preventivas", value: alertasProximas, color: "bg-purple-50 text-purple-700", tooltip: "Revisiones programadas pendientes (mantenimiento preventivo del conjunto)" },
           { label: "Programados", value: programados, color: "bg-teal-50 text-teal-700" },
         ].map((s: any) => (
           <div key={s.label} className={`rounded-xl p-4 border border-current/10 ${s.color} relative group`}>
@@ -702,7 +702,7 @@ export default function MantenimientoPage() {
             <div className="text-center py-12 text-gray-400">
               <div className="text-4xl mb-2">📦</div>
               <p>No hay elementos en el inventario</p>
-              {canEdit && <p className="text-xs mt-1">Agrega zonas y componentes del edificio</p>}
+              {canEdit && <p className="text-xs mt-1">Agrega zonas y componentes del conjunto</p>}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Database connection and schema initialization for TorreAdmin.
 Uses psycopg2 with Supabase (PostgreSQL).
 """
@@ -44,7 +44,7 @@ def get_db():
 
 
 # ─── Schema SQL ────────────────────────────────────────────────────────────────
-# Top-level hierarchy: Organizacion (tenant) → Edificio → Torre → Unidad
+# Top-level hierarchy: Organizacion (tenant) → conjunto → Torre → Unidad
 SCHEMA_SQL = """
 -- ── Organizaciones (top-level tenants) ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS organizaciones (
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS organizaciones (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Edificios (pertenecen a una organización)
-CREATE TABLE IF NOT EXISTS edificios (
+-- conjuntos (pertenecen a una organización)
+CREATE TABLE IF NOT EXISTS conjuntos (
     id              SERIAL PRIMARY KEY,
     organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
@@ -72,13 +72,13 @@ CREATE TABLE IF NOT EXISTS edificios (
     telefono        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-ALTER TABLE edificios ADD COLUMN IF NOT EXISTS nit TEXT;
-ALTER TABLE edificios ADD COLUMN IF NOT EXISTS telefono TEXT;
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS nit TEXT;
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS telefono TEXT;
 
--- Torres (bloques físicos dentro de un edificio; todo edificio tiene al menos 1)
+-- Torres (bloques físicos dentro de un conjunto; todo conjunto tiene al menos 1)
 CREATE TABLE IF NOT EXISTS torres (
     id              SERIAL PRIMARY KEY,
-    edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
     numero          TEXT,
     pisos           INTEGER,
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS proveedores (
     nit             TEXT,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     creado_por      INTEGER REFERENCES usuarios(id),
-    edificio_id     INTEGER REFERENCES edificios(id),
+    conjunto_id     INTEGER REFERENCES conjuntos(id),
     descripcion     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -199,23 +199,23 @@ CREATE TABLE IF NOT EXISTS proveedores (
 -- FK diferido: usuarios.proveedor_id → proveedores
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
 
--- Asociación M:M: proveedor ↔ edificio
-CREATE TABLE IF NOT EXISTS proveedor_edificios (
+-- Asociación M:M: proveedor ↔ conjunto
+CREATE TABLE IF NOT EXISTS proveedor_conjuntos (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_edificio
-    ON proveedor_edificios(proveedor_id, edificio_id);
-CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
+    ON proveedor_conjuntos(proveedor_id, conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_conjuntos(proveedor_id);
 
 -- Contratos de servicio
 CREATE TABLE IF NOT EXISTS contratos_servicio (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    edificio_id     INTEGER REFERENCES edificios(id),
+    conjunto_id     INTEGER REFERENCES conjuntos(id),
     tipo_servicio   TEXT NOT NULL,
     descripcion     TEXT,
     fecha_inicio    DATE,
@@ -233,7 +233,7 @@ ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP
 -- Solicitudes de mantenimiento
 CREATE TABLE IF NOT EXISTS mantenimientos (
     id                  SERIAL PRIMARY KEY,
-    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id         INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     unidad_id           INTEGER REFERENCES unidades(id),
     torre_id            INTEGER REFERENCES torres(id),
     titulo              TEXT NOT NULL,
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS mantenimiento_archivos (
 
 CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
     id                  SERIAL PRIMARY KEY,
-    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id         INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     titulo              TEXT NOT NULL,
     descripcion         TEXT,
     tipo                TEXT NOT NULL CHECK (tipo IN ('preventivo','correctivo','inspeccion')),
@@ -282,7 +282,7 @@ CREATE TABLE IF NOT EXISTS mantenimiento_alertas (
 
 CREATE TABLE IF NOT EXISTS inventario_mantenimiento (
     id          SERIAL PRIMARY KEY,
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     nombre      TEXT NOT NULL,
     tipo        TEXT NOT NULL CHECK (tipo IN ('zona','componente')),
     descripcion TEXT,
@@ -297,7 +297,7 @@ ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_proxima_ejecucion DATE
 -- Comunicados
 CREATE TABLE IF NOT EXISTS comunicados (
     id                SERIAL PRIMARY KEY,
-    edificio_id       INTEGER REFERENCES edificios(id),
+    conjunto_id       INTEGER REFERENCES conjuntos(id),
     titulo            TEXT NOT NULL,
     contenido         TEXT NOT NULL,
     tipo              TEXT NOT NULL CHECK (tipo IN ('informativo','urgente','convocatoria','recordatorio')),
@@ -324,7 +324,7 @@ CREATE INDEX IF NOT EXISTS idx_comunicado_envios_usuario    ON comunicado_envios
 -- Chat de seguridad
 CREATE TABLE IF NOT EXISTS chat_mensajes (
     id              SERIAL PRIMARY KEY,
-    edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     remitente_id    INTEGER NOT NULL REFERENCES usuarios(id),
     receptor_id     INTEGER REFERENCES usuarios(id),  -- NULL = grupo, valor = mensaje directo
     contenido       TEXT NOT NULL,
@@ -336,7 +336,7 @@ CREATE TABLE IF NOT EXISTS chat_mensajes (
 -- Zonas comunes
 CREATE TABLE IF NOT EXISTS zonas_comunes (
     id                      SERIAL PRIMARY KEY,
-    edificio_id             INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id             INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     torre_id                INTEGER REFERENCES torres(id),
     nombre                  TEXT NOT NULL,
     descripcion             TEXT,
@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS reservas (
 -- Control de accesos / visitantes
 CREATE TABLE IF NOT EXISTS accesos (
     id                  SERIAL PRIMARY KEY,
-    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id         INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     visitante_nombre    TEXT NOT NULL,
     visitante_documento TEXT,
     descripcion         TEXT,
@@ -407,7 +407,7 @@ CREATE TABLE IF NOT EXISTS accesos (
 -- Paquetes / Correspondencia
 CREATE TABLE IF NOT EXISTS paquetes (
     id                  SERIAL PRIMARY KEY,
-    edificio_id         INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id         INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     destinatario_id     INTEGER REFERENCES usuarios(id),
     unidad_id           INTEGER REFERENCES unidades(id),
     remitente           TEXT,
@@ -439,7 +439,7 @@ CREATE TABLE IF NOT EXISTS paquete_notificaciones (
 CREATE TABLE IF NOT EXISTS guardias (
     id          SERIAL PRIMARY KEY,
     usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     activo      BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -447,7 +447,7 @@ CREATE TABLE IF NOT EXISTS guardias (
 CREATE TABLE IF NOT EXISTS turnos (
     id              SERIAL PRIMARY KEY,
     guardia_id      INTEGER NOT NULL REFERENCES guardias(id) ON DELETE CASCADE,
-    edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     fecha_inicio    TIMESTAMPTZ NOT NULL,
     fecha_fin       TIMESTAMPTZ NOT NULL,
     tipo_turno      TEXT NOT NULL CHECK (tipo_turno IN ('dia','noche','fin_semana')),
@@ -475,22 +475,22 @@ CREATE TABLE IF NOT EXISTS modulos (
     icono   TEXT
 );
 
--- Módulos activos por edificio
-CREATE TABLE IF NOT EXISTS edificio_modulos (
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+-- Módulos activos por conjunto
+CREATE TABLE IF NOT EXISTS conjunto_modulos (
+    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     modulo_id   INTEGER NOT NULL REFERENCES modulos(id)   ON DELETE CASCADE,
     activo      BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (edificio_id, modulo_id)
+    PRIMARY KEY (conjunto_id, modulo_id)
 );
 
--- Admins/staff asociados a edificios
-CREATE TABLE IF NOT EXISTS usuario_edificios (
+-- Admins/staff asociados a conjuntos
+CREATE TABLE IF NOT EXISTS usuario_conjuntos (
     usuario_id  INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     activo      BOOLEAN NOT NULL DEFAULT TRUE,
     fecha_inicio DATE,
     fecha_fin    DATE,
-    PRIMARY KEY (usuario_id, edificio_id)
+    PRIMARY KEY (usuario_id, conjunto_id)
 );
 
 -- SuperAdmins asignados a organizaciones (M:M)
@@ -506,7 +506,7 @@ CREATE TABLE IF NOT EXISTS organizacion_superadmins (
 -- Registro de uso de módulos (analytics)
 CREATE TABLE IF NOT EXISTS modulos_uso (
     id              SERIAL PRIMARY KEY,
-    edificio_id     INTEGER REFERENCES edificios(id),
+    conjunto_id     INTEGER REFERENCES conjuntos(id),
     modulo_clave    TEXT NOT NULL,
     usuario_id      INTEGER REFERENCES usuarios(id),
     fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -515,7 +515,7 @@ CREATE TABLE IF NOT EXISTS modulos_uso (
 -- Encuestas
 CREATE TABLE IF NOT EXISTS encuestas (
     id                SERIAL PRIMARY KEY,
-    edificio_id       INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id       INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     titulo            TEXT NOT NULL,
     descripcion       TEXT,
     estado            TEXT NOT NULL DEFAULT 'borrador'
@@ -579,7 +579,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
                                     'borrador','pendiente_aprobacion','aprobada',
                                     'rechazada','en_ejecucion','completada','cancelada')),
     fecha_necesidad             DATE,
-    edificio_id                 INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id                 INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     solicitante_id              INTEGER REFERENCES usuarios(id),
     motivo_cancelacion          TEXT,
     clasificacion               TEXT CHECK (clasificacion IN ('proyecto','mantenimiento_preventivo','mantenimiento_correctivo','actividad')),
@@ -620,7 +620,7 @@ CREATE TABLE IF NOT EXISTS solicitudes_cotizacion (
     fecha_limite                DATE,
     criterios_evaluacion        TEXT,
     estado                      TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
-    edificio_id                 INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id                 INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     created_by                  INTEGER REFERENCES usuarios(id),
     num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -652,7 +652,7 @@ CREATE TABLE IF NOT EXISTS flujos_aprobacion (
     nivel        INTEGER NOT NULL DEFAULT 1,
     approver_rol TEXT NOT NULL,
     approver_id  INTEGER REFERENCES usuarios(id),
-    edificio_id  INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id  INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
     activo       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -765,7 +765,7 @@ CREATE TABLE IF NOT EXISTS reserva_archivos (
 -- Consejo de administración
 CREATE TABLE IF NOT EXISTS consejo_miembros (
     id          SERIAL PRIMARY KEY,
-    edificio_id INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
+    conjunto_id INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
     nombre      VARCHAR(255) NOT NULL,
     cargo       VARCHAR(100) NOT NULL,
     tipo        VARCHAR(20) NOT NULL DEFAULT 'activo',
@@ -791,40 +791,40 @@ CREATE TABLE IF NOT EXISTS chatbot_config (
 
 -- ─── Índices ────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_organizaciones_activo        ON organizaciones(activo);
-CREATE INDEX IF NOT EXISTS idx_edificios_organizacion       ON edificios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion       ON conjuntos(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion        ON usuarios(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion     ON proveedores(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org         ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user        ON organizacion_superadmins(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_torres_edificio             ON torres(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_torres_conjunto             ON torres(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_torre              ON unidades(torre_id);
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_unidad          ON ocupaciones(unidad_id);
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_usuario         ON ocupaciones(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_cuotas_unidad               ON cuotas(unidad_id);
 CREATE INDEX IF NOT EXISTS idx_cuotas_estado               ON cuotas(estado);
-CREATE INDEX IF NOT EXISTS idx_mantenimientos_edificio     ON mantenimientos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_mantenimientos_conjunto     ON mantenimientos(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_mantenimientos_estado       ON mantenimientos(estado);
-CREATE INDEX IF NOT EXISTS idx_accesos_edificio            ON accesos(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_accesos_conjunto            ON accesos(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_accesos_fecha               ON accesos(fecha_entrada);
 CREATE INDEX IF NOT EXISTS idx_paquetes_unidad             ON paquetes(unidad_id);
 CREATE INDEX IF NOT EXISTS idx_paquetes_estado             ON paquetes(estado);
-CREATE INDEX IF NOT EXISTS idx_chat_edificio               ON chat_mensajes(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_chat_conjunto               ON chat_mensajes(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_guardia              ON turnos(guardia_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_zona               ON reservas(zona_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_fecha              ON reservas(fecha);
-CREATE INDEX IF NOT EXISTS idx_edificio_modulos            ON edificio_modulos(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_usuario_edificios           ON usuario_edificios(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_conjunto_modulos            ON conjunto_modulos(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos           ON usuario_conjuntos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario           ON vehiculos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_mascotas_usuario            ON mascotas(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_creado_por      ON proveedores(creado_por);
 CREATE INDEX IF NOT EXISTS idx_contratos_proveedor         ON contratos_servicio(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio        ON modulos_uso(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_modulos_uso_conjunto        ON modulos_uso(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha           ON modulos_uso(fecha);
-CREATE INDEX IF NOT EXISTS idx_encuestas_edificio          ON encuestas(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_encuestas_conjunto          ON encuestas(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_preguntas          ON encuesta_preguntas(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_sesiones           ON encuesta_sesiones(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_encuesta_respuestas         ON encuesta_respuestas(sesion_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_edificio            ON ordenes_compra(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_conjunto            ON ordenes_compra(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_ordenes_estado              ON ordenes_compra(estado);
 CREATE INDEX IF NOT EXISTS idx_ordenes_proveedor           ON ordenes_compra(proveedor_id);
 CREATE INDEX IF NOT EXISTS idx_ordenes_proyecto            ON ordenes_compra(proyecto_id);
@@ -832,8 +832,8 @@ CREATE INDEX IF NOT EXISTS idx_orden_items                 ON orden_items(orden_
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_sol            ON cotizaciones(solicitud_id);
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_orden          ON cotizaciones(orden_id);
 CREATE INDEX IF NOT EXISTS idx_orden_aprob                 ON orden_aprobaciones(orden_id);
-CREATE INDEX IF NOT EXISTS idx_flujos_edificio             ON flujos_aprobacion(edificio_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_edificio        ON solicitudes_cotizacion(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_flujos_conjunto             ON flujos_aprobacion(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_conjunto        ON solicitudes_cotizacion(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_prov_empleados              ON proveedor_empleados(proveedor_id);
 CREATE INDEX IF NOT EXISTS idx_empleado_docs               ON empleado_documentos(empleado_id);
 CREATE INDEX IF NOT EXISTS idx_contrato_tareas             ON contrato_tareas(contrato_id);
@@ -842,7 +842,7 @@ CREATE INDEX IF NOT EXISTS idx_contrato_pagos              ON contrato_pagos(con
 CREATE INDEX IF NOT EXISTS idx_mant_bitacora               ON mantenimiento_bitacora(mantenimiento_id);
 CREATE INDEX IF NOT EXISTS idx_reserva_bitacora            ON reserva_bitacora(reserva_id);
 CREATE INDEX IF NOT EXISTS idx_reserva_archivos            ON reserva_archivos(reserva_id);
-CREATE INDEX IF NOT EXISTS idx_consejo_edificio            ON consejo_miembros(edificio_id);
+CREATE INDEX IF NOT EXISTS idx_consejo_conjunto            ON consejo_miembros(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(organizacion_id);
 """
 
@@ -850,7 +850,7 @@ CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(org
 # Incremental migrations for existing databases (safety net)
 MIGRATION_SQL = """
 -- v14.0 — Organizaciones (multi-tenancy top-level entity)
-ALTER TABLE edificios  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
+ALTER TABLE conjuntos  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE usuarios   ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS descripcion TEXT;
@@ -880,7 +880,7 @@ ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_placa TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org  ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user ON organizacion_superadmins(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_edificios_organizacion ON edificios(organizacion_id);
+CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion ON conjuntos(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion  ON usuarios(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion ON proveedores(organizacion_id);
 
@@ -944,7 +944,7 @@ def seed_db():
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM edificios")
+            cur.execute("SELECT COUNT(*) FROM conjuntos")
             if cur.fetchone()["count"] > 0:
                 if pwd_context:
                     _ensure_passwords(cur, pwd_context)
@@ -1028,23 +1028,23 @@ def seed_db():
                 (org2_id, sa2_id),
             )
 
-            # ── ORG 1 — Edificios (Propiedades Norte) ────────────────────────
-            # Edificio 1: Torres del Norte
+            # ── ORG 1 — conjuntos (Propiedades Norte) ────────────────────────
+            # conjunto 1: Torres del Norte
             cur.execute(
-                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                "INSERT INTO conjuntos (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
                 (org1_id, "Torres del Norte", "Cra 15 #85-32, Bogotá", 8),
             )
-            edificio_tdn_id = cur.fetchone()["id"]
+            conjunto_tdn_id = cur.fetchone()["id"]
 
             cur.execute(
-                "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
-                (edificio_tdn_id, "Torre A", "A", 8),
+                "INSERT INTO torres (conjunto_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (conjunto_tdn_id, "Torre A", "A", 8),
             )
             torre_a_id = cur.fetchone()["id"]
 
             cur.execute(
-                "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
-                (edificio_tdn_id, "Torre B", "B", 4),
+                "INSERT INTO torres (conjunto_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (conjunto_tdn_id, "Torre B", "B", 4),
             )
             torre_b_id = cur.fetchone()["id"]
 
@@ -1061,16 +1061,16 @@ def seed_db():
                         (torre_b_id, f"Apto {piso}0{apt}B", piso, "apartamento", round(1/8, 4)),
                     )
 
-            # Edificio 2: Reserva del Parque (org 1, no conjunto)
+            # conjunto 2: Reserva del Parque (org 1, no conjunto)
             cur.execute(
-                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                "INSERT INTO conjuntos (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
                 (org1_id, "Reserva del Parque", "Av. El Dorado #68-11, Bogotá", 6),
             )
-            edificio_rp_id = cur.fetchone()["id"]
+            conjunto_rp_id = cur.fetchone()["id"]
 
             cur.execute(
-                "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
-                (edificio_rp_id, "Torre Principal", "1", 6),
+                "INSERT INTO torres (conjunto_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (conjunto_rp_id, "Torre Principal", "1", 6),
             )
             torre_rp_id = cur.fetchone()["id"]
 
@@ -1083,14 +1083,14 @@ def seed_db():
 
             # ── ORG 2 — Palma Real (Inmobiliaria Sur) ────────────────────────
             cur.execute(
-                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
-                (org2_id, "Edificio Palma Real", "Calle 100 #14-55, Bogotá", 5),
+                "INSERT INTO conjuntos (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (org2_id, "conjunto Palma Real", "Calle 100 #14-55, Bogotá", 5),
             )
-            edificio_pr_id = cur.fetchone()["id"]
+            conjunto_pr_id = cur.fetchone()["id"]
 
             cur.execute(
-                "INSERT INTO torres (edificio_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
-                (edificio_pr_id, "Torre Única", "1", 5),
+                "INSERT INTO torres (conjunto_id, nombre, numero, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (conjunto_pr_id, "Torre Única", "1", 5),
             )
             torre_pr_id = cur.fetchone()["id"]
 
@@ -1128,16 +1128,16 @@ def seed_db():
             guardia_uid = user_ids["guardia1@torreadmin.co"]
 
             cur.execute(
-                "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo, fecha_inicio) VALUES (%s,%s,TRUE,CURRENT_DATE)",
-                (admin_id, edificio_tdn_id),
+                "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo, fecha_inicio) VALUES (%s,%s,TRUE,CURRENT_DATE)",
+                (admin_id, conjunto_tdn_id),
             )
             cur.execute(
-                "INSERT INTO guardias (usuario_id, edificio_id, activo) VALUES (%s,%s,TRUE)",
-                (guardia_uid, edificio_tdn_id),
+                "INSERT INTO guardias (usuario_id, conjunto_id, activo) VALUES (%s,%s,TRUE)",
+                (guardia_uid, conjunto_tdn_id),
             )
             cur.execute(
-                "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo, fecha_inicio) VALUES (%s,%s,TRUE,CURRENT_DATE)",
-                (guardia_uid, edificio_tdn_id),
+                "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo, fecha_inicio) VALUES (%s,%s,TRUE,CURRENT_DATE)",
+                (guardia_uid, conjunto_tdn_id),
             )
 
             # ── Ocupaciones demo ──────────────────────────────────────────────
@@ -1162,7 +1162,7 @@ def seed_db():
 
             # ── Zonas comunes ─────────────────────────────────────────────────
             cur.execute("""
-                INSERT INTO zonas_comunes (edificio_id, torre_id, nombre, descripcion, capacidad, icono, duracion_min_horas, duracion_max_horas) VALUES
+                INSERT INTO zonas_comunes (conjunto_id, torre_id, nombre, descripcion, capacidad, icono, duracion_min_horas, duracion_max_horas) VALUES
                 (%s, %s, 'Gimnasio', 'Equipado con máquinas cardiovasculares y pesas libres.', 15, '🏋️', 1, 2),
                 (%s, %s, 'Piscina',  'Piscina semiolímpica con zona de niños.', 30, '🏊', 1, 3),
                 (%s, NULL, 'Zona BBQ', 'Área de parrilla con mesas y sillas.', 20, '🔥', 2, 6),
@@ -1170,12 +1170,12 @@ def seed_db():
                 (%s, NULL, 'Salón Comunal', 'Espacio para eventos y reuniones.', 60, '🏛️', 2, 8),
                 (%s, NULL, 'Cancha de Tenis', 'Cancha en superficie dura con iluminación.', 4, '🎾', 1, 2)
             """, (
-                edificio_tdn_id, torre_a_id,
-                edificio_tdn_id, torre_a_id,
-                edificio_tdn_id,
-                edificio_tdn_id,
-                edificio_rp_id,
-                edificio_rp_id,
+                conjunto_tdn_id, torre_a_id,
+                conjunto_tdn_id, torre_a_id,
+                conjunto_tdn_id,
+                conjunto_tdn_id,
+                conjunto_rp_id,
+                conjunto_rp_id,
             ))
 
             # ── Proveedores demo (Org 1) ──────────────────────────────────────
@@ -1190,10 +1190,10 @@ def seed_db():
             # ── Activar todos los módulos ─────────────────────────────────────
             cur.execute("SELECT id FROM modulos")
             modulo_ids = [r["id"] for r in cur.fetchall()]
-            for eid in [edificio_tdn_id, edificio_rp_id, edificio_pr_id]:
+            for eid in [conjunto_tdn_id, conjunto_rp_id, conjunto_pr_id]:
                 for mid in modulo_ids:
                     cur.execute(
-                        "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                        "INSERT INTO conjunto_modulos (conjunto_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
                         (eid, mid),
                     )
 
@@ -1203,9 +1203,9 @@ def seed_db():
             cur.execute("""
                 SELECT u.id FROM unidades u
                 JOIN torres t ON t.id = u.torre_id
-                WHERE t.edificio_id = %s
+                WHERE t.conjunto_id = %s
                 LIMIT 10
-            """, (edificio_tdn_id,))
+            """, (conjunto_tdn_id,))
             for row in cur.fetchall():
                 cur.execute(
                     """INSERT INTO cuotas (unidad_id, mes, monto, estado, fecha_vencimiento)
@@ -1259,14 +1259,14 @@ def _ensure_base_data(cur):
             (clave, nombre, icono),
         )
 
-    cur.execute("SELECT id FROM edificios")
-    edificio_ids = [r["id"] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM conjuntos")
+    conjunto_ids = [r["id"] for r in cur.fetchall()]
     cur.execute("SELECT id FROM modulos")
     modulo_ids = [r["id"] for r in cur.fetchall()]
-    for e in edificio_ids:
+    for e in conjunto_ids:
         for m in modulo_ids:
             cur.execute(
-                "INSERT INTO edificio_modulos (edificio_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                "INSERT INTO conjunto_modulos (conjunto_id, modulo_id, activo) VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
                 (e, m),
             )
 

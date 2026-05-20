@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -58,7 +58,7 @@ function addDays(date: Date, days: number) {
 
 export default function ZonasComunesPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
   const usuarioId = user ? parseInt(user.sub) : 1;
   const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
 
@@ -190,10 +190,10 @@ export default function ZonasComunesPage() {
     setLoading(true);
     try {
       const [z, r, uns, usrs] = await Promise.all([
-        api.zonas.list(edificioId, incluirInactivas),
-        api.zonas.reservas.list({ edificio_id: edificioId }),
-        api.edificios.unidades(edificioId),
-        api.usuarios.list({ edificio_id: edificioId }),
+        api.zonas.list(conjuntoId, incluirInactivas),
+        api.zonas.reservas.list({ conjunto_id: conjuntoId }),
+        api.conjuntos.unidades(conjuntoId),
+        api.usuarios.list({ conjunto_id: conjuntoId }),
       ]);
       setZonas(z);
       setReservas(r);
@@ -204,7 +204,7 @@ export default function ZonasComunesPage() {
     } finally {
       setLoading(false);
     }
-  }, [edificioId, incluirInactivas]);
+  }, [conjuntoId, incluirInactivas]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -243,7 +243,7 @@ export default function ZonasComunesPage() {
     try {
       await api.zonas.create({
         ...zonaForm,
-        edificio_id: edificioId,
+        conjunto_id: conjuntoId,
         costo_arriendo: zonaForm.costo_arriendo !== "" ? Number(zonaForm.costo_arriendo) : null,
         costo_deposito: zonaForm.costo_deposito !== "" ? Number(zonaForm.costo_deposito) : null,
       });
@@ -432,7 +432,7 @@ export default function ZonasComunesPage() {
                       <span className="text-4xl">{zona.icono}</span>
                       <div>
                         <h3 className="font-semibold text-gray-900">{zona.nombre}</h3>
-                        <p className="text-xs text-gray-400">{zona.edificio_nombre}</p>
+                        <p className="text-xs text-gray-400">{zona.conjunto_nombre}</p>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">

@@ -1,4 +1,4 @@
-"""Encuestas — creación, respuesta y resultados por edificio."""
+﻿"""Encuestas — creación, respuesta y resultados por conjunto."""
 import json
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ class PreguntaIn(BaseModel):
 
 
 class EncuestaCreate(BaseModel):
-    edificio_id: int
+    conjunto_id: int
     titulo: str
     descripcion: Optional[str] = None
     anonima: bool = False
@@ -110,7 +110,7 @@ def _insert_preguntas(cur, encuesta_id: int, preguntas: list[PreguntaIn]):
 
 @router.get("")
 def list_encuestas(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
 ):
     with get_db() as conn:
@@ -122,9 +122,9 @@ def list_encuestas(
                 FROM encuestas e
                 WHERE 1=1
             """
-            if edificio_id:
-                query += " AND e.edificio_id = %s"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND e.conjunto_id = %s"
+                params.append(conjunto_id)
             query += " ORDER BY e.created_at DESC"
             cur.execute(query, params)
             rows = cur.fetchall()
@@ -160,11 +160,11 @@ def create_encuesta(data: EncuestaCreate, _: dict = Depends(_require_admin)):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO encuestas
-                   (edificio_id, titulo, descripcion, anonima, unidades_destino,
+                   (conjunto_id, titulo, descripcion, anonima, unidades_destino,
                     fecha_inicio, fecha_cierre, autor_id)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (
-                    data.edificio_id, data.titulo, data.descripcion, data.anonima,
+                    data.conjunto_id, data.titulo, data.descripcion, data.anonima,
                     data.unidades_destino, data.fecha_inicio, data.fecha_cierre, None,
                 ),
             )

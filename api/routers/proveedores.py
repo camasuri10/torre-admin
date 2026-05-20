@@ -1,4 +1,4 @@
-"""Proveedores — gestión de proveedores de servicios y sus contratos."""
+﻿"""Proveedores — gestión de proveedores de servicios y sus contratos."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -28,12 +28,12 @@ class ProveedorUpdate(BaseModel):
     descripcion: Optional[str] = None
 
 
-class ProveedorEdificioAdd(BaseModel):
-    edificio_id: int
+class ProveedorconjuntoAdd(BaseModel):
+    conjunto_id: int
 
 
 class ContratoCreate(BaseModel):
-    edificio_id: Optional[int] = None
+    conjunto_id: Optional[int] = None
     tipo_servicio: str          # seguridad | aseo | jardineria | mantenimiento | otro
     descripcion: Optional[str] = None
     fecha_inicio: Optional[str] = None
@@ -49,7 +49,7 @@ class ContratoCreate(BaseModel):
 
 
 class ContratoUpdate(BaseModel):
-    edificio_id: Optional[int] = None
+    conjunto_id: Optional[int] = None
     tipo_servicio: Optional[str] = None
     descripcion: Optional[str] = None
     fecha_inicio: Optional[str] = None
@@ -92,7 +92,7 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
     Retorna lista de proveedor IDs visibles para el usuario.
     - superadmin: todos (None = sin filtro)
     - administrador: creados por SA + creados por ellos mismos
-    - otros roles: los de sus edificios asignados (via contratos)
+    - otros roles: los de sus conjuntos asignados (via contratos)
     """
     rol = user.get("rol")
     uid = int(user.get("sub", 0))
@@ -111,8 +111,8 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
                 creado_por = %s
                 OR creado_por IN (SELECT id FROM usuarios WHERE rol = 'superadmin')
                 OR id IN (
-                    SELECT pe.proveedor_id FROM proveedor_edificios pe
-                    JOIN usuario_edificios ue ON ue.edificio_id = pe.edificio_id
+                    SELECT pe.proveedor_id FROM proveedor_conjuntos pe
+                    JOIN usuario_conjuntos ue ON ue.conjunto_id = pe.conjunto_id
                     WHERE ue.usuario_id = %s AND ue.activo = TRUE
                 )
             )
@@ -120,14 +120,14 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
         return [r["id"] for r in cur.fetchall()]
 
     # portero / servicios / propietario / inquilino
-    edificio_id = user.get("edificio_id")
-    if not edificio_id:
+    conjunto_id = user.get("conjunto_id")
+    if not conjunto_id:
         return []
     cur.execute("""
         SELECT DISTINCT p.id FROM proveedores p
         JOIN contratos_servicio cs ON cs.proveedor_id = p.id
-        WHERE p.activo = TRUE AND cs.edificio_id = %s
-    """, (edificio_id,))
+        WHERE p.activo = TRUE AND cs.conjunto_id = %s
+    """, (conjunto_id,))
     return [r["id"] for r in cur.fetchall()]
 
 
@@ -135,7 +135,7 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
 
 @router.get("")
 def list_proveedores(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
 ):
     with get_db() as conn:
@@ -156,15 +156,15 @@ def list_proveedores(
                 query += " AND p.id = ANY(%s)"
                 params.append(visible_ids)
 
-            if edificio_id:
+            if conjunto_id:
                 query += """
                     AND p.id IN (
-                        SELECT proveedor_id FROM proveedor_edificios WHERE edificio_id = %s AND activo = TRUE
+                        SELECT proveedor_id FROM proveedor_conjuntos WHERE conjunto_id = %s AND activo = TRUE
                         UNION
-                        SELECT proveedor_id FROM contratos_servicio WHERE edificio_id = %s AND activo = TRUE
+                        SELECT proveedor_id FROM contratos_servicio WHERE conjunto_id = %s AND activo = TRUE
                     )
                 """
-                params.extend([edificio_id, edificio_id])
+                params.extend([conjunto_id, conjunto_id])
 
             query += " ORDER BY p.nombre"
             cur.execute(query, params)
@@ -193,7 +193,7 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
         raise HTTPException(status_code=403, detail="Sin permiso para crear proveedores")
 
     creado_por = int(current_user.get("sub", 0))
-    edificio_id = current_user.get("edificio_id")
+    conjunto_id = current_user.get("conjunto_id")
     org_id = current_user.get("organizacion_id")
 
     with get_db() as conn:
@@ -206,12 +206,12 @@ def create_proveedor(data: ProveedorCreate, current_user: dict = Depends(get_cur
             )
             proveedor = dict(cur.fetchone())
 
-            # Auto-asociar al edificio del administrador que lo crea
-            if current_user.get("rol") == "administrador" and edificio_id:
+            # Auto-asociar al conjunto del administrador que lo crea
+            if current_user.get("rol") == "administrador" and conjunto_id:
                 cur.execute(
-                    """INSERT INTO proveedor_edificios (proveedor_id, edificio_id)
+                    """INSERT INTO proveedor_conjuntos (proveedor_id, conjunto_id)
                        VALUES (%s, %s) ON CONFLICT DO NOTHING""",
-                    (proveedor["id"], edificio_id),
+                    (proveedor["id"], conjunto_id),
                 )
 
             return proveedor
@@ -257,23 +257,23 @@ def delete_proveedor(proveedor_id: int, current_user: dict = Depends(get_current
 @router.get("/{proveedor_id}/contratos")
 def list_contratos(proveedor_id: int, current_user: dict = Depends(get_current_user)):
     rol = current_user.get("rol")
-    edificio_id = current_user.get("edificio_id")
+    conjunto_id = current_user.get("conjunto_id")
 
     with get_db() as conn:
         with conn.cursor() as cur:
             query = """
                 SELECT cs.*,
-                       e.nombre AS edificio_nombre
+                       e.nombre AS conjunto_nombre
                 FROM contratos_servicio cs
-                LEFT JOIN edificios e ON e.id = cs.edificio_id
+                LEFT JOIN conjuntos e ON e.id = cs.conjunto_id
                 WHERE cs.proveedor_id = %s AND cs.activo = TRUE
             """
             params = [proveedor_id]
 
-            # Admin solo ve contratos de su edificio
-            if rol == "administrador" and edificio_id:
-                query += " AND cs.edificio_id = %s"
-                params.append(edificio_id)
+            # Admin solo ve contratos de su conjunto
+            if rol == "administrador" and conjunto_id:
+                query += " AND cs.conjunto_id = %s"
+                params.append(conjunto_id)
 
             query += " ORDER BY cs.fecha_inicio DESC NULLS LAST"
             cur.execute(query, params)
@@ -289,8 +289,8 @@ def create_contrato(
     if current_user.get("rol") not in ("superadmin", "administrador"):
         raise HTTPException(status_code=403, detail="Sin permiso para crear contratos")
 
-    if not data.edificio_id:
-        raise HTTPException(status_code=400, detail="Debe especificar edificio_id")
+    if not data.conjunto_id:
+        raise HTTPException(status_code=400, detail="Debe especificar conjunto_id")
 
     rol = current_user.get("rol")
     with get_db() as conn:
@@ -299,22 +299,22 @@ def create_contrato(
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-            # Admin: validate the edificio is pre-associated with this proveedor
-            if rol == "administrador" and data.edificio_id:
+            # Admin: validate the conjunto is pre-associated with this proveedor
+            if rol == "administrador" and data.conjunto_id:
                 cur.execute(
-                    "SELECT id FROM proveedor_edificios WHERE proveedor_id=%s AND edificio_id=%s",
-                    (proveedor_id, data.edificio_id),
+                    "SELECT id FROM proveedor_conjuntos WHERE proveedor_id=%s AND conjunto_id=%s",
+                    (proveedor_id, data.conjunto_id),
                 )
                 if not cur.fetchone():
-                    raise HTTPException(status_code=403, detail="Este proveedor no está asociado a ese edificio")
+                    raise HTTPException(status_code=403, detail="Este proveedor no está asociado a ese conjunto")
 
             cur.execute(
                 """INSERT INTO contratos_servicio
-                   (proveedor_id, edificio_id, tipo_servicio, descripcion,
+                   (proveedor_id, conjunto_id, tipo_servicio, descripcion,
                     fecha_inicio, fecha_fin, fecha_auditoria, condiciones, archivo_url,
                     aprobacion_asamblea_url, valor, moneda, orden_compra_id)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
-                (proveedor_id, data.edificio_id, data.tipo_servicio,
+                (proveedor_id, data.conjunto_id, data.tipo_servicio,
                  data.descripcion, data.fecha_inicio, data.fecha_fin, data.fecha_auditoria,
                  data.condiciones, data.archivo_url, data.aprobacion_asamblea_url,
                  data.valor, data.moneda, data.orden_compra_id),
@@ -364,26 +364,26 @@ def delete_contrato(contrato_id: int, current_user: dict = Depends(get_current_u
             )
 
 
-# ── Proveedor ↔ Edificio/Conjunto associations ────────────────────────────────
+# ── Proveedor ↔ conjunto/Conjunto associations ────────────────────────────────
 
-@router.get("/{proveedor_id}/edificios")
-def list_proveedor_edificios(proveedor_id: int, current_user: dict = Depends(get_current_user)):
+@router.get("/{proveedor_id}/conjuntos")
+def list_proveedor_conjuntos(proveedor_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT pe.*, e.nombre AS edificio_nombre
-                FROM proveedor_edificios pe
-                LEFT JOIN edificios e ON e.id = pe.edificio_id
+                SELECT pe.*, e.nombre AS conjunto_nombre
+                FROM proveedor_conjuntos pe
+                LEFT JOIN conjuntos e ON e.id = pe.conjunto_id
                 WHERE pe.proveedor_id = %s AND pe.activo = TRUE
                 ORDER BY e.nombre
             """, (proveedor_id,))
             return {"asociaciones": [dict(r) for r in cur.fetchall()]}
 
 
-@router.post("/{proveedor_id}/edificios", status_code=201)
-def add_proveedor_edificio(
+@router.post("/{proveedor_id}/conjuntos", status_code=201)
+def add_proveedor_conjunto(
     proveedor_id: int,
-    data: ProveedorEdificioAdd,
+    data: ProveedorconjuntoAdd,
     current_user: dict = Depends(get_current_user),
 ):
     if current_user.get("rol") not in ("superadmin", "administrador"):
@@ -398,22 +398,22 @@ def add_proveedor_edificio(
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-            # Admin: validate they belong to the target edificio
+            # Admin: validate they belong to the target conjunto
             if rol == "administrador":
                 cur.execute(
-                    "SELECT 1 FROM usuario_edificios WHERE usuario_id=%s AND edificio_id=%s AND activo=TRUE",
-                    (uid, data.edificio_id),
+                    "SELECT 1 FROM usuario_conjuntos WHERE usuario_id=%s AND conjunto_id=%s AND activo=TRUE",
+                    (uid, data.conjunto_id),
                 )
                 if not cur.fetchone():
-                    raise HTTPException(status_code=403, detail="No tienes acceso a ese edificio")
+                    raise HTTPException(status_code=403, detail="No tienes acceso a ese conjunto")
 
             try:
                 cur.execute(
-                    """INSERT INTO proveedor_edificios (proveedor_id, edificio_id)
+                    """INSERT INTO proveedor_conjuntos (proveedor_id, conjunto_id)
                        VALUES (%s, %s)
                        ON CONFLICT DO NOTHING
                        RETURNING *""",
-                    (proveedor_id, data.edificio_id),
+                    (proveedor_id, data.conjunto_id),
                 )
                 row = cur.fetchone()
                 if not row:
@@ -423,8 +423,8 @@ def add_proveedor_edificio(
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.delete("/{proveedor_id}/edificios/{pe_id}", status_code=204)
-def remove_proveedor_edificio(
+@router.delete("/{proveedor_id}/conjuntos/{pe_id}", status_code=204)
+def remove_proveedor_conjunto(
     proveedor_id: int,
     pe_id: int,
     current_user: dict = Depends(get_current_user),
@@ -435,7 +435,7 @@ def remove_proveedor_edificio(
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE proveedor_edificios SET activo = FALSE WHERE id = %s AND proveedor_id = %s",
+                "UPDATE proveedor_conjuntos SET activo = FALSE WHERE id = %s AND proveedor_id = %s",
                 (pe_id, proveedor_id),
             )
 

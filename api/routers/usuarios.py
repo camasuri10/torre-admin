@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+﻿from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 import psycopg2.errors
@@ -16,7 +16,7 @@ class UsuarioCreate(BaseModel):
     telefono: Optional[str] = None
     rol: str  # administrador | propietario | inquilino | portero | servicios
     password: Optional[str] = None
-    edificio_id: Optional[int] = None  # contexto del admin — auto-asocia al edificio
+    conjunto_id: Optional[int] = None  # contexto del admin — auto-asocia al conjunto
 
 
 class UsuarioUpdate(BaseModel):
@@ -41,14 +41,14 @@ class OcupacionCreate(BaseModel):
 @router.get("")
 def list_usuarios(
     rol: Optional[str] = None,
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     tipo_ocupacion: Optional[str] = None,  # propietario | inquilino
     solo_inactivos: Optional[bool] = None,  # True = solo inactivos, None = solo activos
 ):
     activo_filter = "FALSE" if solo_inactivos else "TRUE"
     with get_db() as conn:
         with conn.cursor() as cur:
-            if edificio_id:
+            if conjunto_id:
                 tipo_cond = ""
                 join_params: list = []
                 if tipo_ocupacion:
@@ -61,21 +61,21 @@ def list_usuarios(
                            o.tipo as tipo_ocupacion,
                            o.unidad_id,
                            un.numero as unidad_numero,
-                           COALESCE(eu.nombre, ed.nombre) as edificio_nombre
+                           COALESCE(eu.nombre, ed.nombre) as conjunto_nombre
                     FROM usuarios u
                     LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE {tipo_cond}
                     LEFT JOIN unidades un ON un.id = o.unidad_id
                     LEFT JOIN torres tor ON tor.id = un.torre_id
-                    LEFT JOIN edificios eu ON eu.id = tor.edificio_id
-                    LEFT JOIN usuario_edificios ue ON ue.usuario_id = u.id AND ue.activo = TRUE
-                    LEFT JOIN edificios ed ON ed.id = ue.edificio_id
+                    LEFT JOIN conjuntos eu ON eu.id = tor.conjunto_id
+                    LEFT JOIN usuario_conjuntos ue ON ue.usuario_id = u.id AND ue.activo = TRUE
+                    LEFT JOIN conjuntos ed ON ed.id = ue.conjunto_id
                     WHERE u.activo = {activo_filter}
                       AND (
                         eu.id = %s
-                        OR ue.edificio_id = %s
+                        OR ue.conjunto_id = %s
                       )
                     ORDER BY u.id, u.nombre
-                """, join_params + [edificio_id, edificio_id])
+                """, join_params + [conjunto_id, conjunto_id])
             elif rol:
                 cur.execute(
                     f"SELECT id, nombre, email, cedula, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp "
@@ -112,11 +112,11 @@ def get_usuario(usuario_id: int):
                 SELECT o.id, o.unidad_id, o.tipo, o.fecha_inicio,
                        un.numero as unidad_numero,
                        t.nombre as torre_nombre,
-                       e.nombre as edificio_nombre, e.id as edificio_id
+                       e.nombre as conjunto_nombre, e.id as conjunto_id
                 FROM ocupaciones o
                 JOIN unidades un ON un.id = o.unidad_id
                 LEFT JOIN torres t ON t.id = un.torre_id
-                LEFT JOIN edificios e ON e.id = t.edificio_id
+                LEFT JOIN conjuntos e ON e.id = t.conjunto_id
                 WHERE o.usuario_id = %s AND o.activo = TRUE
                 ORDER BY o.fecha_inicio DESC
             """, (usuario_id,))
@@ -128,14 +128,14 @@ def get_usuario(usuario_id: int):
                 first = ocupaciones[0]
                 result["tipo_ocupacion"] = first["tipo"]
                 result["unidad_numero"] = first["unidad_numero"]
-                result["edificio_nombre"] = first["edificio_nombre"]
-                result["edificio_id"] = first["edificio_id"]
+                result["conjunto_nombre"] = first["conjunto_nombre"]
+                result["conjunto_id"] = first["conjunto_id"]
                 result["fecha_inicio"] = first["fecha_inicio"]
             else:
                 result["tipo_ocupacion"] = None
                 result["unidad_numero"] = None
-                result["edificio_nombre"] = None
-                result["edificio_id"] = None
+                result["conjunto_nombre"] = None
+                result["conjunto_id"] = None
                 result["fecha_inicio"] = None
 
             # Vehículos
@@ -174,12 +174,12 @@ def create_usuario(data: UsuarioCreate, current_user: dict = Depends(get_current
                     (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash, org_id),
                 )
                 new_user = cur.fetchone()
-                # Auto-asociar al edificio del admin que lo crea
-                if data.edificio_id:
+                # Auto-asociar al conjunto del admin que lo crea
+                if data.conjunto_id:
                     cur.execute(
-                        "INSERT INTO usuario_edificios (usuario_id, edificio_id, activo) "
+                        "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo) "
                         "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-                        (new_user["id"], data.edificio_id),
+                        (new_user["id"], data.conjunto_id),
                     )
                 return new_user
     except Exception as e:

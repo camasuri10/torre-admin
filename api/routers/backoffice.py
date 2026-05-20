@@ -1,4 +1,4 @@
-"""Backoffice — gestión de plataforma: usuarios SA/BO y reportería global."""
+﻿"""Backoffice — gestión de plataforma: usuarios SA/BO y reportería global."""
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
@@ -28,29 +28,29 @@ def _require_backoffice(current_user: dict = Depends(get_current_user)):
 def _resolve_scope(
     current_user: dict,
     organizacion_id: Optional[int] = None,
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
 ) -> Tuple[Optional[int], Optional[int]]:
-    eid = edificio_id if edificio_id is not None else current_user.get("edificio_id")
+    eid = conjunto_id if conjunto_id is not None else current_user.get("conjunto_id")
     oid = organizacion_id if organizacion_id is not None else current_user.get("organizacion_id")
     return eid, oid
 
 
-def _edificio_ids_subquery(
-    edificio_id: Optional[int],
+def _conjunto_ids_subquery(
+    conjunto_id: Optional[int],
     org_id: Optional[int],
 ) -> Tuple[Optional[str], List]:
-    """Returns (SQL subquery for edificio ids, params) or (None, []) for no filter."""
-    if edificio_id:
-        return "%s", [edificio_id]
+    """Returns (SQL subquery for conjunto ids, params) or (None, []) for no filter."""
+    if conjunto_id:
+        return "%s", [conjunto_id]
     if org_id:
-        return "SELECT id FROM edificios WHERE organizacion_id = %s", [org_id]
+        return "SELECT id FROM conjuntos WHERE organizacion_id = %s", [org_id]
     return None, []
 
 
-def _edificio_col_scope(col: str, edificio_id, org_id) -> Tuple[str, List]:
-    sub, params = _edificio_ids_subquery(edificio_id, org_id)
-    if edificio_id and not sub:
-        return f" AND {col} = %s", [edificio_id]
+def _conjunto_col_scope(col: str, conjunto_id, org_id) -> Tuple[str, List]:
+    sub, params = _conjunto_ids_subquery(conjunto_id, org_id)
+    if conjunto_id and not sub:
+        return f" AND {col} = %s", [conjunto_id]
     if sub is None:
         return "", []
     if sub == "%s":
@@ -58,17 +58,17 @@ def _edificio_col_scope(col: str, edificio_id, org_id) -> Tuple[str, List]:
     return f" AND {col} IN ({sub})", params
 
 
-def _unidad_scope(edificio_id, org_id) -> Tuple[str, List]:
-    sub, params = _edificio_ids_subquery(edificio_id, org_id)
+def _unidad_scope(conjunto_id, org_id) -> Tuple[str, List]:
+    sub, params = _conjunto_ids_subquery(conjunto_id, org_id)
     if not sub:
         return "", []
     if sub == "%s":
         return (
-            " AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.edificio_id = %s)",
+            " AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.conjunto_id = %s)",
             params,
         )
     return (
-        f" AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.edificio_id IN ({sub}))",
+        f" AND unidad_id IN (SELECT u.id FROM unidades u JOIN torres t ON t.id = u.torre_id WHERE t.conjunto_id IN ({sub}))",
         params,
     )
 
@@ -94,33 +94,33 @@ class BoUsuarioUpdate(BaseModel):
 @router.get("/stats")
 def get_stats(
     organizacion_id: Optional[int] = None,
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     current_user: dict = Depends(_require_backoffice),
 ):
-    eid, oid = _resolve_scope(current_user, organizacion_id, edificio_id)
-    ed_scope, ed_params = _edificio_col_scope("edificio_id", eid, oid)
+    eid, oid = _resolve_scope(current_user, organizacion_id, conjunto_id)
+    ed_scope, ed_params = _conjunto_col_scope("conjunto_id", eid, oid)
     un_scope, un_params = _unidad_scope(eid, oid)
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
                 if eid:
-                    cur.execute("SELECT COUNT(*) FROM edificios WHERE id = %s", (eid,))
+                    cur.execute("SELECT COUNT(*) FROM conjuntos WHERE id = %s", (eid,))
                 elif oid:
                     cur.execute(
-                        "SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s",
+                        "SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s",
                         (oid,),
                     )
                 else:
-                    cur.execute("SELECT COUNT(*) FROM edificios")
-                total_edificios = cur.fetchone()["count"]
+                    cur.execute("SELECT COUNT(*) FROM conjuntos")
+                total_conjuntos = cur.fetchone()["count"]
 
-                em_scope = ed_scope.replace("edificio_id", "em.edificio_id") if ed_scope else ""
+                em_scope = ed_scope.replace("conjunto_id", "em.conjunto_id") if ed_scope else ""
                 cur.execute(
                     f"""
                     SELECT m.clave, m.nombre, m.icono,
-                           COALESCE(COUNT(em.edificio_id) FILTER (WHERE em.activo = TRUE), 0) AS activaciones
+                           COALESCE(COUNT(em.conjunto_id) FILTER (WHERE em.activo = TRUE), 0) AS activaciones
                     FROM modulos m
-                    LEFT JOIN edificio_modulos em ON em.modulo_id = m.id{em_scope}
+                    LEFT JOIN conjunto_modulos em ON em.modulo_id = m.id{em_scope}
                     GROUP BY m.id, m.clave, m.nombre, m.icono
                     ORDER BY activaciones DESC, m.nombre
                     """,
@@ -160,7 +160,7 @@ def get_stats(
                 zona_scope = ""
                 zona_params: List = []
                 if ed_scope:
-                    zona_scope = ed_scope.replace("edificio_id", "z.edificio_id")
+                    zona_scope = ed_scope.replace("conjunto_id", "z.conjunto_id")
                     zona_params = list(ed_params)
                 cur.execute(
                     f"""
@@ -227,9 +227,9 @@ def get_stats(
                 return {
                     "scope": {
                         "organizacion_id": oid,
-                        "edificio_id": eid,
+                        "conjunto_id": eid,
                     },
-                    "edificios": int(total_edificios),
+                    "conjuntos": int(total_conjuntos),
                     "modulos_total": total_modulos,
                     "modulos_activaciones": total_activaciones,
                     "modulos_detalle": modulos_detalle,
@@ -253,13 +253,13 @@ def get_stats(
 @router.get("/analytics")
 def get_analytics(
     organizacion_id: Optional[int] = None,
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     current_user: dict = Depends(_require_backoffice),
 ):
-    eid, oid = _resolve_scope(current_user, organizacion_id, edificio_id)
-    ed_scope, ed_params = _edificio_col_scope("edificio_id", eid, oid)
+    eid, oid = _resolve_scope(current_user, organizacion_id, conjunto_id)
+    ed_scope, ed_params = _conjunto_col_scope("conjunto_id", eid, oid)
     un_scope, un_params = _unidad_scope(eid, oid)
-    zona_scope = ed_scope.replace("edificio_id", "z.edificio_id") if ed_scope else ""
+    zona_scope = ed_scope.replace("conjunto_id", "z.conjunto_id") if ed_scope else ""
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -332,9 +332,9 @@ def get_analytics(
                 """)
                 usuarios_por_mes = [{"mes": r["mes"], "total": int(r["total"])} for r in cur.fetchall()]
 
-                # Módulos más usados (desde modulos_uso) y cobertura por edificio
+                # Módulos más usados (desde modulos_uso) y cobertura por conjunto
                 try:
-                    mu_scope = ed_scope.replace("edificio_id", "mu.edificio_id") if ed_scope else ""
+                    mu_scope = ed_scope.replace("conjunto_id", "mu.conjunto_id") if ed_scope else ""
                     cur.execute(
                         f"""
                         SELECT mu.modulo_clave AS clave,

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
@@ -24,7 +24,7 @@ type Conv = ConvGrupo | ConvDM;
 export default function ChatPage() {
   const authUser   = getUser();
   const usuarioId  = authUser ? parseInt(authUser.sub) : 0;
-  const edificioId = authUser?.edificio_id ?? 1;
+  const conjuntoId = authUser?.conjunto_id ?? 1;
 
   const [conv, setConv]                 = useState<Conv>({ tipo: "grupo" });
   const [mensajes, setMensajes]         = useState<any[]>([]);
@@ -44,11 +44,11 @@ export default function ChatPage() {
     try {
       let msgs: any[];
       if (conv.tipo === "grupo") {
-        msgs = await api.chat.mensajes(edificioId, 100);
-        api.chat.marcarLeidos(edificioId, usuarioId).catch(() => {});
+        msgs = await api.chat.mensajes(conjuntoId, 100);
+        api.chat.marcarLeidos(conjuntoId, usuarioId).catch(() => {});
       } else {
-        msgs = await api.chat.mensajesDM(edificioId, usuarioId, conv.usuarioId, 100);
-        api.chat.marcarLeidos(edificioId, usuarioId, conv.usuarioId).catch(() => {});
+        msgs = await api.chat.mensajesDM(conjuntoId, usuarioId, conv.usuarioId, 100);
+        api.chat.marcarLeidos(conjuntoId, usuarioId, conv.usuarioId).catch(() => {});
       }
       setMensajes(msgs);
     } catch {
@@ -56,16 +56,16 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [conv, edificioId, usuarioId]);
+  }, [conv, conjuntoId, usuarioId]);
 
   const loadConvs = useCallback(async () => {
     try {
-      const data = await api.chat.conversaciones(edificioId, usuarioId);
+      const data = await api.chat.conversaciones(conjuntoId, usuarioId);
       setConvs(Array.isArray(data) ? data : []);
     } catch {
       // ignore
     }
-  }, [edificioId, usuarioId]);
+  }, [conjuntoId, usuarioId]);
 
   useEffect(() => {
     setLoading(true);
@@ -84,7 +84,7 @@ export default function ChatPage() {
     e.preventDefault();
     if (!texto.trim()) return;
     const payload: any = {
-      edificio_id:  edificioId,
+      conjunto_id:  conjuntoId,
       remitente_id: usuarioId,
       contenido:    texto.trim(),
       tipo:         conv.tipo === "dm" ? "texto" : tipoMensaje,
@@ -105,7 +105,7 @@ export default function ChatPage() {
 
   const loadUsuarios = async () => {
     try {
-      const data = await api.usuarios.list({ edificio_id: edificioId });
+      const data = await api.usuarios.list({ conjunto_id: conjuntoId });
       setUsuarios(
         (Array.isArray(data) ? data : []).filter(
           (u: any) => u.id !== usuarioId && ["administrador","portero","propietario","inquilino"].includes(u.rol ?? "")
@@ -118,7 +118,7 @@ export default function ChatPage() {
 
   const convLabel =
     conv.tipo === "grupo"
-      ? { titulo: "Chat General", sub: "Todos en el edificio", avatar: "🏢", color: "" }
+      ? { titulo: "Chat General", sub: "Todos en el conjunto", avatar: "🏢", color: "" }
       : { titulo: conv.nombre, sub: ROL_LABEL[conv.rol] ?? conv.rol, avatar: conv.nombre[0], color: ROL_COLOR[conv.rol] ?? "bg-gray-400" };
 
   const pickerFiltered = pickerSearch.trim()
@@ -156,7 +156,7 @@ export default function ChatPage() {
             <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center text-lg flex-shrink-0">🏢</div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-gray-800">Chat General</div>
-              <div className="text-xs text-gray-400 truncate">Todos en el edificio</div>
+              <div className="text-xs text-gray-400 truncate">Todos en el conjunto</div>
             </div>
           </button>
 

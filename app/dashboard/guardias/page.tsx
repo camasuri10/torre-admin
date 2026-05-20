@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -35,7 +35,7 @@ const EMPTY_PORTERO = { nombre: "", cedula: "", email: "", telefono: "", passwor
 
 export default function GuardiasPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id;
+  const conjuntoId = user?.conjunto_id;
   const isAdmin = user?.rol === "administrador";
   const [guardias, setGuardias]           = useState<any[]>([]);
   const [turnos, setTurnos]               = useState<any[]>([]);
@@ -58,13 +58,13 @@ export default function GuardiasPage() {
   };
 
   const load = async (mes?: string) => {
-    if (!edificioId) { setLoading(false); return; }
+    if (!conjuntoId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [g, t, c] = await Promise.all([
-        api.guardias.list(edificioId),
-        api.guardias.turnos.list({ edificio_id: edificioId }),
-        api.guardias.cuadro(edificioId, mes ?? mesActual),
+        api.guardias.list(conjuntoId),
+        api.guardias.turnos.list({ conjunto_id: conjuntoId }),
+        api.guardias.cuadro(conjuntoId, mes ?? mesActual),
       ]);
       // Deduplicate by usuario_id in case DB has duplicate rows
       const seen = new Set<number>();
@@ -79,7 +79,7 @@ export default function GuardiasPage() {
   };
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (edificioId) load(mesActual); }, [mesActual]);
+  useEffect(() => { if (conjuntoId) load(mesActual); }, [mesActual]);
 
   const loadEventos = async (turno_id: number) => {
     const ev = await api.guardias.turnos.eventos(turno_id);
@@ -96,7 +96,7 @@ export default function GuardiasPage() {
     const fd = new FormData(e.currentTarget);
     await api.guardias.turnos.create({
       guardia_id:  Number(fd.get("guardia_id")),
-      edificio_id: edificioId,
+      conjunto_id: conjuntoId,
       fecha_inicio: fd.get("fecha_inicio"),
       fecha_fin:    fd.get("fecha_fin"),
       tipo_turno:   fd.get("tipo_turno"),
@@ -114,16 +114,16 @@ export default function GuardiasPage() {
 
   const handleCrearGuardia = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!edificioId) return;
+    if (!conjuntoId) return;
     setSavingGuardia(true);
     setGuardiaError("");
     try {
       const newUser = await api.usuarios.create({
         ...porteroForm,
         rol: "portero",
-        edificio_id: edificioId,
+        conjunto_id: conjuntoId,
       });
-      await api.guardias.create({ usuario_id: newUser.id, edificio_id: edificioId });
+      await api.guardias.create({ usuario_id: newUser.id, conjunto_id: conjuntoId });
       setShowGuardiaForm(false);
       setPorteroForm(EMPTY_PORTERO);
       load(mesActual);

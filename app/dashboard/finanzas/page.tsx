@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -38,7 +38,7 @@ type Cuota = {
   fecha_pago: string | null;
   residente_nombre: string | null;
   unidad_numero: string | null;
-  edificio_nombre: string | null;
+  conjunto_nombre: string | null;
 };
 
 type Resumen = {
@@ -52,7 +52,7 @@ type Resumen = {
 
 export default function FinanzasPage() {
   const user = getUser();
-  const edificioId = user?.edificio_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? 1;
   const userId = user ? parseInt(user.sub) : null;
   const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
   const isResidente = ["propietario", "inquilino"].includes(user?.rol ?? "");
@@ -74,13 +74,13 @@ export default function FinanzasPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { edificio_id: edificioId, mes: mesAno };
+      const params: any = { conjunto_id: conjuntoId, mes: mesAno };
       if (isResidente && userId) params.usuario_id = userId;
       if (filtroEstado) params.estado = filtroEstado;
 
       const [data, r] = await Promise.all([
         api.cuotas.list(params),
-        api.cuotas.resumen(edificioId, mesAno),
+        api.cuotas.resumen(conjuntoId, mesAno),
       ]);
       setCuotas(data);
       setResumen(r);
@@ -89,7 +89,7 @@ export default function FinanzasPage() {
     } finally {
       setLoading(false);
     }
-  }, [edificioId, mesAno, isResidente, userId, filtroEstado]);
+  }, [conjuntoId, mesAno, isResidente, userId, filtroEstado]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -133,7 +133,7 @@ export default function FinanzasPage() {
     setGenerando(true);
     try {
       const result = await api.cuotas.generarMes({
-        edificio_id: edificioId,
+        conjunto_id: conjuntoId,
         mes: mesAno,
         monto: Number(generarForm.monto),
         fecha_vencimiento: generarForm.fecha_vencimiento,
@@ -267,7 +267,7 @@ export default function FinanzasPage() {
                         {c.residente_nombre ? c.residente_nombre.split(" ").slice(0, 2).join(" ") : "—"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{c.unidad_numero ?? "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[140px] truncate">{c.edificio_nombre ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[140px] truncate">{c.conjunto_nombre ?? "—"}</td>
                     </>
                   )}
                   {!isAdmin && (
@@ -321,7 +321,7 @@ export default function FinanzasPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <h3 className="font-semibold text-gray-900 mb-1">Generar cuotas del mes</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Crea una cuota para cada unidad del edificio para <strong className="capitalize">{mesLabel(mesAno)}</strong>.
+              Crea una cuota para cada unidad del conjunto para <strong className="capitalize">{mesLabel(mesAno)}</strong>.
               Si la cuota ya existe para una unidad, se omite.
             </p>
             <form onSubmit={handleGenerar} className="space-y-4">

@@ -1,4 +1,4 @@
-import json
+﻿import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 class ComunicadoCreate(BaseModel):
-    edificio_id: Optional[int] = None   # None = todos los edificios
+    conjunto_id: Optional[int] = None   # None = todos los conjuntos
     titulo: str
     contenido: str
     tipo: str   # informativo | urgente | convocatoria | recordatorio
@@ -27,7 +27,7 @@ class MarcarLeidoData(BaseModel):
 
 @router.get("")
 def list_comunicados(
-    edificio_id: Optional[int] = None,
+    conjunto_id: Optional[int] = None,
     tipo: Optional[str] = None,
     usuario_id: Optional[int] = None,
 ):
@@ -38,11 +38,11 @@ def list_comunicados(
             if usuario_id is not None:
                 query = """
                     SELECT c.*,
-                           e.nombre as edificio_nombre,
+                           e.nombre as conjunto_nombre,
                            u.nombre as autor_nombre,
                            COALESCE(ce.leido, FALSE) as leido
                     FROM comunicados c
-                    LEFT JOIN edificios e ON e.id = c.edificio_id
+                    LEFT JOIN conjuntos e ON e.id = c.conjunto_id
                     LEFT JOIN usuarios u ON u.id = c.autor_id
                     LEFT JOIN comunicado_envios ce
                            ON ce.comunicado_id = c.id
@@ -54,19 +54,19 @@ def list_comunicados(
             else:
                 query = """
                     SELECT c.*,
-                           e.nombre as edificio_nombre,
+                           e.nombre as conjunto_nombre,
                            u.nombre as autor_nombre,
                            FALSE as leido
                     FROM comunicados c
-                    LEFT JOIN edificios e ON e.id = c.edificio_id
+                    LEFT JOIN conjuntos e ON e.id = c.conjunto_id
                     LEFT JOIN usuarios u ON u.id = c.autor_id
                     WHERE 1=1
                 """
                 params = []
 
-            if edificio_id:
-                query += " AND (c.edificio_id = %s OR c.edificio_id IS NULL)"
-                params.append(edificio_id)
+            if conjunto_id:
+                query += " AND (c.conjunto_id = %s OR c.conjunto_id IS NULL)"
+                params.append(conjunto_id)
             if tipo:
                 query += " AND c.tipo = %s"
                 params.append(tipo)
@@ -80,9 +80,9 @@ def get_comunicado(comunicado_id: int):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT c.*, e.nombre as edificio_nombre, u.nombre as autor_nombre
+                SELECT c.*, e.nombre as conjunto_nombre, u.nombre as autor_nombre
                 FROM comunicados c
-                LEFT JOIN edificios e ON e.id = c.edificio_id
+                LEFT JOIN conjuntos e ON e.id = c.conjunto_id
                 LEFT JOIN usuarios u ON u.id = c.autor_id
                 WHERE c.id = %s
             """, (comunicado_id,))
@@ -116,12 +116,12 @@ def create_comunicado(data: ComunicadoCreate):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO comunicados
-                    (edificio_id, titulo, contenido, tipo, autor_id, fecha,
+                    (conjunto_id, titulo, contenido, tipo, autor_id, fecha,
                      canales, fecha_programada, imagen_url, unidades_destino)
                 VALUES (%s,%s,%s,%s,%s,COALESCE(%s,CURRENT_DATE),%s,%s,%s,%s)
                 RETURNING *
             """, (
-                data.edificio_id, data.titulo, data.contenido, data.tipo,
+                data.conjunto_id, data.titulo, data.contenido, data.tipo,
                 data.autor_id, data.fecha,
                 canales_json, data.fecha_programada, data.imagen_url,
                 data.unidades_destino,
@@ -129,18 +129,18 @@ def create_comunicado(data: ComunicadoCreate):
             comunicado = cur.fetchone()
 
             # Registrar envíos para auditoría, filtrando por unidades_destino o consejo
-            if data.destinatario_tipo == "consejo" and data.edificio_id:
-                # Enviar a miembros activos del consejo del edificio
+            if data.destinatario_tipo == "consejo" and data.conjunto_id:
+                # Enviar a miembros activos del consejo del conjunto
                 cur.execute("""
                     SELECT DISTINCT u.id FROM usuarios u
                     JOIN consejo_miembros cm ON cm.nombre = u.nombre
-                    WHERE cm.edificio_id = %s AND cm.activo = TRUE AND u.activo = TRUE
-                """, (data.edificio_id,))
+                    WHERE cm.conjunto_id = %s AND cm.activo = TRUE AND u.activo = TRUE
+                """, (data.conjunto_id,))
                 usuarios = cur.fetchall()
                 if not usuarios:
                     # Fallback: consejo sin usuarios registrados — devolver lista vacía
                     usuarios = []
-            elif data.edificio_id:
+            elif data.conjunto_id:
                 if data.unidades_destino:
                     try:
                         unidad_ids = json.loads(data.unidades_destino)
@@ -158,16 +158,16 @@ def create_comunicado(data: ComunicadoCreate):
                             JOIN ocupaciones o ON o.usuario_id = u.id
                             JOIN unidades un ON un.id = o.unidad_id
                             JOIN torres t ON t.id = un.torre_id
-                            WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
-                        """, (data.edificio_id,))
+                            WHERE t.conjunto_id = %s AND o.activo = TRUE AND u.activo = TRUE
+                        """, (data.conjunto_id,))
                 else:
                     cur.execute("""
                         SELECT DISTINCT u.id FROM usuarios u
                         JOIN ocupaciones o ON o.usuario_id = u.id
                         JOIN unidades un ON un.id = o.unidad_id
                         JOIN torres t ON t.id = un.torre_id
-                        WHERE t.edificio_id = %s AND o.activo = TRUE AND u.activo = TRUE
-                    """, (data.edificio_id,))
+                        WHERE t.conjunto_id = %s AND o.activo = TRUE AND u.activo = TRUE
+                    """, (data.conjunto_id,))
                 usuarios = cur.fetchall()
             else:
                 cur.execute("SELECT id FROM usuarios WHERE activo = TRUE")
@@ -193,11 +193,11 @@ def update_comunicado(comunicado_id: int, data: ComunicadoCreate):
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE comunicados
-                SET edificio_id=%s, titulo=%s, contenido=%s, tipo=%s, autor_id=%s,
+                SET conjunto_id=%s, titulo=%s, contenido=%s, tipo=%s, autor_id=%s,
                     canales=%s, fecha_programada=%s, imagen_url=%s
                 WHERE id=%s RETURNING *
             """, (
-                data.edificio_id, data.titulo, data.contenido, data.tipo, data.autor_id,
+                data.conjunto_id, data.titulo, data.contenido, data.tipo, data.autor_id,
                 json.dumps(data.canales or ["sistema"]), data.fecha_programada, data.imagen_url,
                 comunicado_id,
             ))

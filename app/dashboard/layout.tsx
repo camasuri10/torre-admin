@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getUser, clearToken, setToken, getEdificiosDisponibles, type AuthUser } from "@/lib/auth";
+import { getUser, clearToken, setToken, getConjuntosDisponibles, type AuthUser } from "@/lib/auth";
 import { authApi, api } from "@/lib/api";
 import ChatbotBubble from "@/components/ChatbotBubble";
 
@@ -41,7 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Super Admin",
     items: [
       { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
     ],
@@ -100,7 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const [user, setUser]                     = useState<AuthUser | null>(null);
   const [activeModules, setActiveModules]   = useState<string[]>([]);
-  const [edificios, setEdificios]           = useState<{ id: number; nombre: string }[]>([]);
+  const [conjuntos, setConjuntos]           = useState<{ id: number; nombre: string }[]>([]);
   const [organizaciones, setOrganizaciones]   = useState<{ id: number; nombre: string }[]>([]);
   const [showSwitcher, setShowSwitcher]       = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
@@ -115,8 +115,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUser(u);
 
     // Load active modules for this building (skip for superadmin/backoffice — they see all)
-    if (u.rol !== "superadmin" && u.rol !== "backoffice" && u.edificio_id) {
-      api.edificios.getModulos(u.edificio_id)
+    if (u.rol !== "superadmin" && u.rol !== "backoffice" && u.conjunto_id) {
+      api.conjuntos.getModulos(u.conjunto_id)
         .then((data) => {
           const claves = data.modulos
             .filter((m: any) => m.activo)
@@ -130,8 +130,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     // Load available buildings for switcher
-    authApi.misEdificios()
-      .then((data) => setEdificios(data.edificios))
+    authApi.misConjuntos()
+      .then((data) => setConjuntos(data.conjuntos))
       .catch(() => {});
 
     if (u.rol === "backoffice" || u.rol === "superadmin") {
@@ -163,11 +163,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!item.modulo || user.rol === "superadmin") return true;
         return activeModules.includes(item.modulo);
       });
-      if (g.label === "Gestión" && user?.rol === "administrador" && user.edificio_id) {
+      if (g.label === "Gestión" && user?.rol === "administrador" && user.conjunto_id) {
         items = [
           ...items,
           {
-            href: `/dashboard/superadmin/edificios/${user.edificio_id}`,
+            href: `/dashboard/superadmin/conjuntos/${user.conjunto_id}`,
             label: "Estructura del conjunto",
             icon: "🏢",
             exact: false,
@@ -185,25 +185,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? user.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
     : "…";
 
-  const edificioNombre = user?.edificio_id
-    ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
-    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los edificios" : "—";
+  const conjuntoNombre = user?.conjunto_id
+    ? conjuntos.find((e) => e.id === user.conjunto_id)?.nombre ?? "Cargando…"
+    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los conjuntos" : "—";
 
   const isSuperAdmin = user?.rol === "superadmin";
   const isBackoffice = user?.rol === "backoffice";
   // SA and Backoffice always can switch (they need the "Todos" option); others need >1 building
-  const canSwitch = isSuperAdmin || isBackoffice || edificios.length > 1;
+  const canSwitch = isSuperAdmin || isBackoffice || conjuntos.length > 1;
 
   function handleNavClick() {
     setSidebarOpen(false);
   }
 
-  async function handleSwitchBuilding(edificioId: number) {
+  async function handleSwitchBuilding(conjuntoId: number) {
     if (!user) return;
     setSwitching(true);
     setShowSwitcher(false);
     try {
-      const data = await authApi.seleccionarEdificio(parseInt(user.sub), edificioId);
+      const data = await authApi.seleccionarConjunto(parseInt(user.sub), conjuntoId);
       setToken(data.access_token);
       window.location.href =
         user.rol === "backoffice" ? "/dashboard/backoffice"
@@ -333,7 +333,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="text-blue-300 text-xs mb-0.5">Conjunto activo</div>
             <div className="text-white text-sm font-medium flex items-center justify-between">
               <span className="truncate">
-                {switching ? "Cambiando…" : edificioNombre}
+                {switching ? "Cambiando…" : conjuntoNombre}
               </span>
               {canSwitch && (
                 <span className={`text-blue-300 text-xs ml-2 transition-transform ${showSwitcher ? "rotate-180" : ""}`}>▼</span>
@@ -347,25 +347,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                   onClick={handleSwitchToTodos}
                   className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-                    !user?.edificio_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
+                    !user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
                   }`}
                 >
                   <span>🌐</span>
-                  <span className="truncate">Todos los edificios</span>
-                  {!user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
+                  <span className="truncate">Todos los conjuntos</span>
+                  {!user?.conjunto_id && <span className="ml-auto text-primary text-xs">✓</span>}
                 </button>
               )}
-              {edificios.map((e) => (
+              {conjuntos.map((e) => (
                 <button
                   key={e.id}
                   onClick={() => handleSwitchBuilding(e.id)}
                   className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors ${
-                    e.id === user?.edificio_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
+                    e.id === user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"
                   }`}
                 >
                   <span>🏘️</span>
                   <span className="truncate">{e.nombre}</span>
-                  {e.id === user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
+                  {e.id === user?.conjunto_id && <span className="ml-auto text-primary text-xs">✓</span>}
                 </button>
               ))}
             </div>
@@ -476,7 +476,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Chatbot bubble — shown to SA always, to others when module is active */}
       {user && (user.rol === "superadmin" || user.rol === "administrador" || user.rol === "propietario") &&
         (user.rol === "superadmin" || activeModules.includes("chatbot")) && (
-        <ChatbotBubble user={user} edificioId={user.edificio_id} />
+        <ChatbotBubble user={user} conjuntoId={user.conjunto_id} />
       )}
     </div>
   );

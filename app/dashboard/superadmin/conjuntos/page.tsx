@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getUser } from "@/lib/auth";
 import { superadminApi } from "@/lib/api";
 
-interface Edificio {
+interface Conjunto {
   id: number;
   nombre: string;
   direccion: string;
@@ -21,9 +21,9 @@ interface Edificio {
 
 const emptyForm = { nombre: "", direccion: "", pisos: 1, nit: "", telefono: "" };
 
-export default function EdificiosPage() {
+export default function ConjuntosPage() {
   const router = useRouter();
-  const [edificios, setEdificios]   = useState<Edificio[]>([]);
+  const [conjuntos, setConjuntos]   = useState<Conjunto[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -31,7 +31,7 @@ export default function EdificiosPage() {
   const [error, setError]           = useState("");
   const [search, setSearch]         = useState("");
 
-  const [editEdificio, setEditEdificio] = useState<Edificio | null>(null);
+  const [editConjunto, setEditConjunto] = useState<Conjunto | null>(null);
   const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1, nit: "", telefono: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState("");
@@ -39,15 +39,15 @@ export default function EdificiosPage() {
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
-    loadEdificios();
+    loadConjuntos();
   }, [router]);
 
-  async function loadEdificios() {
+  async function loadConjuntos() {
     setLoading(true);
     try {
-      const data = await superadminApi.edificios.list();
-      setEdificios(data.edificios);
-    } catch { setError("Error al cargar edificios"); }
+      const data = await superadminApi.conjuntos.list();
+      setConjuntos(data.conjuntos);
+    } catch { setError("Error al cargar conjuntos"); }
     finally { setLoading(false); }
   }
 
@@ -56,7 +56,7 @@ export default function EdificiosPage() {
     setSaving(true);
     setError("");
     try {
-      await superadminApi.edificios.create({
+      await superadminApi.conjuntos.create({
         nombre: form.nombre,
         direccion: form.direccion,
         pisos: form.pisos,
@@ -65,13 +65,13 @@ export default function EdificiosPage() {
       });
       setShowForm(false);
       setForm(emptyForm);
-      loadEdificios();
-    } catch { setError("Error al crear el edificio"); }
+      loadConjuntos();
+    } catch { setError("Error al crear el conjunto"); }
     finally { setSaving(false); }
   }
 
-  function openEdit(ed: Edificio) {
-    setEditEdificio(ed);
+  function openEdit(ed: Conjunto) {
+    setEditConjunto(ed);
     setEditForm({
       nombre: ed.nombre,
       direccion: ed.direccion,
@@ -84,27 +84,27 @@ export default function EdificiosPage() {
 
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!editEdificio) return;
+    if (!editConjunto) return;
     setEditSaving(true);
     setEditError("");
     try {
-      await superadminApi.edificios.update(editEdificio.id, {
+      await superadminApi.conjuntos.update(editConjunto.id, {
         nombre: editForm.nombre,
         direccion: editForm.direccion,
         pisos: editForm.pisos,
         nit: editForm.nit || undefined,
         telefono: editForm.telefono || undefined,
       });
-      setEditEdificio(null);
-      loadEdificios();
+      setEditConjunto(null);
+      loadConjuntos();
     } catch { setEditError("Error al guardar los cambios"); }
     finally { setEditSaving(false); }
   }
 
   const q = search.trim().toLowerCase();
-  const filteredEdificios = q
-    ? edificios.filter((e) => e.nombre.toLowerCase().includes(q) || e.direccion.toLowerCase().includes(q))
-    : edificios;
+  const filteredConjuntos = q
+    ? conjuntos.filter((e) => e.nombre.toLowerCase().includes(q) || e.direccion.toLowerCase().includes(q))
+    : conjuntos;
 
   const INPUT = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
 
@@ -112,14 +112,14 @@ export default function EdificiosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Edificios</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Gestiona los edificios de la plataforma</p>
+          <h2 className="text-xl font-bold text-gray-900">Conjuntos</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Gestiona los conjuntos de la plataforma</p>
         </div>
         <button
           onClick={() => { setShowForm((v) => !v); setError(""); }}
           className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
-          + Nuevo edificio
+          + Nuevo conjunto
         </button>
       </div>
 
@@ -137,7 +137,7 @@ export default function EdificiosPage() {
       {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear nuevo edificio</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Crear nuevo conjunto</h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
@@ -168,7 +168,7 @@ export default function EdificiosPage() {
             <div className="sm:col-span-2 flex gap-3">
               <button type="submit" disabled={saving}
                 className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
-                {saving ? "Guardando…" : "Crear edificio"}
+                {saving ? "Guardando…" : "Crear conjunto"}
               </button>
               <button type="button" onClick={() => { setShowForm(false); setError(""); }}
                 className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700 border border-gray-200">
@@ -179,17 +179,17 @@ export default function EdificiosPage() {
         </div>
       )}
 
-      {/* Edificios list */}
+      {/* Conjuntos list */}
       {loading ? (
         <div className="flex items-center justify-center h-40">
           <p className="text-gray-400 text-sm">Cargando…</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredEdificios.length === 0 ? (
+          {filteredConjuntos.length === 0 ? (
             <p className="col-span-3 text-center text-gray-400 text-sm py-8">Sin resultados para la búsqueda.</p>
           ) : null}
-          {filteredEdificios.map((e) => (
+          {filteredConjuntos.map((e) => (
             <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -224,7 +224,7 @@ export default function EdificiosPage() {
                   ✏️ Editar
                 </button>
                 <Link
-                  href={`/dashboard/superadmin/edificios/${e.id}`}
+                  href={`/dashboard/superadmin/conjuntos/${e.id}`}
                   className="flex-1 text-center py-2 rounded-xl border border-primary/30 text-primary text-sm font-medium hover:bg-primary hover:text-white transition-all"
                 >
                   Gestionar
@@ -236,12 +236,12 @@ export default function EdificiosPage() {
       )}
 
       {/* Edit building modal */}
-      {editEdificio && (
+      {editConjunto && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Editar conjunto</h3>
-              <button onClick={() => setEditEdificio(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+              <button onClick={() => setEditConjunto(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <form onSubmit={handleEditSave} className="space-y-3">
               <div>
@@ -279,7 +279,7 @@ export default function EdificiosPage() {
                   className="flex-1 bg-primary text-white py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
                   {editSaving ? "Guardando…" : "Guardar cambios"}
                 </button>
-                <button type="button" onClick={() => setEditEdificio(null)}
+                <button type="button" onClick={() => setEditConjunto(null)}
                   className="flex-1 border border-gray-200 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700">
                   Cancelar
                 </button>

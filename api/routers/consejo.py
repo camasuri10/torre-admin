@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+﻿from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from db import get_db
 from routers.auth import get_current_user
-from routers.edificios import _check_edificio_access
+from routers.conjuntos import _check_conjunto_access
 
 router = APIRouter()
 
@@ -25,20 +25,20 @@ class ConsejoMiembroUpdate(BaseModel):
     residente_id: Optional[int] = None
 
 
-def _miembro_edificio_id(cur, miembro_id: int) -> int:
-    cur.execute("SELECT edificio_id FROM consejo_miembros WHERE id = %s", (miembro_id,))
+def _miembro_conjunto_id(cur, miembro_id: int) -> int:
+    cur.execute("SELECT conjunto_id FROM consejo_miembros WHERE id = %s", (miembro_id,))
     row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Miembro no encontrado")
-    return row["edificio_id"]
+    return row["conjunto_id"]
 
 
-@router.get("/unidades/{edificio_id}")
-def list_unidades_para_consejo(edificio_id: int, current_user: dict = Depends(get_current_user)):
+@router.get("/unidades/{conjunto_id}")
+def list_unidades_para_consejo(conjunto_id: int, current_user: dict = Depends(get_current_user)):
     """Retorna unidades con sus residentes activos para el selector del modal."""
     with get_db() as conn:
         with conn.cursor() as cur:
-            _check_edificio_access(cur, current_user, edificio_id)
+            _check_conjunto_access(cur, current_user, conjunto_id)
             cur.execute("""
                 SELECT u.id, u.numero, u.piso,
                        t.nombre AS torre, t.numero AS torre_numero,
@@ -47,9 +47,9 @@ def list_unidades_para_consejo(edificio_id: int, current_user: dict = Depends(ge
                 JOIN torres t ON t.id = u.torre_id
                 LEFT JOIN ocupaciones o ON o.unidad_id = u.id AND o.activo = TRUE
                 LEFT JOIN usuarios us ON us.id = o.usuario_id AND us.activo = TRUE
-                WHERE t.edificio_id = %s AND u.activo = TRUE
+                WHERE t.conjunto_id = %s AND u.activo = TRUE
                 ORDER BY t.numero, t.nombre, u.numero, us.nombre
-            """, (edificio_id,))
+            """, (conjunto_id,))
             rows = cur.fetchall()
             units: dict = {}
             for row in rows:
@@ -74,23 +74,23 @@ def list_unidades_para_consejo(edificio_id: int, current_user: dict = Depends(ge
             return list(units.values())
 
 
-@router.get("/{edificio_id}")
+@router.get("/{conjunto_id}")
 def list_miembros(
-    edificio_id: int,
+    conjunto_id: int,
     incluir_inactivos: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
-            _check_edificio_access(cur, current_user, edificio_id)
+            _check_conjunto_access(cur, current_user, conjunto_id)
             query = """
                 SELECT cm.*, u.numero AS unidad_numero, t.nombre AS unidad_torre, t.numero AS unidad_torre_numero
                 FROM consejo_miembros cm
                 LEFT JOIN unidades u ON u.id = cm.unidad_id
                 LEFT JOIN torres t ON t.id = u.torre_id
-                WHERE cm.edificio_id = %s
+                WHERE cm.conjunto_id = %s
             """
-            params = [edificio_id]
+            params = [conjunto_id]
             if not incluir_inactivos:
                 query += " AND cm.activo = TRUE"
             query += " ORDER BY cm.tipo, cm.cargo, cm.nombre"
@@ -98,19 +98,19 @@ def list_miembros(
             return cur.fetchall()
 
 
-@router.post("/{edificio_id}", status_code=201)
+@router.post("/{conjunto_id}", status_code=201)
 def create_miembro(
-    edificio_id: int,
+    conjunto_id: int,
     data: ConsejoMiembroCreate,
     current_user: dict = Depends(get_current_user),
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
-            _check_edificio_access(cur, current_user, edificio_id)
+            _check_conjunto_access(cur, current_user, conjunto_id)
             cur.execute("""
-                INSERT INTO consejo_miembros (edificio_id, nombre, cargo, tipo, unidad_id, residente_id)
+                INSERT INTO consejo_miembros (conjunto_id, nombre, cargo, tipo, unidad_id, residente_id)
                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (edificio_id, data.nombre, data.cargo, data.tipo, data.unidad_id, data.residente_id))
+            """, (conjunto_id, data.nombre, data.cargo, data.tipo, data.unidad_id, data.residente_id))
             return cur.fetchone()
 
 
@@ -122,8 +122,8 @@ def update_miembro(
 ):
     with get_db() as conn:
         with conn.cursor() as cur:
-            edificio_id = _miembro_edificio_id(cur, miembro_id)
-            _check_edificio_access(cur, current_user, edificio_id)
+            conjunto_id = _miembro_conjunto_id(cur, miembro_id)
+            _check_conjunto_access(cur, current_user, conjunto_id)
             fields, params = [], []
             if data.nombre is not None:
                 fields.append("nombre = %s"); params.append(data.nombre)
@@ -154,8 +154,8 @@ def update_miembro(
 def delete_miembro(miembro_id: int, current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
-            edificio_id = _miembro_edificio_id(cur, miembro_id)
-            _check_edificio_access(cur, current_user, edificio_id)
+            conjunto_id = _miembro_conjunto_id(cur, miembro_id)
+            _check_conjunto_access(cur, current_user, conjunto_id)
             cur.execute(
                 "UPDATE consejo_miembros SET activo = FALSE WHERE id = %s RETURNING id",
                 (miembro_id,),

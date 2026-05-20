@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -62,7 +62,7 @@ export default function SuperAdminPage() {
   }
 
   const statCards = [
-    { label: "Edificios",        value: stats?.total_edificios  ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
+    { label: "Conjuntos",        value: stats?.total_conjuntos  ?? 0, icon: "🏘️", href: "/dashboard/superadmin/conjuntos", color: "bg-sky-50 border-sky-100" },
     { label: "Torres",           value: stats?.total_torres     ?? 0, icon: "🏢", href: null,                              color: "bg-blue-50 border-blue-100" },
     { label: "Administradores",  value: stats?.total_admins     ?? 0, icon: "👤", href: "/dashboard/superadmin/admins",    color: "bg-green-50 border-green-100" },
     { label: "Staff Servicios",  value: stats?.total_staff      ?? 0, icon: "🧹", href: "/dashboard/superadmin/admins",    color: "bg-teal-50 border-teal-100" },
@@ -231,7 +231,7 @@ export default function SuperAdminPage() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Acciones rápidas</h3>
           <div className="grid grid-cols-1 gap-3">
             {[
-              { href: "/dashboard/superadmin/edificios", icon: "🏘️", label: "Gestionar edificios", desc: "Crear, editar y configurar módulos" },
+              { href: "/dashboard/superadmin/conjuntos", icon: "🏘️", label: "Gestionar conjuntos", desc: "Crear, editar y configurar módulos" },
               { href: "/dashboard/superadmin/admins",    icon: "👤", label: "Gestionar personal",  desc: "Admins, porteros y staff de servicios" },
             ].map((a) => (
               <Link key={a.href} href={a.href}
@@ -284,7 +284,7 @@ export default function SuperAdminPage() {
                       const estadoColor = m.estado === "en_proceso" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500";
                       return (
                         <tr key={m.id} className="hover:bg-gray-50">
-                          <td className="py-2.5 pr-4 text-gray-500 text-xs">{m.edificio_nombre}</td>
+                          <td className="py-2.5 pr-4 text-gray-500 text-xs">{m.conjunto_nombre}</td>
                           <td className="py-2.5 pr-4 text-gray-800 font-medium">{m.titulo}</td>
                           <td className="py-2.5 pr-4 text-gray-500 hidden sm:table-cell capitalize">{m.categoria ?? "—"}</td>
                           <td className="py-2.5 pr-4">
@@ -349,7 +349,7 @@ export default function SuperAdminPage() {
                         <td className="py-2.5 pr-4 text-gray-600">
                           {c.torre_nombre ? `${c.torre_nombre} - ` : ""}{c.unidad_numero}
                         </td>
-                        <td className="py-2.5 pr-4 text-gray-500 hidden sm:table-cell">{c.edificio_nombre}</td>
+                        <td className="py-2.5 pr-4 text-gray-500 hidden sm:table-cell">{c.conjunto_nombre}</td>
                         <td className="py-2.5 pr-4 text-gray-600">{c.mes}</td>
                         <td className="py-2.5 text-right font-mono font-semibold text-red-600">{fmt(c.monto)}</td>
                       </tr>
