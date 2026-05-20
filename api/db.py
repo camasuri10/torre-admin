@@ -597,6 +597,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     requiere_aprobacion_consejo BOOLEAN DEFAULT FALSE,
     consejo_estado              TEXT CHECK (consejo_estado IN ('pendiente','aprobada','rechazada')),
     consejo_comentario          TEXT,
+    consejo_acta_url            TEXT,
     proyecto_id                 INTEGER REFERENCES ordenes_compra(id),
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -897,6 +898,7 @@ ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS valor NUMERIC(15,2);
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'COP';
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS fecha_auditoria DATE;
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS orden_compra_id INTEGER REFERENCES ordenes_compra(id);
+ALTER TABLE ordenes_compra ADD COLUMN IF NOT EXISTS consejo_acta_url TEXT;
 ALTER TABLE contratos_servicio ADD COLUMN IF NOT EXISTS aprobacion_asamblea_url TEXT;
 ALTER TABLE solicitudes_cotizacion ADD COLUMN IF NOT EXISTS num_cotizaciones_requeridas INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS padre_id INTEGER REFERENCES mantenimientos(id);

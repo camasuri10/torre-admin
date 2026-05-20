@@ -153,6 +153,7 @@ class OrdenUpdate(BaseModel):
 class ConsejoDecision(BaseModel):
     decision: str  # aprobada | rechazada
     comentario: Optional[str] = None
+    acta_url: Optional[str] = None
 
 
 class EstadoAction(BaseModel):
@@ -872,7 +873,7 @@ def consejo_decision(
                 raise HTTPException(status_code=400, detail="decision debe ser 'aprobada' o 'rechazada'")
             cur.execute("""
                 UPDATE ordenes_compra
-                SET consejo_estado=%s, consejo_comentario=%s, updated_at=NOW()
+                SET consejo_estado=%s, consejo_comentario=%s, consejo_acta_url=%s, updated_at=NOW()
                 WHERE id=%s
-            """, (data.decision, data.comentario, orden_id))
+            """, (data.decision, data.comentario, data.acta_url, orden_id))
             return _fetch_orden_detail(cur, orden_id)

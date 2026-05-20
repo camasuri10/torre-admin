@@ -1,9 +1,92 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getUser, type AuthUser } from "@/lib/auth";
 import { api, proveedoresApi } from "@/lib/api";
 import FileUploadGenerico from "@/components/FileUploadGenerico";
+
+// ─── ActaDropZone — drag-and-drop file input ──────────────────────────────────
+function ActaDropZone({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (dataUrl: string, filename: string) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [filename, setFilename] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function processFile(file: File) {
+    setFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string, file.name);
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const f = e.dataTransfer.files[0];
+          if (f) processFile(f);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${
+          dragging
+            ? "border-primary bg-primary/5"
+            : value
+              ? "border-green-400 bg-green-50"
+              : "border-gray-300 hover:border-primary/50 hover:bg-gray-50"
+        }`}
+      >
+        {value ? (
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-green-600 text-lg">📄</span>
+            <span className="text-sm text-green-700 font-medium truncate max-w-[200px]">
+              {filename || "Archivo cargado"}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("", "");
+                setFilename("");
+              }}
+              className="text-gray-400 hover:text-red-500 ml-1 text-lg leading-none"
+            >×</button>
+          </div>
+        ) : (
+          <>
+            <span className="text-2xl block mb-1.5">📎</span>
+            <p className="text-xs text-gray-500">
+              Arrastra aquí o <span className="text-primary font-medium">selecciona</span>
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">PDF, DOC, DOCX, JPG, PNG</p>
+          </>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) processFile(f);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,7 +213,7 @@ export default function GestionPage() {
   // Consejo decision state (for approving/rejecting individual orders)
   const [showConsejoDecisionModal, setShowConsejoDecisionModal] = useState(false);
   const [consejoTarget, setConsejoTarget] = useState<any>(null);
-  const [consejoDecisionForm, setConsejoDecisionForm] = useState({ decision: "aprobada", comentario: "" });
+  const [consejoDecisionForm, setConsejoDecisionForm] = useState({ decision: "aprobada", comentario: "", acta_url: "" });
   const [savingConsejoDecision, setSavingConsejoDecision] = useState(false);
 
   // Action modal
@@ -171,7 +254,8 @@ export default function GestionPage() {
   const [loadingAsamblea, setLoadingAsamblea] = useState(false);
   const [showAsambleaModal, setShowAsambleaModal] = useState(false);
   const [asambleaTarget, setAsambleaTarget] = useState<any>(null);
-  const [asambleaDecisionForm, setAsambleaDecisionForm] = useState({ decision: "aprobada", acta_url: "", cotizacion_url: "", comentario: "" });
+  const [asambleaDecisionForm, setAsambleaDecisionForm] = useState({ decision: "aprobada", acta_url: "", comentario: "" });
+  const [asambleaActaFilename, setAsambleaActaFilename] = useState("");
   const [savingAsamblea, setSavingAsamblea] = useState(false);
   const [togglingAsamblea, setTogglingAsamblea] = useState(false);
 
@@ -855,7 +939,7 @@ export default function GestionPage() {
                         )}
                         {(!selectedOrden.asamblea_estado || selectedOrden.asamblea_estado === "pendiente") && (
                           <button
-                            onClick={() => { setAsambleaTarget(selectedOrden); setAsambleaDecisionForm({ decision: "aprobada", acta_url: "", cotizacion_url: "", comentario: "" }); setShowAsambleaModal(true); }}
+                            onClick={() => { setAsambleaTarget(selectedOrden); setAsambleaDecisionForm({ decision: "aprobada", acta_url: "", comentario: "" }); setAsambleaActaFilename(""); setShowAsambleaModal(true); }}
                             className="text-xs px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                           >
                             Registrar Decisión
@@ -900,9 +984,15 @@ export default function GestionPage() {
                         {selectedOrden.consejo_comentario && (
                           <div className="text-xs text-gray-500">{selectedOrden.consejo_comentario}</div>
                         )}
+                        {selectedOrden.consejo_acta_url && (
+                          <a href={selectedOrden.consejo_acta_url} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                            📄 Acta aprobacion
+                          </a>
+                        )}
                         {(!selectedOrden.consejo_estado || selectedOrden.consejo_estado === "pendiente") && isAdmin && (
                           <button
-                            onClick={() => { setConsejoTarget(selectedOrden); setConsejoDecisionForm({ decision: "aprobada", comentario: "" }); setShowConsejoDecisionModal(true); }}
+                            onClick={() => { setConsejoTarget(selectedOrden); setConsejoDecisionForm({ decision: "aprobada", comentario: "", acta_url: "" }); setShowConsejoDecisionModal(true); }}
                             className="text-xs px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                           >
                             Registrar Decisión
@@ -1211,7 +1301,7 @@ export default function GestionPage() {
                       <td className="px-4 py-3 text-right">
                         {(!o.asamblea_estado || o.asamblea_estado === "pendiente") && isAdmin && (
                           <button
-                            onClick={() => { setAsambleaTarget(o); setAsambleaDecisionForm({ decision: "aprobada", acta_url: "", cotizacion_url: "", comentario: "" }); setShowAsambleaModal(true); }}
+                            onClick={() => { setAsambleaTarget(o); setAsambleaDecisionForm({ decision: "aprobada", acta_url: "", comentario: "" }); setAsambleaActaFilename(""); setShowAsambleaModal(true); }}
                             className="text-xs px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                           >
                             Decidir
@@ -1666,18 +1756,14 @@ export default function GestionPage() {
                   </label>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">URL Acta de Asamblea</label>
-                <input value={asambleaDecisionForm.acta_url} onChange={(e) => setAsambleaDecisionForm((f) => ({ ...f, acta_url: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="https://drive.google.com/…" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">URL Cotización Aprobada</label>
-                <input value={asambleaDecisionForm.cotizacion_url} onChange={(e) => setAsambleaDecisionForm((f) => ({ ...f, cotizacion_url: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="https://drive.google.com/…" />
-              </div>
+              <ActaDropZone
+                label="Acta Asamblea"
+                value={asambleaDecisionForm.acta_url}
+                onChange={(dataUrl, filename) => {
+                  setAsambleaDecisionForm((f) => ({ ...f, acta_url: dataUrl }));
+                  setAsambleaActaFilename(filename);
+                }}
+              />
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Comentario</label>
                 <textarea value={asambleaDecisionForm.comentario} onChange={(e) => setAsambleaDecisionForm((f) => ({ ...f, comentario: e.target.value }))} rows={2}
@@ -1734,9 +1820,14 @@ export default function GestionPage() {
                   </label>
                 </div>
               </div>
+              <ActaDropZone
+                label="Acta aprobacion"
+                value={consejoDecisionForm.acta_url}
+                onChange={(dataUrl) => setConsejoDecisionForm((f) => ({ ...f, acta_url: dataUrl }))}
+              />
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Comentario</label>
-                <textarea value={consejoDecisionForm.comentario} onChange={(e) => setConsejoDecisionForm((f) => ({ ...f, comentario: e.target.value }))} rows={3}
+                <textarea value={consejoDecisionForm.comentario} onChange={(e) => setConsejoDecisionForm((f) => ({ ...f, comentario: e.target.value }))} rows={2}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                   placeholder="Observaciones del consejo…" />
               </div>
