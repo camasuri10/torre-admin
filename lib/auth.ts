@@ -11,8 +11,6 @@ export interface AuthUser {
   edificio_id?: number;
   organizacion_id?: number;
   organizacion_nombre?: string;
-  conjunto_id?: number;
-  conjunto_nombre?: string;
   exp: number;
 }
 

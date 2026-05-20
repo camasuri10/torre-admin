@@ -53,7 +53,6 @@ export default function BackofficeDashboard() {
   const scopeParams = {
     organizacion_id: user?.organizacion_id,
     edificio_id: user?.edificio_id,
-    conjunto_id: user?.conjunto_id,
   };
 
   const loadData = useCallback(async () => {
@@ -78,7 +77,7 @@ export default function BackofficeDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [user?.organizacion_id, user?.conjunto_id, user?.edificio_id]);
+  }, [user?.organizacion_id, user?.edificio_id]);
 
   useEffect(() => {
     loadData();
@@ -149,8 +148,7 @@ export default function BackofficeDashboard() {
 
   const scopeLabel = [
     user?.organizacion_nombre,
-    user?.conjunto_nombre,
-    user?.edificio_id ? "Conjunto específico" : null,
+    user?.edificio_id ? "Edificio específico" : null,
   ].filter(Boolean).join(" · ") || "Plataforma completa";
 
   return (
@@ -174,9 +172,7 @@ export default function BackofficeDashboard() {
 
       <div ref={finanzasRef} className={rowVisible("estructura") ? "" : "hidden"}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard icon="🏙️" label="Agrupaciones" value={stats.conjuntos} color="blue"
-            active={activeKpi === "estructura"} onClick={() => toggleKpi("estructura")} />
-          <KpiCard icon="🏘️" label="Conjuntos" value={stats.edificios} color="blue"
+          <KpiCard icon="🏘️" label="Edificios" value={stats.edificios} color="blue"
             active={activeKpi === "estructura"} onClick={() => toggleKpi("estructura")} />
           <KpiCard icon="🔌" label="Módulos disponibles" value={stats.modulos_total ?? 0} color="green"
             active={activeKpi === "modulos"} onClick={() => toggleKpi("modulos")} />

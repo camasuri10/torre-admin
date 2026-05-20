@@ -91,15 +91,13 @@ def get_edificio(edificio_id: int):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT e.*,
-                       c.nombre AS conjunto_nombre,
                        COUNT(DISTINCT t.id) AS total_torres,
                        COUNT(DISTINCT u.id) AS total_unidades
                 FROM edificios e
-                LEFT JOIN conjuntos c ON c.id = e.conjunto_id
                 LEFT JOIN torres t ON t.edificio_id = e.id AND t.activo = TRUE
                 LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
                 WHERE e.id = %s
-                GROUP BY e.id, c.nombre
+                GROUP BY e.id
             """, (edificio_id,))
             row = cur.fetchone()
             if not row:

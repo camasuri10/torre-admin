@@ -24,14 +24,13 @@ interface Org {
   pais: string;
   activo: boolean;
   num_edificios: number;
-  num_conjuntos: number;
   num_superadmins: number;
   num_usuarios: number;
 }
 
 interface OrgDetail extends Org {
   superadmins: { id: number; nombre: string; email: string; telefono?: string; asignacion_activa: boolean }[];
-  edificios: { id: number; nombre: string; direccion?: string; conjunto_nombre?: string }[];
+  edificios: { id: number; nombre: string; direccion?: string }[];
 }
 
 interface SADisponible {
@@ -66,7 +65,7 @@ export default function OrganizacionesPage() {
   const [crearSASaving, setCrearSASaving] = useState(false);
   const [crearSAError, setCrearSAError] = useState("");
   const [search, setSearch] = useState("");
-  const [cardFilter, setCardFilter] = useState<"all" | "activas" | "con_conjuntos" | "con_sa">("all");
+  const [cardFilter, setCardFilter] = useState<"all" | "activas" | "con_edificios" | "con_sa">("all");
 
   function load() {
     organizacionesApi.list()
@@ -179,7 +178,7 @@ export default function OrganizacionesPage() {
   const q = search.trim().toLowerCase();
   const filteredOrgs = orgs.filter((org) => {
     if (cardFilter === "activas" && !org.activo) return false;
-    if (cardFilter === "con_conjuntos" && org.num_edificios === 0) return false;
+    if (cardFilter === "con_edificios" && org.num_edificios === 0) return false;
     if (cardFilter === "con_sa" && org.num_superadmins === 0) return false;
     if (!q) return true;
     return (
@@ -221,7 +220,7 @@ export default function OrganizacionesPage() {
         {[
           { key: "all" as const, label: "Total", value: orgs.length, icon: "🏢" },
           { key: "activas" as const, label: "Activas", value: totalActivas, icon: "✅" },
-          { key: "con_conjuntos" as const, label: "Con conjuntos", value: totalConjuntos, icon: "🏗️" },
+          { key: "con_edificios" as const, label: "Con edificios", value: totalConjuntos, icon: "🏗️" },
           { key: "con_sa" as const, label: "Con SuperAdmins", value: totalSA, icon: "👤" },
         ].map((stat) => (
           <button
@@ -269,8 +268,7 @@ export default function OrganizacionesPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               {[
-                { label: "Conjuntos", value: org.num_edificios },
-                { label: "Agrupaciones", value: org.num_conjuntos },
+                { label: "Edificios", value: org.num_edificios },
                 { label: "SuperAdmins", value: org.num_superadmins },
                 { label: "Usuarios", value: org.num_usuarios },
               ].map((s) => (
@@ -393,16 +391,15 @@ export default function OrganizacionesPage() {
 
             {/* Conjuntos */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">Conjuntos ({detailOrg.edificios.length})</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">Edificios ({detailOrg.edificios.length})</h3>
               {detailOrg.edificios.length === 0 ? (
-                <p className="text-xs text-gray-400">Sin conjuntos registrados</p>
+                <p className="text-xs text-gray-400">Sin edificios registrados</p>
               ) : (
                 <div className="space-y-1">
                   {detailOrg.edificios.map((e) => (
                     <div key={e.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
                       <span>🏘️</span>
                       <span className="font-medium">{e.nombre}</span>
-                      {e.conjunto_nombre && <span className="text-xs text-gray-400">({e.conjunto_nombre})</span>}
                     </div>
                   ))}
                 </div>

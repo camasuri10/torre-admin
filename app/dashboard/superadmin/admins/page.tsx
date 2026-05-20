@@ -149,7 +149,7 @@ export default function AdminsPage() {
         Object.keys(personalPayload).length > 0
           ? superadminApi.admins.update(editingAdmin.id, personalPayload)
           : Promise.resolve(),
-        superadminApi.admins.updateAsignaciones(editingAdmin.id, { edificio_ids: editEdificios, conjunto_ids: [] }),
+        superadminApi.admins.updateAsignaciones(editingAdmin.id, { edificio_ids: editEdificios }),
       ]);
       setEditingAdmin(null);
       loadData();
@@ -336,7 +336,7 @@ export default function AdminsPage() {
                 <input type="checkbox" checked={form.asignarEdificio}
                   onChange={() => setForm({ ...form, asignarEdificio: !form.asignarEdificio, edificio_ids: [] })}
                   className="accent-primary" />
-                <span className="text-sm font-medium text-gray-700">¿Asignar a un conjunto?</span>
+                <span className="text-sm font-medium text-gray-700">¿Asignar a un edificio?</span>
               </label>
 
               {form.asignarEdificio && (
@@ -348,14 +348,14 @@ export default function AdminsPage() {
                       onClick={() => { setShowEdificioRapido((v) => !v); setEdificioRapidoError(""); }}
                       className="text-xs text-primary font-medium hover:underline"
                     >
-                      + Crear nuevo conjunto
+                      + Crear nuevo edificio
                     </button>
                   </div>
 
                   {/* Quick building creation */}
                   {showEdificioRapido && (
                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear conjunto rápido</p>
+                      <p className="text-xs font-semibold text-blue-700 mb-3">Crear edificio rápido</p>
                       <form onSubmit={handleCrearEdificioRapido} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>

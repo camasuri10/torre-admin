@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getUser, clearToken, setToken, getEdificiosDisponibles, type AuthUser } from "@/lib/auth";
-import { authApi, api, conjuntosApi } from "@/lib/api";
+import { authApi, api } from "@/lib/api";
 import ChatbotBubble from "@/components/ChatbotBubble";
 
 type NavItem = {
@@ -41,8 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Super Admin",
     items: [
       { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/edificios",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/conjuntos",  label: "Agrupaciones",     icon: "🏙️",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/edificios",  label: "Edificios",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
     ],
@@ -103,12 +102,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [activeModules, setActiveModules]   = useState<string[]>([]);
   const [edificios, setEdificios]           = useState<{ id: number; nombre: string }[]>([]);
   const [organizaciones, setOrganizaciones]   = useState<{ id: number; nombre: string }[]>([]);
-  const [conjuntos, setConjuntos]             = useState<{ id: number; nombre: string }[]>([]);
   const [showSwitcher, setShowSwitcher]       = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
-  const [showConjSwitcher, setShowConjSwitcher] = useState(false);
   const [orgSearch, setOrgSearch]           = useState("");
-  const [conjSearch, setConjSearch]         = useState("");
   const [switching, setSwitching]           = useState(false);
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const switcherRef                         = useRef<HTMLDivElement>(null);
@@ -141,9 +137,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (u.rol === "backoffice" || u.rol === "superadmin") {
       authApi.misOrganizaciones()
         .then((data) => setOrganizaciones(data.organizaciones ?? []))
-        .catch(() => {});
-      conjuntosApi.list()
-        .then((data) => setConjuntos((data?.conjuntos ?? []).map((c: any) => ({ id: c.id, nombre: c.nombre }))))
         .catch(() => {});
     }
   }, [router]);
@@ -194,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const edificioNombre = user?.edificio_id
     ? edificios.find((e) => e.id === user.edificio_id)?.nombre ?? "Cargando…"
-    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los conjuntos" : "—";
+    : (user?.rol === "superadmin" || user?.rol === "backoffice") ? "Todos los edificios" : "—";
 
   const isSuperAdmin = user?.rol === "superadmin";
   const isBackoffice = user?.rol === "backoffice";
@@ -229,19 +222,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const data = orgId
         ? await authApi.seleccionarOrganizacion(parseInt(user.sub), orgId)
         : await authApi.seleccionarTodos();
-      setToken(data.access_token);
-      window.location.href = user?.rol === "superadmin" ? "/dashboard/superadmin" : "/dashboard/backoffice";
-    } catch {
-      setSwitching(false);
-    }
-  }
-
-  async function handleSwitchConjunto(conjuntoId: number | null) {
-    if (!user) return;
-    setSwitching(true);
-    setShowConjSwitcher(false);
-    try {
-      const data = await authApi.seleccionarConjunto(parseInt(user.sub), conjuntoId);
       setToken(data.access_token);
       window.location.href = user?.rol === "superadmin" ? "/dashboard/superadmin" : "/dashboard/backoffice";
     } catch {
@@ -302,7 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <button
                 type="button"
-                onClick={() => { setShowOrgSwitcher((v) => !v); setShowConjSwitcher(false); setShowSwitcher(false); }}
+                onClick={() => { setShowOrgSwitcher((v) => !v); setShowSwitcher(false); }}
                 className="w-full bg-white/10 rounded-lg px-3 py-2 text-left hover:bg-white/20 transition-colors"
               >
                 <div className="text-blue-300 text-xs mb-0.5">Organización</div>
@@ -340,44 +320,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               )}
             </div>
-            <div>
-              <button type="button"
-                onClick={() => { setShowConjSwitcher((v) => !v); setShowOrgSwitcher(false); setShowSwitcher(false); }}
-                className="w-full bg-white/10 rounded-lg px-3 py-2 text-left hover:bg-white/20 transition-colors">
-                <div className="text-blue-300 text-xs mb-0.5">Agrupación</div>
-                <div className="text-white text-sm font-medium truncate">
-                  {user?.conjunto_nombre ?? "Todas las agrupaciones"}
-                </div>
-              </button>
-              {showConjSwitcher && (
-                <div className="mt-1.5 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden max-h-56 overflow-y-auto z-50">
-                  {conjuntos.length >= 6 && (
-                    <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
-                      <input
-                        type="search"
-                        value={conjSearch}
-                        onChange={(e) => setConjSearch(e.target.value)}
-                        placeholder="Buscar agrupación…"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/40"
-                      />
-                    </div>
-                  )}
-                  <button type="button" onClick={() => handleSwitchConjunto(null)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
-                    🏙️ Todas las agrupaciones
-                  </button>
-                  {conjuntos
-                    .filter((c) => !conjSearch.trim() || c.nombre.toLowerCase().includes(conjSearch.trim().toLowerCase()))
-                    .map((c) => (
-                    <button key={c.id} type="button" onClick={() => handleSwitchConjunto(c.id)}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${c.id === user?.conjunto_id ? "font-semibold text-primary bg-blue-50" : "text-gray-700"}`}>
-                      {c.nombre}
-                    </button>
-                  ))}
-                  {conjuntos.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">Sin agrupaciones en este alcance</p>}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
@@ -409,7 +351,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   }`}
                 >
                   <span>🌐</span>
-                  <span className="truncate">Todos los conjuntos</span>
+                  <span className="truncate">Todos los edificios</span>
                   {!user?.edificio_id && <span className="ml-auto text-primary text-xs">✓</span>}
                 </button>
               )}

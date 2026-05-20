@@ -10,7 +10,8 @@
       "Bash(python *)",
       "Bash(sed -n '50,75p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/mantenimiento/page.tsx)",
       "Bash(sed -n '30,55p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/paquetes/page.tsx)",
-      "Bash(sed -n '35,60p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/reportes/page.tsx)"
+      "Bash(sed -n '35,60p' /d/InQubeX/TorreAdmin/frontend/app/dashboard/reportes/page.tsx)",
+      "Bash(start *)"
     ]
   }
 }

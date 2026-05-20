@@ -69,9 +69,6 @@ def _org_stats(cur, org_id: int) -> dict:
     num_edificios = _count("SELECT COUNT(*) FROM edificios WHERE organizacion_id = %s", (org_id,))
     cur.execute("SAVEPOINT _org_stats")
 
-    num_conjuntos = _count("SELECT COUNT(*) FROM conjuntos WHERE organizacion_id = %s", (org_id,))
-    cur.execute("SAVEPOINT _org_stats")
-
     num_superadmins = _count(
         "SELECT COUNT(*) FROM organizacion_superadmins WHERE organizacion_id = %s AND activo = TRUE",
         (org_id,),
@@ -93,7 +90,6 @@ def _org_stats(cur, org_id: int) -> dict:
 
     return {
         "num_edificios": num_edificios,
-        "num_conjuntos": num_conjuntos,
         "num_superadmins": num_superadmins,
         "num_usuarios": num_usuarios,
         "num_edificios_con_modulos": num_edificios_con_modulos,
@@ -155,11 +151,7 @@ def get_org(org_id: int, _: dict = Depends(_require_backoffice)):
 
             # Buildings
             cur.execute(
-                """SELECT e.id, e.nombre, e.direccion, e.pisos, c.nombre AS conjunto_nombre
-                   FROM edificios e
-                   LEFT JOIN conjuntos c ON c.id = e.conjunto_id
-                   WHERE e.organizacion_id = %s
-                   ORDER BY e.nombre""",
+                "SELECT e.id, e.nombre, e.direccion, e.pisos FROM edificios e WHERE e.organizacion_id = %s ORDER BY e.nombre",
                 (org_id,),
             )
             org["edificios"] = [dict(r) for r in cur.fetchall()]

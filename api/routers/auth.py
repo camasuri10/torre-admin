@@ -36,18 +36,11 @@ class OrgSelectRequest(BaseModel):
     organizacion_id: int
 
 
-class ConjuntoSelectRequest(BaseModel):
-    user_id: int
-    conjunto_id: Optional[int] = None  # null = quitar filtro de agrupación
-
-
 def create_token(
     user: dict,
     edificio_id: Optional[int],
     organizacion_id: Optional[int] = None,
     organizacion_nombre: Optional[str] = None,
-    conjunto_id: Optional[int] = None,
-    conjunto_nombre: Optional[str] = None,
 ) -> str:
     payload = {
         "sub": str(user["id"]),
@@ -57,8 +50,6 @@ def create_token(
         "edificio_id": edificio_id,
         "organizacion_id": organizacion_id,
         "organizacion_nombre": organizacion_nombre,
-        "conjunto_id": conjunto_id,
-        "conjunto_nombre": conjunto_nombre,
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -104,21 +95,10 @@ def _get_user_edificios(cur, user: dict, org_id: Optional[int] = None) -> list:
         return [dict(r) for r in cur.fetchall()]
 
     if rol == "backoffice":
-        conjunto_id = user.get("conjunto_id") if isinstance(user, dict) else None
-        if org_id and conjunto_id:
-            cur.execute(
-                "SELECT id, nombre FROM edificios WHERE organizacion_id = %s AND conjunto_id = %s ORDER BY nombre",
-                (org_id, conjunto_id),
-            )
-        elif org_id:
+        if org_id:
             cur.execute(
                 "SELECT id, nombre FROM edificios WHERE organizacion_id = %s ORDER BY nombre",
                 (org_id,),
-            )
-        elif conjunto_id:
-            cur.execute(
-                "SELECT id, nombre FROM edificios WHERE conjunto_id = %s ORDER BY nombre",
-                (conjunto_id,),
             )
         else:
             cur.execute("SELECT id, nombre FROM edificios ORDER BY nombre")
@@ -169,7 +149,7 @@ def login(data: LoginRequest):
 
             # Backoffice: platform-level, no org, direct access
             if user["rol"] == "backoffice":
-                token = create_token(user, None, None, None, None, None)
+                token = create_token(user, None, None, None)
                 return {
                     "access_token": token,
                     "token_type": "bearer",
@@ -201,7 +181,7 @@ def login(data: LoginRequest):
 
                 if len(orgs) == 1:
                     org = orgs[0]
-                    token = create_token(user, None, org["id"], org["nombre"], None, None)
+                    token = create_token(user, None, org["id"], org["nombre"])
                     return {
                         "access_token": token,
                         "token_type": "bearer",
@@ -245,7 +225,7 @@ def login(data: LoginRequest):
     }
 
     if len(edificios) == 1:
-        token = create_token(user, edificios[0]["id"], org_id, org_nombre, None, None)
+        token = create_token(user, edificios[0]["id"], org_id, org_nombre)
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -295,7 +275,7 @@ def seleccionar_organizacion(data: OrgSelectRequest):
             if not org:
                 raise HTTPException(status_code=403, detail="Sin acceso a esa organización")
 
-    token = create_token(user, None, org["id"], org["nombre"], None, None)
+    token = create_token(user, None, org["id"], org["nombre"])
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -329,18 +309,14 @@ def seleccionar_edificio(data: BuildingSelectRequest):
             org_id = user.get("organizacion_id")
             org_nombre = None
 
-            conjunto_id = None
-            conjunto_nombre = None
-
             if user["rol"] == "superadmin":
                 cur.execute(
-                    "SELECT organizacion_id, conjunto_id FROM edificios WHERE id = %s",
+                    "SELECT organizacion_id FROM edificios WHERE id = %s",
                     (data.edificio_id,),
                 )
                 e_row = cur.fetchone()
                 if e_row:
                     org_id = e_row["organizacion_id"]
-                    conjunto_id = e_row.get("conjunto_id")
                     cur.execute(
                         "SELECT 1 FROM organizacion_superadmins WHERE usuario_id = %s AND organizacion_id = %s AND activo = TRUE",
                         (data.user_id, org_id),
@@ -349,25 +325,18 @@ def seleccionar_edificio(data: BuildingSelectRequest):
                         raise HTTPException(status_code=403, detail="Sin acceso a ese edificio")
             elif user["rol"] == "backoffice":
                 cur.execute(
-                    "SELECT organizacion_id, conjunto_id FROM edificios WHERE id = %s",
+                    "SELECT organizacion_id FROM edificios WHERE id = %s",
                     (data.edificio_id,),
                 )
                 e_row = cur.fetchone()
                 if e_row:
                     org_id = e_row.get("organizacion_id") or org_id
-                    conjunto_id = e_row.get("conjunto_id")
-
-            if conjunto_id:
-                cur.execute("SELECT nombre FROM conjuntos WHERE id = %s", (conjunto_id,))
-                c_row = cur.fetchone()
-                conjunto_nombre = c_row["nombre"] if c_row else None
 
             if org_id:
                 cur.execute("SELECT nombre FROM organizaciones WHERE id = %s", (org_id,))
                 org_row = cur.fetchone()
                 org_nombre = org_row["nombre"] if org_row else None
 
-            user["conjunto_id"] = conjunto_id
             edificios = _get_user_edificios(cur, user, org_id)
 
     ids = [e["id"] for e in edificios]
@@ -375,7 +344,7 @@ def seleccionar_edificio(data: BuildingSelectRequest):
         raise HTTPException(status_code=403, detail="Sin acceso a ese edificio")
 
     edificio = next(e for e in edificios if e["id"] == data.edificio_id)
-    token = create_token(user, data.edificio_id, org_id, org_nombre, conjunto_id, conjunto_nombre)
+    token = create_token(user, data.edificio_id, org_id, org_nombre)
 
     return {
         "access_token": token,
@@ -411,7 +380,7 @@ def seleccionar_todos(current_user: dict = Depends(get_current_user)):
         org_id = current_user.get("organizacion_id")
         org_nombre = current_user.get("organizacion_nombre")
 
-    token = create_token(user, None, org_id, org_nombre, None, None)
+    token = create_token(user, None, org_id, org_nombre)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -424,8 +393,6 @@ def seleccionar_todos(current_user: dict = Depends(get_current_user)):
             "edificio_nombre": "Todos",
             "organizacion_id": org_id,
             "organizacion_nombre": org_nombre,
-            "conjunto_id": None,
-            "conjunto_nombre": None,
         },
     }
 
@@ -439,81 +406,10 @@ def mis_edificios(current_user: dict = Depends(get_current_user)):
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            user_stub = {
-                "id": user_id,
-                "rol": rol,
-                "conjunto_id": current_user.get("conjunto_id"),
-            }
+            user_stub = {"id": user_id, "rol": rol}
             edificios = _get_user_edificios(cur, user_stub, org_id)
 
     return {"edificios": edificios}
-
-
-@router.post("/seleccionar-conjunto")
-def seleccionar_conjunto(
-    data: ConjuntoSelectRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    """Filtra por agrupación (conjunto) sin fijar un edificio."""
-    if current_user.get("rol") not in ("superadmin", "backoffice"):
-        raise HTTPException(status_code=403, detail="Sin permiso")
-    if int(current_user["sub"]) != data.user_id:
-        raise HTTPException(status_code=403, detail="Usuario no coincide con la sesión")
-
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM usuarios WHERE id = %s AND activo = TRUE",
-                (data.user_id,),
-            )
-            user = cur.fetchone()
-            if not user:
-                raise HTTPException(status_code=404, detail="Usuario no encontrado")
-            user = dict(user)
-
-            org_id = current_user.get("organizacion_id")
-            org_nombre = current_user.get("organizacion_nombre")
-            conjunto_id = data.conjunto_id
-            conjunto_nombre = None
-
-            if conjunto_id:
-                cur.execute(
-                    "SELECT id, nombre, organizacion_id FROM conjuntos WHERE id = %s",
-                    (conjunto_id,),
-                )
-                c = cur.fetchone()
-                if not c:
-                    raise HTTPException(status_code=404, detail="Agrupación no encontrada")
-                conjunto_nombre = c["nombre"]
-                if c.get("organizacion_id"):
-                    org_id = c["organizacion_id"]
-                    cur.execute(
-                        "SELECT nombre FROM organizaciones WHERE id = %s",
-                        (org_id,),
-                    )
-                    o = cur.fetchone()
-                    org_nombre = o["nombre"] if o else None
-            elif current_user.get("rol") == "backoffice":
-                org_id = current_user.get("organizacion_id")
-                org_nombre = current_user.get("organizacion_nombre")
-
-    token = create_token(user, None, org_id, org_nombre, conjunto_id, conjunto_nombre)
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user["id"],
-            "nombre": user["nombre"],
-            "email": user["email"],
-            "rol": user["rol"],
-            "edificio_id": None,
-            "edificio_nombre": "Todos",
-            "organizacion_id": org_id,
-            "organizacion_nombre": org_nombre,
-            "conjunto_id": conjunto_id,
-            "conjunto_nombre": conjunto_nombre,
-        },
-    }
 
 
 @router.get("/mis-organizaciones")

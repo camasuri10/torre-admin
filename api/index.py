@@ -17,7 +17,7 @@ from routers import (
     auth, edificios, usuarios, cuotas, mantenimientos,
     comunicados, zonas_comunes, accesos, paquetes,
     guardias, reportes, chat, superadmin,
-    conjuntos, vehiculos, mascotas, proveedores, backoffice, encuestas,
+    vehiculos, mascotas, proveedores, backoffice, encuestas,
     procurement, contratos, consejo, chatbot, organizaciones,
 )
 
@@ -74,7 +74,6 @@ app.include_router(guardias.router,       prefix="/api/guardias",       tags=["G
 app.include_router(reportes.router,       prefix="/api/reportes",       tags=["Reportes"])
 app.include_router(chat.router,           prefix="/api/chat",           tags=["Chat Seguridad"])
 app.include_router(superadmin.router,     prefix="/api/superadmin",     tags=["Super Admin"])
-app.include_router(conjuntos.router,      prefix="/api/conjuntos",       tags=["Conjuntos"])
 app.include_router(vehiculos.router,      prefix="/api/vehiculos",       tags=["Vehículos"])
 app.include_router(mascotas.router,       prefix="/api/mascotas",        tags=["Mascotas"])
 app.include_router(proveedores.router,    prefix="/api/proveedores",     tags=["Proveedores"])

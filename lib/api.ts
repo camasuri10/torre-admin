@@ -59,11 +59,6 @@ export const authApi = {
     }),
   seleccionarTodos: () =>
     request<any>("/api/auth/seleccionar-todos", { method: "POST", body: JSON.stringify({}) }),
-  seleccionarConjunto: (user_id: number, conjunto_id: number | null) =>
-    request<any>("/api/auth/seleccionar-conjunto", {
-      method: "POST",
-      body: JSON.stringify({ user_id, conjunto_id }),
-    }),
   misEdificios: () => request<{ edificios: { id: number; nombre: string }[] }>("/api/auth/mis-edificios"),
   misOrganizaciones: () => request<{ organizaciones: { id: number; nombre: string }[] }>("/api/auth/mis-organizaciones"),
   me: () => request<any>("/api/auth/me"),
@@ -71,33 +66,22 @@ export const authApi = {
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 export const superadminApi = {
-  stats: (conjunto_id?: number) => {
-    const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
-    return request<any>(`/api/superadmin/stats${q}`);
-  },
-  cuotasDetalle: (estado: "pendiente" | "vencido", conjunto_id?: number) => {
+  stats: () => request<any>("/api/superadmin/stats"),
+  cuotasDetalle: (estado: "pendiente" | "vencido") => {
     const params = new URLSearchParams({ estado });
-    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
     return request<any>(`/api/superadmin/stats/cuotas-detalle?${params}`);
   },
-  mantenimientosDetalle: (estado?: string, conjunto_id?: number) => {
+  mantenimientosDetalle: (estado?: string) => {
     const params = new URLSearchParams();
     if (estado) params.set("estado", estado);
-    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
     return request<any>(`/api/superadmin/stats/mantenimientos-detalle?${params}`);
   },
-  analytics: (conjunto_id?: number, edificio_id?: number) => {
-    const params = new URLSearchParams();
-    if (conjunto_id) params.set("conjunto_id", String(conjunto_id));
-    if (edificio_id) params.set("edificio_id", String(edificio_id));
-    const q = params.toString() ? `?${params}` : "";
+  analytics: (edificio_id?: number) => {
+    const q = edificio_id ? `?edificio_id=${edificio_id}` : "";
     return request<any>(`/api/superadmin/analytics${q}`);
   },
   edificios: {
-    list: (conjunto_id?: number) => {
-      const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
-      return request<any>(`/api/superadmin/edificios${q}`);
-    },
+    list: () => request<any>("/api/superadmin/edificios"),
     create: (data: any) => request<any>("/api/superadmin/edificios", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/edificios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     getModulos: (id: number) => request<any>(`/api/superadmin/edificios/${id}/modulos`),
@@ -108,29 +92,16 @@ export const superadminApi = {
     list: () => request<any>("/api/superadmin/admins"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
+    updateAsignaciones: (id: number, data: { edificio_ids: number[] }) =>
       request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },
   staff: {
     list: () => request<any>("/api/superadmin/staff"),
     create: (data: any) => request<any>("/api/superadmin/admins", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/admins/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    updateAsignaciones: (id: number, data: { edificio_ids: number[]; conjunto_ids: number[] }) =>
+    updateAsignaciones: (id: number, data: { edificio_ids: number[] }) =>
       request<any>(`/api/superadmin/admins/${id}/edificios`, { method: "PUT", body: JSON.stringify(data) }),
   },
-};
-
-// ── Conjuntos ─────────────────────────────────────────────────────────────────
-export const conjuntosApi = {
-  list: () => request<any>("/api/conjuntos"),
-  get: (id: number) => request<any>(`/api/conjuntos/${id}`),
-  create: (data: any) => request<any>("/api/conjuntos", { method: "POST", body: JSON.stringify(data) }),
-  update: (id: number, data: any) => request<any>(`/api/conjuntos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  edificios: (id: number) => request<any>(`/api/conjuntos/${id}/edificios`),
-  assignEdificio: (conjunto_id: number, edificio_id: number) =>
-    request<any>(`/api/conjuntos/${conjunto_id}/edificios/${edificio_id}`, { method: "POST", body: JSON.stringify({}) }),
-  removeEdificio: (conjunto_id: number, edificio_id: number) =>
-    request<void>(`/api/conjuntos/${conjunto_id}/edificios/${edificio_id}`, { method: "DELETE" }),
 };
 
 // ── Vehículos ─────────────────────────────────────────────────────────────────
@@ -157,7 +128,7 @@ export const mascotasApi = {
 
 // ── Proveedores ───────────────────────────────────────────────────────────────
 export const proveedoresApi = {
-  list: (params?: { edificio_id?: number; conjunto_id?: number }) => {
+  list: (params?: { edificio_id?: number }) => {
     const q = params ? new URLSearchParams(params as any).toString() : "";
     return request<any>(`/api/proveedores${q ? "?" + q : ""}`);
   },
@@ -192,7 +163,7 @@ export const proveedoresApi = {
   },
   edificios: {
     list: (proveedor_id: number) => request<any>(`/api/proveedores/${proveedor_id}/edificios`),
-    add: (proveedor_id: number, data: { edificio_id?: number; conjunto_id?: number }) =>
+    add: (proveedor_id: number, data: { edificio_id: number }) =>
       request<any>(`/api/proveedores/${proveedor_id}/edificios`, { method: "POST", body: JSON.stringify(data) }),
     remove: (proveedor_id: number, pe_id: number) =>
       request<void>(`/api/proveedores/${proveedor_id}/edificios/${pe_id}`, { method: "DELETE" }),
@@ -427,19 +398,17 @@ export const api = {
 
   // ── Backoffice ─────────────────────────────────────────────────────────────
   backoffice: {
-    stats: (params?: { organizacion_id?: number; edificio_id?: number; conjunto_id?: number }) => {
+    stats: (params?: { organizacion_id?: number; edificio_id?: number }) => {
       const q = new URLSearchParams();
       if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
       if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
-      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
       const qs = q.toString();
       return request<any>(`/api/backoffice/stats${qs ? `?${qs}` : ""}`);
     },
-    analytics: (params?: { organizacion_id?: number; edificio_id?: number; conjunto_id?: number }) => {
+    analytics: (params?: { organizacion_id?: number; edificio_id?: number }) => {
       const q = new URLSearchParams();
       if (params?.organizacion_id) q.set("organizacion_id", String(params.organizacion_id));
       if (params?.edificio_id) q.set("edificio_id", String(params.edificio_id));
-      if (params?.conjunto_id) q.set("conjunto_id", String(params.conjunto_id));
       const qs = q.toString();
       return request<any>(`/api/backoffice/analytics${qs ? `?${qs}` : ""}`);
     },

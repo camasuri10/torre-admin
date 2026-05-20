@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUser } from "@/lib/auth";
-import { superadminApi, conjuntosApi } from "@/lib/api";
+import { superadminApi } from "@/lib/api";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
@@ -14,8 +14,6 @@ export default function SuperAdminPage() {
   const router = useRouter();
   const [stats, setStats]         = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
-  const [conjuntos, setConjuntos] = useState<any[]>([]);
-  const [conjuntoId, setConjuntoId] = useState<number | undefined>(undefined);
   const [loading, setLoading]     = useState(true);
 
   // Cuotas detail modal
@@ -31,30 +29,22 @@ export default function SuperAdminPage() {
   useEffect(() => {
     const user = getUser();
     if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
-    if (user.conjunto_id) setConjuntoId(user.conjunto_id);
-    conjuntosApi.list().then((r: any) => setConjuntos(r?.conjuntos ?? [])).catch(() => {});
-  }, [router]);
-
-  useEffect(() => {
     setLoading(true);
-    superadminApi.stats(conjuntoId)
+    superadminApi.stats()
       .then(setStats)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [conjuntoId]);
-
-  useEffect(() => {
-    superadminApi.analytics(conjuntoId)
+    superadminApi.analytics()
       .then(setAnalytics)
       .catch(console.error);
-  }, [conjuntoId]);
+  }, [router]);
 
   async function openDetalle(estado: "pendiente" | "vencido") {
     setDetailEstado(estado);
     setDetailLoading(true);
     setDetailCuotas([]);
     try {
-      const data = await superadminApi.cuotasDetalle(estado, conjuntoId);
+      const data = await superadminApi.cuotasDetalle(estado);
       setDetailCuotas(data?.cuotas ?? []);
     } catch { /* ignore */ }
     finally { setDetailLoading(false); }
@@ -65,15 +55,15 @@ export default function SuperAdminPage() {
     setDetailMantLoading(true);
     setDetailMants([]);
     try {
-      const data = await superadminApi.mantenimientosDetalle("todos", conjuntoId);
+      const data = await superadminApi.mantenimientosDetalle("todos");
       setDetailMants(data?.mantenimientos ?? []);
     } catch { /* ignore */ }
     finally { setDetailMantLoading(false); }
   }
 
   const statCards = [
-    { label: "Conjuntos",        value: stats?.total_edificios  ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
-    { label: "Agrupaciones",     value: stats?.total_conjuntos ?? 0, icon: "🏙️", href: "/dashboard/superadmin/conjuntos",  color: "bg-blue-50 border-blue-100" },
+    { label: "Edificios",        value: stats?.total_edificios  ?? 0, icon: "🏘️", href: "/dashboard/superadmin/edificios", color: "bg-sky-50 border-sky-100" },
+    { label: "Torres",           value: stats?.total_torres     ?? 0, icon: "🏢", href: null,                              color: "bg-blue-50 border-blue-100" },
     { label: "Administradores",  value: stats?.total_admins     ?? 0, icon: "👤", href: "/dashboard/superadmin/admins",    color: "bg-green-50 border-green-100" },
     { label: "Staff Servicios",  value: stats?.total_staff      ?? 0, icon: "🧹", href: "/dashboard/superadmin/admins",    color: "bg-teal-50 border-teal-100" },
     { label: "Usuarios totales", value: stats?.total_usuarios   ?? 0, icon: "👥", href: null,                              color: "bg-purple-50 border-purple-100" },
@@ -156,21 +146,6 @@ export default function SuperAdminPage() {
           <p className="text-sm text-gray-500 mt-0.5">Gestión global de la plataforma TorreAdmin</p>
         </div>
 
-        {conjuntos.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 whitespace-nowrap">Filtrar por agrupación:</label>
-            <select
-              value={conjuntoId ?? ""}
-              onChange={(e) => setConjuntoId(e.target.value ? Number(e.target.value) : undefined)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value="">Todos</option>
-              {conjuntos.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* KPIs operacionales */}
@@ -256,9 +231,8 @@ export default function SuperAdminPage() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Acciones rápidas</h3>
           <div className="grid grid-cols-1 gap-3">
             {[
-              { href: "/dashboard/superadmin/edificios", icon: "🏘️", label: "Gestionar conjuntos",   desc: "Crear, editar y configurar módulos" },
-              { href: "/dashboard/superadmin/conjuntos",  icon: "🏙️", label: "Gestionar agrupaciones", desc: "Agrupar conjuntos bajo una agrupación" },
-              { href: "/dashboard/superadmin/admins",    icon: "👤", label: "Gestionar personal",   desc: "Admins, porteros y staff de servicios" },
+              { href: "/dashboard/superadmin/edificios", icon: "🏘️", label: "Gestionar edificios", desc: "Crear, editar y configurar módulos" },
+              { href: "/dashboard/superadmin/admins",    icon: "👤", label: "Gestionar personal",  desc: "Admins, porteros y staff de servicios" },
             ].map((a) => (
               <Link key={a.href} href={a.href}
                 className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-blue-50/40 transition-all group">

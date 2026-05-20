@@ -44,7 +44,7 @@ def get_db():
 
 
 # ─── Schema SQL ────────────────────────────────────────────────────────────────
-# Top-level hierarchy: Organizacion (tenant) → Conjunto → Edificio → Torre → Unidad
+# Top-level hierarchy: Organizacion (tenant) → Edificio → Torre → Unidad
 SCHEMA_SQL = """
 -- ── Organizaciones (top-level tenants) ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS organizaciones (
@@ -61,27 +61,13 @@ CREATE TABLE IF NOT EXISTS organizaciones (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Conjuntos Residenciales (agrupan edificios y/o casas — pertenecen a una organización)
-CREATE TABLE IF NOT EXISTS conjuntos (
-    id              SERIAL PRIMARY KEY,
-    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
-    nombre          TEXT NOT NULL,
-    nit             TEXT,
-    telefono        TEXT,
-    direccion       TEXT,
-    ciudad          TEXT,
-    pais            TEXT NOT NULL DEFAULT 'Colombia',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Edificios (pertenecen a una organización; pueden estar dentro de un conjunto)
+-- Edificios (pertenecen a una organización)
 CREATE TABLE IF NOT EXISTS edificios (
     id              SERIAL PRIMARY KEY,
     organizacion_id INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
     nombre          TEXT NOT NULL,
     direccion       TEXT NOT NULL,
     pisos           INTEGER NOT NULL DEFAULT 1,
-    conjunto_id     INTEGER REFERENCES conjuntos(id),
     nit             TEXT,
     telefono        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -106,7 +92,6 @@ ALTER TABLE torres ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'torre' C
 CREATE TABLE IF NOT EXISTS unidades (
     id              SERIAL PRIMARY KEY,
     torre_id        INTEGER REFERENCES torres(id) ON DELETE CASCADE,
-    conjunto_id     INTEGER REFERENCES conjuntos(id),
     numero          TEXT NOT NULL,
     piso            INTEGER,
     tipo            TEXT NOT NULL DEFAULT 'apartamento'
@@ -118,8 +103,6 @@ CREATE TABLE IF NOT EXISTS unidades (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unidades_torre_numero
     ON unidades(torre_id, numero) WHERE torre_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unidades_casa_numero
-    ON unidades(conjunto_id, numero) WHERE conjunto_id IS NOT NULL AND tipo = 'casa';
 
 -- Usuarios (todos los roles del sistema)
 -- organizacion_id: NULL para backoffice (platform-level) y superadmin (org via M:M)
@@ -209,7 +192,6 @@ CREATE TABLE IF NOT EXISTS proveedores (
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     creado_por      INTEGER REFERENCES usuarios(id),
     edificio_id     INTEGER REFERENCES edificios(id),
-    conjunto_id     INTEGER REFERENCES conjuntos(id),
     descripcion     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -217,29 +199,22 @@ CREATE TABLE IF NOT EXISTS proveedores (
 -- FK diferido: usuarios.proveedor_id → proveedores
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id);
 
--- Asociación M:M: proveedor ↔ edificio o conjunto
+-- Asociación M:M: proveedor ↔ edificio
 CREATE TABLE IF NOT EXISTS proveedor_edificios (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    edificio_id     INTEGER REFERENCES edificios(id) ON DELETE CASCADE,
-    conjunto_id     INTEGER REFERENCES conjuntos(id) ON DELETE CASCADE,
+    edificio_id     INTEGER NOT NULL REFERENCES edificios(id) ON DELETE CASCADE,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT pe_one_target CHECK (
-        (edificio_id IS NOT NULL)::int + (conjunto_id IS NOT NULL)::int = 1
-    )
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_edificio
-    ON proveedor_edificios(proveedor_id, edificio_id) WHERE edificio_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pe_proveedor_conjunto
-    ON proveedor_edificios(proveedor_id, conjunto_id) WHERE conjunto_id IS NOT NULL;
+    ON proveedor_edificios(proveedor_id, edificio_id);
 CREATE INDEX IF NOT EXISTS idx_pe_proveedor ON proveedor_edificios(proveedor_id);
 
 -- Contratos de servicio
 CREATE TABLE IF NOT EXISTS contratos_servicio (
     id              SERIAL PRIMARY KEY,
     proveedor_id    INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    conjunto_id     INTEGER REFERENCES conjuntos(id),
     edificio_id     INTEGER REFERENCES edificios(id),
     tipo_servicio   TEXT NOT NULL,
     descripcion     TEXT,
@@ -516,17 +491,6 @@ CREATE TABLE IF NOT EXISTS usuario_edificios (
     fecha_inicio DATE,
     fecha_fin    DATE,
     PRIMARY KEY (usuario_id, edificio_id)
-);
-
--- Admins/staff asociados a conjuntos
-CREATE TABLE IF NOT EXISTS usuario_conjuntos (
-    id              SERIAL PRIMARY KEY,
-    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id)  ON DELETE CASCADE,
-    conjunto_id     INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    fecha_inicio    DATE,
-    fecha_fin       DATE,
-    UNIQUE(usuario_id, conjunto_id)
 );
 
 -- SuperAdmins asignados a organizaciones (M:M)
@@ -827,16 +791,13 @@ CREATE TABLE IF NOT EXISTS chatbot_config (
 
 -- ─── Índices ────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_organizaciones_activo        ON organizaciones(activo);
-CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion       ON conjuntos(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_edificios_organizacion       ON edificios(organizacion_id);
-CREATE INDEX IF NOT EXISTS idx_edificios_conjunto           ON edificios(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion        ON usuarios(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion     ON proveedores(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org         ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user        ON organizacion_superadmins(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_torres_edificio             ON torres(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_torre              ON unidades(torre_id);
-CREATE INDEX IF NOT EXISTS idx_unidades_conjunto           ON unidades(conjunto_id);
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_unidad          ON ocupaciones(unidad_id);
 CREATE INDEX IF NOT EXISTS idx_ocupaciones_usuario         ON ocupaciones(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_cuotas_unidad               ON cuotas(unidad_id);
@@ -857,7 +818,6 @@ CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario           ON vehiculos(usuario_
 CREATE INDEX IF NOT EXISTS idx_mascotas_usuario            ON mascotas(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_creado_por      ON proveedores(creado_por);
 CREATE INDEX IF NOT EXISTS idx_contratos_proveedor         ON contratos_servicio(proveedor_id);
-CREATE INDEX IF NOT EXISTS idx_usuario_conjuntos           ON usuario_conjuntos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_edificio        ON modulos_uso(edificio_id);
 CREATE INDEX IF NOT EXISTS idx_modulos_uso_fecha           ON modulos_uso(fecha);
 CREATE INDEX IF NOT EXISTS idx_encuestas_edificio          ON encuestas(edificio_id);
@@ -890,7 +850,6 @@ CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(org
 # Incremental migrations for existing databases (safety net)
 MIGRATION_SQL = """
 -- v14.0 — Organizaciones (multi-tenancy top-level entity)
-ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE edificios  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE usuarios   ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
@@ -921,7 +880,6 @@ ALTER TABLE accesos ADD COLUMN IF NOT EXISTS vehiculo_placa TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_org  ON organizacion_superadmins(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_org_superadmins_user ON organizacion_superadmins(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_conjuntos_organizacion ON conjuntos(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_edificios_organizacion ON edificios(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_organizacion  ON usuarios(organizacion_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_organizacion ON proveedores(organizacion_id);
@@ -1070,17 +1028,11 @@ def seed_db():
                 (org2_id, sa2_id),
             )
 
-            # ── ORG 1 — Conjunto Nórdico (Propiedades Norte) ─────────────────
-            cur.execute(
-                "INSERT INTO conjuntos (organizacion_id, nombre, direccion, ciudad) VALUES (%s,%s,%s,%s) RETURNING id",
-                (org1_id, "Conjunto Nórdico", "Cra 15 #85-32, Bogotá", "Bogotá"),
-            )
-            conjunto_id = cur.fetchone()["id"]
-
+            # ── ORG 1 — Edificios (Propiedades Norte) ────────────────────────
             # Edificio 1: Torres del Norte
             cur.execute(
-                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos, conjunto_id) VALUES (%s,%s,%s,%s,%s) RETURNING id",
-                (org1_id, "Torres del Norte", "Cra 15 #85-32, Bogotá", 8, conjunto_id),
+                "INSERT INTO edificios (organizacion_id, nombre, direccion, pisos) VALUES (%s,%s,%s,%s) RETURNING id",
+                (org1_id, "Torres del Norte", "Cra 15 #85-32, Bogotá", 8),
             )
             edificio_tdn_id = cur.fetchone()["id"]
 
@@ -1262,7 +1214,7 @@ def seed_db():
                     (row["id"], mes_actual, date.today().replace(day=15)),
                 )
 
-            print("✅ Database seeded with demo data (v14 — organizaciones multi-tenant)")
+            print("✅ Database seeded with demo data")
 
 
 def _ensure_passwords(cur, pwd_context):
