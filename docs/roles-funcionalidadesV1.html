@@ -29,8 +29,8 @@
       --guard-glow: rgba(211,84,0,0.25);
       --super-color: #f39c12;
       --super-glow: rgba(243,156,18,0.25);
-      --ai-color: #00bcd4;
-      --ai-glow: rgba(0,188,212,0.25);
+      --back-color: #c0392b;
+      --back-glow: rgba(192,57,43,0.25);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -140,7 +140,7 @@
     .col-tenant { color: var(--tenant-color); }
     .col-guard { color: var(--guard-color); }
     .col-super { color: var(--super-color); }
-    .col-ai { color: var(--ai-color); }
+    .col-back { color: var(--back-color); }
 
     /* ── ROLE CARDS GRID ── */
     .cards-grid {
@@ -168,6 +168,7 @@
     .role-card[data-role="tenant"]  { box-shadow: 0 0 0 1px rgba(142,68,173,0.15), 0 24px 60px var(--tenant-glow); }
     .role-card[data-role="guard"]   { box-shadow: 0 0 0 1px rgba(211,84,0,0.15),   0 24px 60px var(--guard-glow); }
     .role-card[data-role="super"]   { box-shadow: 0 0 0 1px rgba(243,156,18,0.15), 0 24px 60px var(--super-glow); }
+    .role-card[data-role="back"]    { box-shadow: 0 0 0 1px rgba(192,57,43,0.15),  0 24px 60px var(--back-glow); }
 
     .card-header {
       padding: 32px 36px 28px;
@@ -184,6 +185,7 @@
     .role-card[data-role="tenant"] .card-header::before { background: var(--tenant-color); }
     .role-card[data-role="guard"]  .card-header::before { background: var(--guard-color); }
     .role-card[data-role="super"]  .card-header::before { background: var(--super-color); }
+    .role-card[data-role="back"]   .card-header::before { background: var(--back-color); }
 
     .role-avatar {
       width: 60px; height: 60px; flex-shrink: 0;
@@ -196,6 +198,7 @@
     .role-card[data-role="tenant"] .role-avatar { background: linear-gradient(135deg, #6c3483, #8e44ad); }
     .role-card[data-role="guard"]  .role-avatar { background: linear-gradient(135deg, #a04000, #d35400); }
     .role-card[data-role="super"]  .role-avatar { background: linear-gradient(135deg, #b7770d, #f39c12); }
+    .role-card[data-role="back"]   .role-avatar { background: linear-gradient(135deg, #922b21, #c0392b); }
 
     .role-info { flex: 1; position: relative; z-index: 1; }
     .role-tag {
@@ -209,6 +212,7 @@
     .role-card[data-role="tenant"] .role-tag { background: var(--tenant-glow); color: var(--tenant-color); }
     .role-card[data-role="guard"]  .role-tag { background: var(--guard-glow); color: var(--guard-color); }
     .role-card[data-role="super"]  .role-tag { background: var(--super-glow); color: var(--super-color); }
+    .role-card[data-role="back"]   .role-tag { background: var(--back-glow); color: var(--back-color); }
 
     .role-name { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
     .role-desc { font-size: 14px; color: var(--muted); line-height: 1.5; }
@@ -224,6 +228,7 @@
     .role-card[data-role="tenant"] .stat-num { color: var(--tenant-color); }
     .role-card[data-role="guard"]  .stat-num { color: var(--guard-color); }
     .role-card[data-role="super"]  .stat-num { color: var(--super-color); }
+    .role-card[data-role="back"]   .stat-num { color: var(--back-color); }
 
     .card-body { padding: 0 36px 36px; }
 
@@ -264,6 +269,7 @@
     .role-card[data-role="tenant"] .module-chip { border-color: rgba(142,68,173,0.2); }
     .role-card[data-role="guard"]  .module-chip { border-color: rgba(211,84,0,0.2); }
     .role-card[data-role="super"]  .module-chip { border-color: rgba(243,156,18,0.2); }
+    .role-card[data-role="back"]   .module-chip { border-color: rgba(192,57,43,0.2); }
 
     .module-chip.highlight {
       border-color: transparent;
@@ -273,6 +279,7 @@
     .role-card[data-role="tenant"] .module-chip.highlight { background: var(--tenant-glow); }
     .role-card[data-role="guard"]  .module-chip.highlight { background: var(--guard-glow); }
     .role-card[data-role="super"]  .module-chip.highlight { background: var(--super-glow); }
+    .role-card[data-role="back"]   .module-chip.highlight { background: var(--back-glow); }
 
     /* ── FLOW SECTION ── */
     .flow-section {
@@ -347,60 +354,8 @@
     <div class="divider"></div>
     <p class="desc">
       Cada rol accede a un conjunto específico de módulos diseñados para sus responsabilidades.
-      5 roles · 16+ módulos · Control de acceso granular.
+      6 roles · 15+ módulos · Control de acceso granular.
     </p>
-  </div>
-
-  <!-- ══════════════════════════ QUÉ ES TORRE ADMIN ═════════════════════════════ -->
-  <div style="max-width:1300px; margin:0 auto 80px;">
-
-    <!-- Intro principal -->
-    <div style="background:var(--bg2); border:1px solid rgba(46,134,193,0.3); border-radius:24px; padding:48px; margin-bottom:32px; text-align:center;">
-      <div style="font-size:48px; margin-bottom:20px;">🏢</div>
-      <div style="font-size:26px; font-weight:800; margin-bottom:12px; background:linear-gradient(135deg,#e8edf2 40%,var(--primary-light)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
-        ¿Qué es TorreAdmin?
-      </div>
-      <div style="font-size:16px; color:var(--muted); max-width:780px; margin:0 auto; line-height:1.8;">
-        <strong style="color:var(--text);">TorreAdmin</strong> es una plataforma SaaS de gestión integral para conjuntos residenciales, edificios y propiedades horizontales en Latinoamérica.
-        Centraliza en un solo lugar la administración financiera, la seguridad, el control de accesos, el mantenimiento, las comunicaciones con los residentes y la gestión de zonas comunes —
-        todo con un <strong style="color:var(--primary-light);">asistente de inteligencia artificial</strong> disponible 24/7 para administradores y residentes.
-      </div>
-    </div>
-
-    <!-- Pilares de valor -->
-    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:20px;">
-
-      <div style="background:var(--bg2); border:1px solid rgba(46,134,193,0.2); border-radius:18px; padding:28px 24px; text-align:center;">
-        <div style="font-size:36px; margin-bottom:12px;">💰</div>
-        <div style="font-weight:800; font-size:15px; margin-bottom:6px;">Finanzas Transparentes</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6;">Cuotas, pagos, estados de cuenta y reportes financieros en tiempo real para toda la comunidad.</div>
-      </div>
-
-      <div style="background:var(--bg2); border:1px solid rgba(30,132,73,0.2); border-radius:18px; padding:28px 24px; text-align:center;">
-        <div style="font-size:36px; margin-bottom:12px;">🛡️</div>
-        <div style="font-weight:800; font-size:15px; margin-bottom:6px;">Seguridad y Accesos</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6;">Control de visitantes, paquetería, turnos de guardias y comunicación directa con portería 24/7.</div>
-      </div>
-
-      <div style="background:var(--bg2); border:1px solid rgba(142,68,173,0.2); border-radius:18px; padding:28px 24px; text-align:center;">
-        <div style="font-size:36px; margin-bottom:12px;">🔧</div>
-        <div style="font-weight:800; font-size:15px; margin-bottom:6px;">Operación sin Papel</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6;">Solicitudes de mantenimiento, reservas de zonas comunes y comunicados digitales desde cualquier dispositivo.</div>
-      </div>
-
-      <div style="background:var(--bg2); border:1px solid rgba(0,188,212,0.2); border-radius:18px; padding:28px 24px; text-align:center;">
-        <div style="font-size:36px; margin-bottom:12px;">🤖</div>
-        <div style="font-weight:800; font-size:15px; margin-bottom:6px;">Asistente IA Integrado</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6;">Chatbot inteligente que responde consultas de residentes, automatiza trámites frecuentes y asiste al administrador.</div>
-      </div>
-
-      <div style="background:var(--bg2); border:1px solid rgba(243,156,18,0.2); border-radius:18px; padding:28px 24px; text-align:center;">
-        <div style="font-size:36px; margin-bottom:12px;">📊</div>
-        <div style="font-weight:800; font-size:15px; margin-bottom:6px;">Multi-Conjunto</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6;">Gestiona múltiples conjuntos desde una sola organización. Visibilidad consolidada o granular por conjunto.</div>
-      </div>
-
-    </div>
   </div>
 
   <!-- ══════════════════════════════ MATRIX OVERVIEW ════════════════════════════ -->
@@ -412,7 +367,7 @@
   <div class="matrix-wrap">
     <div class="matrix-header">
       <h2>Módulos del Sistema</h2>
-      <span class="matrix-badge">16 módulos</span>
+      <span class="matrix-badge">15 módulos</span>
     </div>
     <table class="matrix-table">
       <thead>
@@ -423,6 +378,7 @@
           <th class="col-tenant">🟣 Inquilino</th>
           <th class="col-guard">🟠 Portero</th>
           <th class="col-super">🟡 SuperAdmin</th>
+          <th class="col-back">🔴 Backoffice</th>
         </tr>
       </thead>
       <tbody>
@@ -433,6 +389,7 @@
           <td><span class="check partial">Parcial</span></td>
           <td><span class="check partial">Parcial</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">👥 Residentes</td>
@@ -440,6 +397,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
@@ -449,6 +407,7 @@
           <td><span class="check partial">Solo propia</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">🔧 Mantenimiento</td>
@@ -456,6 +415,7 @@
           <td><span class="check partial">Crear</span></td>
           <td><span class="check partial">Crear</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
@@ -465,6 +425,7 @@
           <td><span class="check partial">Leer</span></td>
           <td><span class="check partial">Leer</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">🏊 Zonas Comunes</td>
@@ -473,12 +434,14 @@
           <td><span class="check yes">✓</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">🚪 Control de Accesos</td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
@@ -489,12 +452,14 @@
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">💬 Chat Seguridad</td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
@@ -505,6 +470,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">📈 Reportes</td>
@@ -512,6 +478,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
@@ -521,6 +488,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">🛒 Gestión / Procurement</td>
@@ -528,6 +496,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
+          <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
@@ -537,6 +506,7 @@
           <td><span class="check no">—</span></td>
           <td><span class="check no">—</span></td>
           <td><span class="check yes">✓</span></td>
+          <td><span class="check yes">✓</span></td>
         </tr>
         <tr>
           <td class="module-name">👤 Mi Perfil</td>
@@ -545,13 +515,6 @@
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
           <td><span class="check yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="module-name">🤖 Asistente IA / Chatbot</td>
-          <td><span class="check yes">✓</span></td>
-          <td><span class="check yes">✓</span></td>
-          <td><span class="check yes">✓</span></td>
-          <td><span class="check partial">Básico</span></td>
           <td><span class="check yes">✓</span></td>
         </tr>
       </tbody>
@@ -576,7 +539,7 @@
           <div class="role-desc">Control total sobre residentes, finanzas, operaciones y personal del conjunto.</div>
           <div class="role-stats">
             <div class="stat-item">
-              <div class="stat-num">16</div>
+              <div class="stat-num">15</div>
               <div class="stat-lbl">Módulos</div>
             </div>
             <div class="stat-item">
@@ -653,10 +616,6 @@
             <div class="mod-icon">👤</div>
             <div class="mod-info"><div class="mod-name">Mi Perfil</div><div class="mod-access">Editar datos</div></div>
           </div>
-          <div class="module-chip highlight">
-            <div class="mod-icon">🤖</div>
-            <div class="mod-info"><div class="mod-name">Asistente IA</div><div class="mod-access">Usar + Configurar</div></div>
-          </div>
         </div>
         <div class="flow-section">
           <div class="flow-label">Flujo principal</div>
@@ -666,7 +625,7 @@
               <span class="step-arrow">→</span>
             </div>
             <div class="flow-step">
-              <div class="step-node"><span class="sn-icon">🏢</span> Selecciona conjunto</div>
+              <div class="step-node"><span class="sn-icon">🏢</span> Selecciona edificio</div>
               <span class="step-arrow">→</span>
             </div>
             <div class="flow-step">
@@ -688,10 +647,10 @@
         <div class="role-info">
           <div class="role-tag">Residente Propietario</div>
           <div class="role-name">Propietario</div>
-          <div class="role-desc">Acceso a sus finanzas, solicitudes de su unidad, reserva de espacios comunes y asistente IA para consultas.</div>
+          <div class="role-desc">Acceso a sus finanzas, solicitudes de su unidad y reserva de espacios comunes.</div>
           <div class="role-stats">
             <div class="stat-item">
-              <div class="stat-num">8</div>
+              <div class="stat-num">7</div>
               <div class="stat-lbl">Módulos</div>
             </div>
             <div class="stat-item">
@@ -736,9 +695,9 @@
             <div class="mod-icon">👤</div>
             <div class="mod-info"><div class="mod-name">Mi Perfil</div><div class="mod-access">Editar datos</div></div>
           </div>
-          <div class="module-chip highlight">
-            <div class="mod-icon">🤖</div>
-            <div class="mod-info"><div class="mod-name">Asistente IA</div><div class="mod-access">Consultas 24/7</div></div>
+          <div class="module-chip" style="opacity:0.4; pointer-events:none;">
+            <div class="mod-icon">🚫</div>
+            <div class="mod-info"><div class="mod-name">Sin acceso</div><div class="mod-access">Residentes, Guardias…</div></div>
           </div>
         </div>
         <div class="flow-section">
@@ -771,10 +730,10 @@
         <div class="role-info">
           <div class="role-tag">Residente Arrendatario</div>
           <div class="role-name">Inquilino</div>
-          <div class="role-desc">Acceso similar al propietario con enfoque en su vivienda y asistente IA para consultas frecuentes sobre el conjunto.</div>
+          <div class="role-desc">Acceso similar al propietario con enfoque en su vivienda. Sin acceso a finanzas detalladas ni chat de portería.</div>
           <div class="role-stats">
             <div class="stat-item">
-              <div class="stat-num">7</div>
+              <div class="stat-num">6</div>
               <div class="stat-lbl">Módulos</div>
             </div>
             <div class="stat-item">
@@ -815,9 +774,9 @@
             <div class="mod-icon">👤</div>
             <div class="mod-info"><div class="mod-name">Mi Perfil</div><div class="mod-access">Editar datos</div></div>
           </div>
-          <div class="module-chip highlight">
-            <div class="mod-icon">🤖</div>
-            <div class="mod-info"><div class="mod-name">Asistente IA</div><div class="mod-access">Consultas 24/7</div></div>
+          <div class="module-chip" style="opacity:0.4; pointer-events:none;">
+            <div class="mod-icon">🚫</div>
+            <div class="mod-info"><div class="mod-name">Sin Chat</div><div class="mod-access">Accesos limitados</div></div>
           </div>
         </div>
         <div class="flow-section">
@@ -850,10 +809,10 @@
         <div class="role-info">
           <div class="role-tag">Seguridad / Vigilancia</div>
           <div class="role-name">Portero</div>
-          <div class="role-desc">Control de ingresos, paquetería, turnos y comunicación con administración. Primera línea de seguridad del conjunto.</div>
+          <div class="role-desc">Control de ingresos, paquetería, turnos y comunicación con administración. Primera línea de seguridad.</div>
           <div class="role-stats">
             <div class="stat-item">
-              <div class="stat-num">8</div>
+              <div class="stat-num">7</div>
               <div class="stat-lbl">Módulos</div>
             </div>
             <div class="stat-item">
@@ -898,10 +857,6 @@
             <div class="mod-icon">👤</div>
             <div class="mod-info"><div class="mod-name">Mi Perfil</div><div class="mod-access">Editar datos</div></div>
           </div>
-          <div class="module-chip highlight">
-            <div class="mod-icon">🤖</div>
-            <div class="mod-info"><div class="mod-name">Asistente IA</div><div class="mod-access">Consultas básicas</div></div>
-          </div>
         </div>
         <div class="flow-section">
           <div class="flow-label">Flujo principal</div>
@@ -933,7 +888,7 @@
         <div class="role-info">
           <div class="role-tag">Administrador de Plataforma</div>
           <div class="role-name">SuperAdmin</div>
-          <div class="role-desc">Gestión multi-conjunto: crea conjuntos, torres y administradores. Ve estadísticas de toda su organización.</div>
+          <div class="role-desc">Gestión multi-conjunto: crea edificios, agrupaciones y administradores. Ve estadísticas de toda su organización.</div>
           <div class="role-stats">
             <div class="stat-item">
               <div class="stat-num">15+</div>
@@ -963,7 +918,7 @@
           </div>
           <div class="module-chip highlight">
             <div class="mod-icon">🏘️</div>
-            <div class="mod-info"><div class="mod-name">Conjuntos</div><div class="mod-access">CRUD + Configurar</div></div>
+            <div class="mod-info"><div class="mod-name">Agrupaciones</div><div class="mod-access">Multi-conjunto</div></div>
           </div>
           <div class="module-chip highlight">
             <div class="mod-icon">👨‍💼</div>
@@ -1009,6 +964,89 @@
       </div>
     </div>
 
+    <!-- ── BACKOFFICE ── -->
+    <div class="role-card" data-role="back">
+      <div class="card-header">
+        <div class="role-avatar">🔴</div>
+        <div class="role-info">
+          <div class="role-tag">Operador Interno SaaS</div>
+          <div class="role-name">Backoffice</div>
+          <div class="role-desc">Vista consolidada de TODAS las organizaciones. Crea organizaciones, superadmins y accede a cualquier conjunto.</div>
+          <div class="role-stats">
+            <div class="stat-item">
+              <div class="stat-num">All</div>
+              <div class="stat-lbl">Módulos</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num">Multi</div>
+              <div class="stat-lbl">Organización</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num">Global</div>
+              <div class="stat-lbl">Alcance</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="modules-label">Módulos exclusivos Backoffice</div>
+        <div class="modules-grid">
+          <div class="module-chip highlight">
+            <div class="mod-icon">🌍</div>
+            <div class="mod-info"><div class="mod-name">Panel Backoffice</div><div class="mod-access">Dashboard multi-org</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">🏛️</div>
+            <div class="mod-info"><div class="mod-name">Organizaciones</div><div class="mod-access">CRUD global</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">👑</div>
+            <div class="mod-info"><div class="mod-name">Crear SuperAdmins</div><div class="mod-access">Por organización</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">📊</div>
+            <div class="mod-info"><div class="mod-name">Analytics Global</div><div class="mod-access">Todas las orgs</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">💹</div>
+            <div class="mod-info"><div class="mod-name">Finanzas Global</div><div class="mod-access">Cuotas totales</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">🤖</div>
+            <div class="mod-info"><div class="mod-name">Chatbot Global</div><div class="mod-access">Config plataforma</div></div>
+          </div>
+          <div class="module-chip highlight">
+            <div class="mod-icon">👥</div>
+            <div class="mod-info"><div class="mod-name">Usuarios Globales</div><div class="mod-access">Todas las orgs</div></div>
+          </div>
+          <div class="module-chip">
+            <div class="mod-icon">⬇️</div>
+            <div class="mod-info"><div class="mod-name">+ Todo SuperAdmin y Admin</div><div class="mod-access">Sin restricciones</div></div>
+          </div>
+        </div>
+        <div class="flow-section">
+          <div class="flow-label">Flujo principal</div>
+          <div class="flow-steps">
+            <div class="flow-step">
+              <div class="step-node"><span class="sn-icon">🔐</span> Login</div>
+              <span class="step-arrow">→</span>
+            </div>
+            <div class="flow-step">
+              <div class="step-node"><span class="sn-icon">🌍</span> Panel global</div>
+              <span class="step-arrow">→</span>
+            </div>
+            <div class="flow-step">
+              <div class="step-node"><span class="sn-icon">🏛️</span> Crear org</div>
+              <span class="step-arrow">→</span>
+            </div>
+            <div class="flow-step">
+              <div class="step-node"><span class="sn-icon">👑</span> Asignar superadmin</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /cards-grid -->
 
   <!-- ══════════════════════ JERARQUÍA VISUAL ═══════════════════════════════════ -->
@@ -1022,6 +1060,17 @@
 
       <!-- Level 1 -->
       <div style="display:flex; gap:24px; justify-content:center; margin-bottom:0;">
+        <div style="background:linear-gradient(135deg,#922b21,#c0392b); border-radius:16px; padding:16px 32px; text-align:center; min-width:180px;">
+          <div style="font-size:24px; margin-bottom:6px;">🔴</div>
+          <div style="font-weight:800; font-size:16px;">Backoffice</div>
+          <div style="font-size:11px; opacity:0.7; margin-top:4px;">Plataforma SaaS</div>
+        </div>
+      </div>
+
+      <div style="width:2px; height:32px; background:var(--border); margin:0 auto;"></div>
+
+      <!-- Level 2 -->
+      <div style="display:flex; gap:24px; justify-content:center; margin-bottom:0;">
         <div style="background:linear-gradient(135deg,#b7770d,#f39c12); border-radius:16px; padding:16px 32px; text-align:center; min-width:180px;">
           <div style="font-size:24px; margin-bottom:6px;">🟡</div>
           <div style="font-weight:800; font-size:16px;">SuperAdmin</div>
@@ -1031,7 +1080,7 @@
 
       <div style="width:2px; height:32px; background:var(--border); margin:0 auto;"></div>
 
-      <!-- Level 2 -->
+      <!-- Level 3 -->
       <div style="display:flex; gap:24px; justify-content:center; margin-bottom:0;">
         <div style="background:linear-gradient(135deg,#1a5276,#2e86c1); border-radius:16px; padding:16px 32px; text-align:center; min-width:180px;">
           <div style="font-size:24px; margin-bottom:6px;">🔵</div>
@@ -1042,7 +1091,7 @@
 
       <div style="width:2px; height:32px; background:var(--border); margin:0 auto;"></div>
 
-      <!-- Level 3 -->
+      <!-- Level 4 -->
       <div style="display:flex; gap:24px; justify-content:center; flex-wrap:wrap;">
         <div style="background:linear-gradient(135deg,#145a32,#1e8449); border-radius:16px; padding:16px 32px; text-align:center; min-width:160px;">
           <div style="font-size:24px; margin-bottom:6px;">🟢</div>
@@ -1063,181 +1112,13 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════ ESTRUCTURA DE LA PROPIEDAD ══════════════════════ -->
-  <div class="section-title">
-    <h2>¿Cómo se organiza tu propiedad?</h2>
-    <div class="line"></div>
-  </div>
-
-  <div style="max-width:1300px; margin:0 auto 80px; display:flex; flex-direction:column; gap:32px;">
-
-    <!-- Intro -->
-    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:24px; padding:40px; text-align:center;">
-      <div style="font-size:42px; margin-bottom:16px;">🏗️</div>
-      <div style="font-size:22px; font-weight:800; margin-bottom:10px;">TorreAdmin se adapta a cualquier tipo de propiedad horizontal</div>
-      <div style="font-size:15px; color:var(--muted); max-width:680px; margin:0 auto; line-height:1.7;">
-        Desde un edificio de apartamentos con múltiples torres hasta un conjunto de casas o una parcelación,
-        el sistema modela tu propiedad con la jerarquía exacta que necesitas.
-      </div>
-    </div>
-
-    <!-- Hierarchy tree -->
-    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:24px; padding:48px;">
-      <div class="section-label" style="text-align:center; margin-bottom:36px;">Jerarquía de la propiedad</div>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
-
-        <!-- Org -->
-        <div style="background:linear-gradient(135deg,#b7770d,#f39c12); border-radius:16px; padding:18px 40px; text-align:center; min-width:260px;">
-          <div style="font-size:22px; margin-bottom:6px;">🏛️</div>
-          <div style="font-weight:800; font-size:17px;">Organización</div>
-          <div style="font-size:12px; opacity:0.8; margin-top:4px;">Empresa, constructora o administradora</div>
-        </div>
-        <div style="width:2px; height:28px; background:var(--border);"></div>
-
-        <!-- Conjunto -->
-        <div style="background:linear-gradient(135deg,#1a5276,#2e86c1); border-radius:16px; padding:18px 40px; text-align:center; min-width:260px;">
-          <div style="font-size:22px; margin-bottom:6px;">🏢</div>
-          <div style="font-weight:800; font-size:17px;">Conjunto</div>
-          <div style="font-size:12px; opacity:0.8; margin-top:4px;">La propiedad horizontal (Torres del Norte, El Rosal…)</div>
-        </div>
-        <div style="display:flex; gap:60px; align-items:flex-start; padding:0;">
-          <div style="width:2px; height:28px; background:var(--border); margin-left:auto; margin-right:auto;"></div>
-        </div>
-
-        <!-- Nivel Torres — múltiple -->
-        <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin-bottom:0;">
-          <div style="background:linear-gradient(135deg,#0e5c3d,#1a7a52); border-radius:14px; padding:14px 24px; text-align:center; min-width:140px;">
-            <div style="font-size:20px; margin-bottom:4px;">🏬</div>
-            <div style="font-weight:700; font-size:14px;">Torre A</div>
-            <div style="font-size:11px; opacity:0.75; margin-top:3px;">tipo: torre</div>
-          </div>
-          <div style="background:linear-gradient(135deg,#0e5c3d,#1a7a52); border-radius:14px; padding:14px 24px; text-align:center; min-width:140px;">
-            <div style="font-size:20px; margin-bottom:4px;">🏘️</div>
-            <div style="font-weight:700; font-size:14px;">Manzana 1</div>
-            <div style="font-size:11px; opacity:0.75; margin-top:3px;">tipo: manzana</div>
-          </div>
-          <div style="background:linear-gradient(135deg,#0e5c3d,#1a7a52); border-radius:14px; padding:14px 24px; text-align:center; min-width:140px;">
-            <div style="font-size:20px; margin-bottom:4px;">🌿</div>
-            <div style="font-weight:700; font-size:14px;">Lote 3</div>
-            <div style="font-size:11px; opacity:0.75; margin-top:3px;">tipo: lote</div>
-          </div>
-          <div style="background:linear-gradient(135deg,#0e5c3d,#1a7a52); border-radius:14px; padding:14px 24px; text-align:center; min-width:140px;">
-            <div style="font-size:20px; margin-bottom:4px;">🏞️</div>
-            <div style="font-weight:700; font-size:14px;">Parcelación</div>
-            <div style="font-size:11px; opacity:0.75; margin-top:3px;">tipo: parcelación</div>
-          </div>
-        </div>
-        <div style="width:2px; height:28px; background:var(--border);"></div>
-
-        <!-- Unidades -->
-        <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
-          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:12px 20px; text-align:center; min-width:130px;">
-            <div style="font-size:18px; margin-bottom:4px;">🏠</div>
-            <div style="font-weight:600; font-size:13px;">Apto 101</div>
-            <div style="font-size:10px; opacity:0.6; margin-top:2px;">apartamento</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:12px 20px; text-align:center; min-width:130px;">
-            <div style="font-size:18px; margin-bottom:4px;">🏡</div>
-            <div style="font-weight:600; font-size:13px;">Casa 5</div>
-            <div style="font-size:10px; opacity:0.6; margin-top:2px;">casa</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:12px 20px; text-align:center; min-width:130px;">
-            <div style="font-size:18px; margin-bottom:4px;">🏪</div>
-            <div style="font-weight:600; font-size:13px;">Local 2</div>
-            <div style="font-size:10px; opacity:0.6; margin-top:2px;">local</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:12px 20px; text-align:center; min-width:130px;">
-            <div style="font-size:18px; margin-bottom:4px;">💼</div>
-            <div style="font-weight:600; font-size:13px;">Oficina 301</div>
-            <div style="font-size:10px; opacity:0.6; margin-top:2px;">oficina</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:12px; padding:12px 20px; text-align:center; min-width:130px;">
-            <div style="font-size:18px; margin-bottom:4px;">🚗</div>
-            <div style="font-weight:600; font-size:13px;">Parq. B-14</div>
-            <div style="font-size:10px; opacity:0.6; margin-top:2px;">parqueadero</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tipos de conjunto / ejemplos reales -->
-    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:20px;">
-
-      <!-- Edificio de apartamentos -->
-      <div style="background:var(--bg2); border:1px solid rgba(46,134,193,0.25); border-radius:20px; padding:28px;">
-        <div style="font-size:36px; margin-bottom:12px;">🏬</div>
-        <div style="font-weight:800; font-size:17px; margin-bottom:6px;">Edificio de Apartamentos</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px;">
-          Una o varias torres de múltiples pisos con apartamentos. Cuotas de administración, zonas comunes, salón comunal, piscina.
-        </div>
-        <div style="font-size:11px; color:rgba(46,134,193,0.9); font-weight:600; letter-spacing:0.08em; text-transform:uppercase;">Ejemplo</div>
-        <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-          Conjunto → Torre A + Torre B<br>→ Aptos 101 – 802
-        </div>
-      </div>
-
-      <!-- Conjunto de casas -->
-      <div style="background:var(--bg2); border:1px solid rgba(30,132,73,0.25); border-radius:20px; padding:28px;">
-        <div style="font-size:36px; margin-bottom:12px;">🏘️</div>
-        <div style="font-weight:800; font-size:17px; margin-bottom:6px;">Conjunto de Casas</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px;">
-          Desarrollo horizontal con casas individuales agrupadas por manzanas o lotes. Cerca perimetral y portería compartida.
-        </div>
-        <div style="font-size:11px; color:rgba(30,132,73,0.9); font-weight:600; letter-spacing:0.08em; text-transform:uppercase;">Ejemplo</div>
-        <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-          Conjunto → Manzana 1 + Manzana 2<br>→ Casas 1 – 40
-        </div>
-      </div>
-
-      <!-- Conjunto mixto -->
-      <div style="background:var(--bg2); border:1px solid rgba(142,68,173,0.25); border-radius:20px; padding:28px;">
-        <div style="font-size:36px; margin-bottom:12px;">🏗️</div>
-        <div style="font-weight:800; font-size:17px; margin-bottom:6px;">Conjunto Mixto</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px;">
-          Combina torres de apartamentos con casas y zonas comerciales (locales, oficinas) en un mismo conjunto.
-        </div>
-        <div style="font-size:11px; color:rgba(142,68,173,0.9); font-weight:600; letter-spacing:0.08em; text-transform:uppercase;">Ejemplo</div>
-        <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-          Torre A (aptos) + Manzana B (casas)<br>+ Planta baja (locales)
-        </div>
-      </div>
-
-      <!-- Parcelación -->
-      <div style="background:var(--bg2); border:1px solid rgba(211,84,0,0.25); border-radius:20px; padding:28px;">
-        <div style="font-size:36px; margin-bottom:12px;">🌿</div>
-        <div style="font-weight:800; font-size:17px; margin-bottom:6px;">Parcelación / Condominio</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px;">
-          Lotes o parcelas rurales/suburbanas con propietarios independientes. Administración de vías, zonas verdes y vigilancia compartida.
-        </div>
-        <div style="font-size:11px; color:rgba(211,84,0,0.9); font-weight:600; letter-spacing:0.08em; text-transform:uppercase;">Ejemplo</div>
-        <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-          Conjunto → Lote 1 – Lote 25<br>→ Casa / Finca por lote
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Nota aclaratoria -->
-    <div style="background:rgba(46,134,193,0.07); border:1px solid rgba(46,134,193,0.2); border-radius:16px; padding:24px 32px; display:flex; gap:16px; align-items:flex-start;">
-      <div style="font-size:24px; flex-shrink:0; margin-top:2px;">💡</div>
-      <div>
-        <div style="font-weight:700; font-size:15px; margin-bottom:6px;">Cada conjunto se gestiona de forma independiente</div>
-        <div style="font-size:13px; color:var(--muted); line-height:1.7;">
-          El Administrador de un conjunto solo ve y gestiona su propia propiedad. El SuperAdmin puede supervisar y comparar todos los conjuntos de su organización.
-          Cada nivel tiene un panel diferenciado con los datos relevantes para su rol, y el Asistente IA está disponible en todos los niveles según el alcance de acceso.
-        </div>
-      </div>
-    </div>
-
-  </div>
-
   <!-- ══════════════════════════ FOOTER ═════════════════════════════════════════ -->
   <div class="footer">
     <div class="f-left">
       <div class="f-badge">🏢 TorreAdmin</div>
       <div class="f-text">SaaS · Gestión de Propiedad Horizontal · Latin America</div>
     </div>
-    <div class="f-right">5 roles · 16 módulos · Org → Conjunto → Torre → Unidad · 2026</div>
+    <div class="f-right">6 roles · 15 módulos · Next.js 14 + FastAPI · 2026</div>
   </div>
 
 </body>

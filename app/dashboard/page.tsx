@@ -83,7 +83,7 @@ export default function DashboardPage() {
     : 0;
 
   const statCards = [
-    { label: "Unidades", value: stats?.total_unidades ?? "—", icon: "🏠", color: "bg-indigo-50 text-indigo-700", iconBg: "bg-indigo-100", href: "/dashboard/residentes" },
+    { label: "Unidades", value: stats?.total_unidades ?? "—", icon: "🏠", color: "bg-indigo-50 text-indigo-700", iconBg: "bg-indigo-100", href: conjuntoId ? `/dashboard/superadmin/conjuntos/${conjuntoId}` : "/dashboard/residentes" },
     { label: "Morosos", value: stats?.morosos ?? "—", icon: "⚠️", color: "bg-red-50 text-red-700", iconBg: "bg-red-100", href: "/dashboard/finanzas" },
     { label: "Solicitudes abiertas", value: stats?.solicitudes_pendientes ?? "—", icon: "🔧", color: "bg-amber-50 text-amber-700", iconBg: "bg-amber-100", href: "/dashboard/mantenimiento" },
     { label: "Ingresos hoy", value: stats?.ingresos_hoy ?? "—", icon: "🔐", color: "bg-purple-50 text-purple-700", iconBg: "bg-purple-100", href: "/dashboard/accesos" },

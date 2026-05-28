@@ -43,7 +43,7 @@ export default function FileUploadGenerico({
       const fd = new FormData()
       fd.append("file", file)
       fd.append("nombre_archivo", file.name)
-      fd.append("tipo", "archivo")
+      fd.append("tipo", "otro")
       for (const [k, v] of Object.entries(extraFields)) {
         fd.append(k, String(v))
       }

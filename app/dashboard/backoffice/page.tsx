@@ -45,8 +45,9 @@ export default function BackofficeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeKpi, setActiveKpi] = useState<KpiFilter>(null);
 
-  const finanzasRef = useRef<HTMLDivElement>(null);
+  const estructuraRef = useRef<HTMLDivElement>(null);
   const actividadRef = useRef<HTMLDivElement>(null);
+  const cuotasRef = useRef<HTMLDivElement>(null);
   const modulosRef = useRef<HTMLDivElement>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
 
@@ -90,12 +91,14 @@ export default function BackofficeDashboard() {
       if (!next) return;
       const target =
         next === "finanzas" || next === "cuotas_vencidas" || next === "cuotas_pendientes"
-          ? finanzasRef.current
+          ? cuotasRef.current
           : next === "actividad" || next === "mantenimientos"
             ? actividadRef.current
-            : next === "modulos"
-              ? modulosRef.current
-              : chartsRef.current;
+            : next === "estructura"
+              ? estructuraRef.current
+              : next === "modulos"
+                ? modulosRef.current
+                : chartsRef.current;
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
@@ -170,7 +173,7 @@ export default function BackofficeDashboard() {
         )}
       </div>
 
-      <div ref={finanzasRef} className={rowVisible("estructura") ? "" : "hidden"}>
+      <div ref={estructuraRef} className={rowVisible("estructura") ? "" : "hidden"}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard icon="🏘️" label="Conjuntos" value={stats.conjuntos} color="blue"
             active={activeKpi === "estructura"} onClick={() => toggleKpi("estructura")} />
@@ -195,7 +198,7 @@ export default function BackofficeDashboard() {
         </div>
       </div>
 
-      <div className={rowVisible("finanzas") ? "" : "hidden"}>
+      <div ref={cuotasRef} className={rowVisible("finanzas") ? "" : "hidden"}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard icon="✅" label="Cuotas pagadas" value={stats.cuotas?.pagadas ?? 0} color="green"
             active={activeKpi === "finanzas"} onClick={() => toggleKpi("finanzas")} />

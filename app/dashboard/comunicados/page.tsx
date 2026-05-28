@@ -228,6 +228,7 @@ export default function ComunicadosPage() {
     canales: ["sistema"] as string[], fecha_programada: "",
   });
   const [imagenFile, setImagenFile]     = useState<File | null>(null);
+  const [createError, setCreateError]   = useState<string | null>(null);
   const [auditComunicado, setAuditComunicado] = useState<number | null>(null);
   const [auditData, setAuditData]       = useState<EnvioRecord[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -312,6 +313,7 @@ export default function ComunicadosPage() {
     e.preventDefault();
     if (form.canales.length === 0) { alert("Selecciona al menos un canal de envío."); return; }
     setSaving(true);
+    setCreateError(null);
     try {
       let imagen_url: string | undefined;
       if (imagenFile) {
@@ -337,8 +339,9 @@ export default function ComunicadosPage() {
       if (fileRef.current) fileRef.current.value = "";
       setShowForm(false);
       await loadComunicados();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error creando comunicado", err);
+      setCreateError(err?.message ?? "Error al publicar el comunicado. Por favor intenta de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -679,8 +682,13 @@ export default function ComunicadosPage() {
                   {imagenFile && <p className="text-xs text-gray-400 mt-1">📎 {imagenFile.name}</p>}
                 </div>
               </div>
+              {createError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">
+                  {createError}
+                </div>
+              )}
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
+                <button type="button" onClick={() => { setShowForm(false); setCreateError(null); }} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancelar</button>
                 <button type="submit" disabled={saving} className="bg-primary text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
                   {saving ? "Publicando…" : form.fecha_programada ? "Programar" : "Publicar"}
                 </button>

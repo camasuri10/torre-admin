@@ -561,7 +561,7 @@ def crear_hijos_recurrentes(mantenimiento_id: int):
 @router.post("/{mantenimiento_id}/archivos", status_code=201)
 async def upload_archivo(
     mantenimiento_id: int,
-    tipo: str = Form("archivo"),
+    tipo: str = Form("otro"),
     nombre_archivo: str = Form(...),
     subido_por: Optional[int] = Form(None),
     file: UploadFile = File(...),

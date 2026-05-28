@@ -165,36 +165,46 @@ def create_usuario(data: UsuarioCreate, current_user: dict = Depends(get_current
             password_hash = CryptContext(schemes=["bcrypt"], deprecated="auto").hash(data.password)
         except ImportError:
             pass
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
+
+    _RETURN_COLS = (
+        "id, nombre, email, cedula, tipo_documento, telefono, rol, activo, "
+        "notif_sistema, notif_email, notif_whatsapp"
+    )
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            # Si el email ya existe, reutilizar el usuario (una persona puede pertenecer
+            # a múltiples conjuntos; la cédula dejó de ser clave única).
+            if data.email:
                 cur.execute(
-                    "INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash, organizacion_id) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, nombre, email, cedula, tipo_documento, telefono, rol, activo, notif_sistema, notif_email, notif_whatsapp",
-                    (data.nombre, data.cedula, data.tipo_documento, data.email, data.telefono, data.rol, password_hash, org_id),
+                    f"SELECT {_RETURN_COLS} FROM usuarios WHERE email = %s",
+                    (data.email,),
                 )
-                new_user = cur.fetchone()
-                # Auto-asociar al conjunto del admin que lo crea
-                if data.conjunto_id:
-                    cur.execute(
-                        "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo) "
-                        "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
-                        (new_user["id"], data.conjunto_id),
-                    )
-                return new_user
-    except Exception as e:
-        err_str = str(e)
-        if "cedula" in err_str and "unique" in err_str.lower():
-            raise HTTPException(
-                status_code=409,
-                detail=f"La cédula {data.cedula!r} ya está registrada en el sistema. Verifique los datos o use una cédula diferente.",
+                existing = cur.fetchone()
+                if existing:
+                    if data.conjunto_id:
+                        cur.execute(
+                            "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo) "
+                            "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                            (existing["id"], data.conjunto_id),
+                        )
+                    return existing
+
+            # Usuario nuevo
+            cur.execute(
+                f"INSERT INTO usuarios (nombre, cedula, tipo_documento, email, telefono, rol, password_hash, organizacion_id) "
+                f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING {_RETURN_COLS}",
+                (data.nombre, data.cedula, data.tipo_documento, data.email,
+                 data.telefono, data.rol, password_hash, org_id),
             )
-        if "email" in err_str and "unique" in err_str.lower():
-            raise HTTPException(
-                status_code=409,
-                detail=f"El email {data.email!r} ya está registrado en el sistema.",
-            )
-        raise
+            new_user = cur.fetchone()
+            if data.conjunto_id:
+                cur.execute(
+                    "INSERT INTO usuario_conjuntos (usuario_id, conjunto_id, activo) "
+                    "VALUES (%s,%s,TRUE) ON CONFLICT DO NOTHING",
+                    (new_user["id"], data.conjunto_id),
+                )
+            return new_user
 
 
 @router.put("/{usuario_id}")
