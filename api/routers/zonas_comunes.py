@@ -4,6 +4,8 @@ from typing import Optional, List
 from db import get_db
 from routers.auth import get_current_user
 import base64
+import json
+from datetime import date as date_type
 
 router = APIRouter()
 
@@ -27,6 +29,10 @@ class ZonaCreate(BaseModel):
 
 
 class ZonaConfigUpdate(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    icono: Optional[str] = None
+    capacidad: Optional[int] = None
     duracion_min_horas: Optional[float] = None
     duracion_max_horas: Optional[float] = None
     anticipacion_min_dias: Optional[int] = None
@@ -41,6 +47,7 @@ class ZonaConfigUpdate(BaseModel):
     costo_arriendo: Optional[float] = None
     costo_deposito: Optional[float] = None
     intervalo_reserva: Optional[int] = None   # minutos: 15, 30, 60
+    dias_config: Optional[dict] = None        # overrides por día de semana
 
 
 class ReservaCambioEstado(BaseModel):
@@ -122,8 +129,12 @@ def update_zona_config(zona_id: int, data: ZonaConfigUpdate):
         with conn.cursor() as cur:
             fields, params = [], []
             for field, val in data.model_dump(exclude_none=True).items():
-                fields.append(f"{field} = %s")
-                params.append(val)
+                if field == "dias_config" and val is not None:
+                    fields.append(f"{field} = %s::jsonb")
+                    params.append(json.dumps(val))
+                else:
+                    fields.append(f"{field} = %s")
+                    params.append(val)
             if not fields:
                 raise HTTPException(status_code=400, detail="No hay campos para actualizar")
             params.append(zona_id)
@@ -343,22 +354,44 @@ def check_disponibilidad(zona_id: int, fecha: str):
                 FROM reservas r
                 JOIN usuarios u ON u.id = r.usuario_id
                 LEFT JOIN unidades un ON un.id = r.unidad_id
-                WHERE r.zona_id = %s AND r.fecha = %s AND r.estado NOT IN ('cancelada','no_usada')
+                WHERE r.zona_id = %s AND r.fecha = %s AND r.estado NOT IN ('cancelada')
                 ORDER BY r.hora_inicio
             """, (zona_id, fecha))
             ocupados = cur.fetchall()
 
             cur.execute("""
-                SELECT horario_inicio, horario_fin, duracion_min_horas, capacidad_hora, intervalo_reserva
+                SELECT horario_inicio, horario_fin, duracion_min_horas, capacidad_hora,
+                       intervalo_reserva, dias_config
                 FROM zonas_comunes WHERE id = %s
             """, (zona_id,))
-            config = cur.fetchone()
+            zona_row = cur.fetchone()
+            config = dict(zona_row) if zona_row else {}
+
+            # Aplicar override de día de semana si existe
+            dias_config = config.get("dias_config") or {}
+            if isinstance(dias_config, str):
+                try:
+                    dias_config = json.loads(dias_config)
+                except Exception:
+                    dias_config = {}
+            try:
+                weekday = str(date_type.fromisoformat(fecha).weekday())  # 0=lunes…6=domingo
+            except ValueError:
+                weekday = None
+            dia_override = dias_config.get(weekday, {}) if weekday else {}
+            if dia_override.get("cerrado"):
+                config["cerrado"] = True
+            else:
+                if "horario_inicio" in dia_override:
+                    config["horario_inicio"] = dia_override["horario_inicio"]
+                if "horario_fin" in dia_override:
+                    config["horario_fin"] = dia_override["horario_fin"]
 
             # Conteo de reservas por hora_inicio (para capacidad_hora)
             cur.execute("""
                 SELECT hora_inicio, COUNT(*) as cantidad
                 FROM reservas
-                WHERE zona_id = %s AND fecha = %s AND estado NOT IN ('cancelada','no_usada')
+                WHERE zona_id = %s AND fecha = %s AND estado NOT IN ('cancelada')
                 GROUP BY hora_inicio
             """, (zona_id, fecha))
             conteo_hora = {str(r["hora_inicio"])[:5]: r["cantidad"] for r in cur.fetchall()}
@@ -368,9 +401,17 @@ def check_disponibilidad(zona_id: int, fecha: str):
 
 # ── Reserva: cambio de estado con bitácora ────────────────────────────────────
 
+_ESTADOS_VALIDOS = {
+    "confirmada", "pendiente", "cancelada", "en_revision",
+    "lista_espera", "pago_pendiente", "pagada", "en_curso", "finalizada",
+}
+
 @router.patch("/reservas/{reserva_id}/estado")
 def cambiar_estado_reserva(reserva_id: int, data: ReservaCambioEstado):
     """Cambia el estado de una reserva y registra el evento en la bitácora."""
+    if data.estado not in _ESTADOS_VALIDOS:
+        raise HTTPException(status_code=400, detail=f"Estado '{data.estado}' no permitido.")
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT estado FROM reservas WHERE id = %s", (reserva_id,))
@@ -379,6 +420,12 @@ def cambiar_estado_reserva(reserva_id: int, data: ReservaCambioEstado):
                 raise HTTPException(status_code=404, detail="Reserva no encontrada")
 
             estado_anterior = reserva["estado"]
+            if estado_anterior == "cancelada":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Una reserva cancelada no puede reactivarse. Crea una nueva reserva.",
+                )
+
             cur.execute(
                 "UPDATE reservas SET estado = %s WHERE id = %s RETURNING *",
                 (data.estado, reserva_id),

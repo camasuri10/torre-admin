@@ -7,31 +7,34 @@ import Bitacora from "@/components/Bitacora";
 import FileUploadGenerico from "@/components/FileUploadGenerico";
 
 const ESTADO_BADGE: Record<string, string> = {
-  confirmada: "bg-green-100 text-green-700",
-  pendiente: "bg-amber-100 text-amber-700",
-  cancelada: "bg-gray-100 text-gray-500",
-  no_usada: "bg-orange-100 text-orange-700",
-  en_revision: "bg-blue-100 text-blue-700",
-  lista_espera: "bg-purple-100 text-purple-700",
-  pago_pendiente: "bg-yellow-100 text-yellow-700",
-  pagada: "bg-emerald-100 text-emerald-700",
-  deposito_devuelto: "bg-teal-100 text-teal-700",
-  en_curso: "bg-indigo-100 text-indigo-700",
-  finalizada: "bg-slate-100 text-slate-700",
-  no_presentado: "bg-red-100 text-red-700",
+  confirmada:    "bg-green-100 text-green-700",
+  pendiente:     "bg-amber-100 text-amber-700",
+  cancelada:     "bg-gray-100 text-gray-500",
+  en_revision:   "bg-blue-100 text-blue-700",
+  lista_espera:  "bg-purple-100 text-purple-700",
+  pago_pendiente:"bg-yellow-100 text-yellow-700",
+  pagada:        "bg-emerald-100 text-emerald-700",
+  en_curso:      "bg-indigo-100 text-indigo-700",
+  finalizada:    "bg-slate-100 text-slate-700",
 };
 
 const ESTADO_LABELS: Record<string, string> = {
-  confirmada: "Confirmada", pendiente: "Pendiente", cancelada: "Cancelada",
-  no_usada: "No usada", en_revision: "En revisión", lista_espera: "Lista de espera",
-  pago_pendiente: "Pago pendiente", pagada: "Pagada", deposito_devuelto: "Depósito devuelto",
-  en_curso: "En curso", finalizada: "Finalizada", no_presentado: "No presentado",
+  confirmada:    "Confirmada",
+  pendiente:     "Pendiente",
+  cancelada:     "Cancelada",
+  en_revision:   "En revisión",
+  lista_espera:  "Lista de espera",
+  pago_pendiente:"Pago pendiente",
+  pagada:        "Pagada",
+  en_curso:      "En curso",
+  finalizada:    "Finalizada",
 };
 
+// Estados disponibles para cambiar manualmente (excluye los eliminados)
 const TODOS_ESTADOS = [
-  "", "pendiente", "confirmada", "cancelada", "no_usada",
+  "", "pendiente", "confirmada", "cancelada",
   "en_revision", "lista_espera", "pago_pendiente", "pagada",
-  "deposito_devuelto", "en_curso", "finalizada", "no_presentado",
+  "en_curso", "finalizada",
 ];
 
 const ENTREGA_BADGE: Record<string, string> = {
@@ -72,6 +75,7 @@ export default function ZonasComunesPage() {
   const [showReservaForm, setShowReservaForm] = useState(false);
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [showZonaForm, setShowZonaForm] = useState(false);
+  const [diasConfig, setDiasConfig] = useState<Record<string, any>>({});
   const [reservaZona, setReservaZona] = useState<any | null>(null);
   const [reservaFecha, setReservaFecha] = useState("");
   const [reservaUnidadId, setReservaUnidadId] = useState<number | null>(null);
@@ -81,6 +85,7 @@ export default function ZonasComunesPage() {
   const [reservaNotas, setReservaNotas] = useState("");
   const [reservandoSlot, setReservandoSlot] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ inicio: string; fin: string } | null>(null);
+  const [selectedFinExtendido, setSelectedFinExtendido] = useState<string>("");
   const [cancelModal, setCancelModal] = useState<{ id: number; zona: string; esPropia: boolean } | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [zonaForm, setZonaForm] = useState(ZONA_FORM_EMPTY);
@@ -130,6 +135,7 @@ export default function ZonasComunesPage() {
     setSlots([]);
     try {
       const { ocupados, config, conteo_hora } = await api.zonas.disponibilidad(zona.id, fecha);
+      if (config?.cerrado) { setSlots([]); return; }
       const intervalo = config?.intervalo_reserva ?? zona.intervalo_reserva ?? 60;
       const raw = generarSlots(
         config?.horario_inicio ?? zona.horario_inicio,
@@ -157,6 +163,7 @@ export default function ZonasComunesPage() {
   async function handleReservarSlot(slot: { inicio: string; fin: string }) {
     if (!reservaZona || !reservaFecha) return;
     setReservandoSlot(slot.inicio);
+    const horaFin = selectedFinExtendido || slot.fin;
     try {
       const targetUserId = isAdmin && reservaSelectedUserId ? reservaSelectedUserId : usuarioId;
       const reserva = await api.zonas.reservas.create({
@@ -166,7 +173,7 @@ export default function ZonasComunesPage() {
         unidad_id: reservaUnidadId || null,
         fecha: reservaFecha,
         hora_inicio: slot.inicio,
-        hora_fin: slot.fin,
+        hora_fin: horaFin,
         notas: reservaNotas || null,
       });
       await api.zonas.reservas.update(reserva.id, "confirmada");
@@ -178,6 +185,7 @@ export default function ZonasComunesPage() {
       setReservaUnidadId(null);
       setReservaSelectedUserId(null);
       setSelectedSlot(null);
+      setSelectedFinExtendido("");
       load();
     } catch (err: any) {
       alert("Error al reservar: " + (err?.message ?? "Intenta de nuevo"));
@@ -212,23 +220,29 @@ export default function ZonasComunesPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setSaving(true);
-    const cap = fd.get("capacidad_hora");
-    const costoArriendo = fd.get("costo_arriendo");
-    const costoDeposito = fd.get("costo_deposito");
+    const cap          = fd.get("capacidad_hora");
+    const costoArr     = fd.get("costo_arriendo");
+    const costoDepo    = fd.get("costo_deposito");
+    const capPersonas  = fd.get("capacidad");
     try {
       await api.zonas.updateConfig(selectedZona.id, {
+        nombre:                fd.get("nombre") as string,
+        descripcion:           (fd.get("descripcion") as string) || null,
+        icono:                 fd.get("icono") as string,
+        capacidad:             capPersonas ? Number(capPersonas) : null,
         duracion_min_horas:    Number(fd.get("duracion_min_horas")),
         duracion_max_horas:    Number(fd.get("duracion_max_horas")),
         anticipacion_min_dias: Number(fd.get("anticipacion_min_dias")),
         anticipacion_max_dias: Number(fd.get("anticipacion_max_dias")),
-        horario_inicio:        fd.get("horario_inicio"),
-        horario_fin:           fd.get("horario_fin"),
+        horario_inicio:        fd.get("horario_inicio") as string,
+        horario_fin:           fd.get("horario_fin") as string,
         activo:                fd.get("activo") === "true",
         capacidad_hora:        cap ? Number(cap) : null,
         requiere_inventario:   fd.get("requiere_inventario") === "true",
-        costo_arriendo:        costoArriendo ? Number(costoArriendo) : null,
-        costo_deposito:        costoDeposito ? Number(costoDeposito) : null,
+        costo_arriendo:        costoArr ? Number(costoArr) : null,
+        costo_deposito:        costoDepo ? Number(costoDepo) : null,
         intervalo_reserva:     Number(fd.get("intervalo_reserva")) || 60,
+        dias_config:           Object.keys(diasConfig).length > 0 ? diasConfig : null,
       });
       setShowConfigForm(false);
       load();
@@ -342,8 +356,8 @@ export default function ZonasComunesPage() {
 
   const disponibles = zonas.filter((z) => z.disponible && z.activo !== false).length;
   const confirmadas = reservas.filter((r) => r.estado === "confirmada").length;
-  const pendientes = reservas.filter((r) => r.estado === "pendiente").length;
-  const noUsadas = reservas.filter((r) => r.estado === "no_usada").length;
+  const pendientes  = reservas.filter((r) => r.estado === "pendiente").length;
+  const enCurso     = reservas.filter((r) => r.estado === "en_curso").length;
 
   const q = search.trim().toLowerCase();
   const filteredZonas = q
@@ -367,9 +381,9 @@ export default function ZonasComunesPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Zonas disponibles", value: disponibles, color: "bg-green-50 text-green-700" },
-          { label: "Confirmadas", value: confirmadas, color: "bg-blue-50 text-blue-700" },
-          { label: "Pendientes", value: pendientes, color: "bg-amber-50 text-amber-700" },
-          { label: "No usadas", value: noUsadas, color: "bg-orange-50 text-orange-700" },
+          { label: "Confirmadas",       value: confirmadas, color: "bg-blue-50 text-blue-700" },
+          { label: "Pendientes",        value: pendientes,  color: "bg-amber-50 text-amber-700" },
+          { label: "En curso",          value: enCurso,     color: "bg-indigo-50 text-indigo-700" },
         ].map((s) => (
           <div key={s.label} className={`rounded-xl p-5 border border-current/10 ${s.color}`}>
             <div className="text-3xl font-bold">{s.value}</div>
@@ -485,7 +499,7 @@ export default function ZonasComunesPage() {
                     </button>
                     {isAdmin && (
                       <button
-                        onClick={() => { setSelectedZona(zona); setShowConfigForm(true); }}
+                        onClick={() => { setSelectedZona(zona); setDiasConfig(zona.dias_config ?? {}); setShowConfigForm(true); }}
                         className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors font-medium"
                         title="Editar zona">
                         ✏️ Editar
@@ -741,7 +755,7 @@ export default function ZonasComunesPage() {
                           <button
                             key={slot.inicio}
                             disabled={reservandoSlot !== null}
-                            onClick={() => setSelectedSlot(isSelected ? null : slot)}
+                            onClick={() => { setSelectedSlot(isSelected ? null : slot); setSelectedFinExtendido(""); }}
                             className={`py-2 px-1 rounded-lg text-xs font-medium transition-colors border ${
                               isSelected
                                 ? "bg-primary text-white border-primary shadow-sm"
@@ -754,20 +768,49 @@ export default function ZonasComunesPage() {
                         );
                       })}
                     </div>
-                    {selectedSlot && (
-                      <div className="mt-3 flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
-                        <span className="text-sm text-primary font-medium">
-                          Seleccionado: {selectedSlot.inicio} – {selectedSlot.fin}
-                        </span>
-                        <button
-                          onClick={() => handleReservarSlot(selectedSlot)}
-                          disabled={reservandoSlot !== null}
-                          className="px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                        >
-                          {reservandoSlot ? "Reservando…" : "Confirmar reserva"}
-                        </button>
-                      </div>
-                    )}
+                    {selectedSlot && (() => {
+                      // Calcular opciones de fin extendido
+                      const durMin = Number(reservaZona.duracion_min_horas ?? 1);
+                      const durMax = Number(reservaZona.duracion_max_horas ?? durMin);
+                      const horaFin = String(reservaZona.horario_fin).slice(0,5);
+                      const opcionesFin: string[] = [];
+                      if (durMax > durMin) {
+                        for (let extra = durMin * 2; extra <= durMax; extra += durMin) {
+                          const finMin = timeToMin(selectedSlot.inicio) + Math.round(extra * 60);
+                          const finStr = minToTime(finMin);
+                          if (timeToMin(finStr) <= timeToMin(horaFin)) opcionesFin.push(finStr);
+                        }
+                      }
+                      const finFinal = selectedFinExtendido || selectedSlot.fin;
+                      return (
+                        <div className="mt-3 bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-primary font-medium">
+                              {selectedSlot.inicio} – {finFinal}
+                            </span>
+                            {opcionesFin.length > 0 && (
+                              <select
+                                value={selectedFinExtendido}
+                                onChange={(e) => setSelectedFinExtendido(e.target.value)}
+                                className="text-xs border border-primary/30 rounded-lg px-2 py-1 bg-white text-primary"
+                              >
+                                <option value="">Hasta las {selectedSlot.fin} (mín.)</option>
+                                {opcionesFin.map((f) => (
+                                  <option key={f} value={f}>Hasta las {f}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleReservarSlot(selectedSlot)}
+                            disabled={reservandoSlot !== null}
+                            className="w-full px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          >
+                            {reservandoSlot ? "Reservando…" : "Confirmar reserva"}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -869,8 +912,29 @@ export default function ZonasComunesPage() {
       {showConfigForm && selectedZona && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-semibold text-gray-900 mb-4">✏️ Editar {selectedZona.nombre}</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">✏️ Editar zona</h3>
             <form onSubmit={handleUpdateConfig} className="space-y-4">
+              {/* Nombre + Ícono */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                  <input name="nombre" required defaultValue={selectedZona.nombre} className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ícono</label>
+                  <select name="icono" defaultValue={selectedZona.icono ?? "🏊"} className={`${INPUT} text-2xl`}>
+                    {ICONOS_ZONA.map((ic) => <option key={ic} value={ic}>{ic}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea name="descripcion" rows={2} defaultValue={selectedZona.descripcion ?? ""} className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad (personas)</label>
+                <input name="capacidad" type="number" min="1" defaultValue={selectedZona.capacidad ?? ""} className={INPUT} />
+              </div>
               {/* Activo / Inactivo */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div>
@@ -953,6 +1017,52 @@ export default function ZonasComunesPage() {
                 </select>
               </div>
 
+              {/* Horarios por día de semana */}
+              <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-gray-700">🗓️ Horarios por día</p>
+                <p className="text-xs text-gray-400">Si no configuras un día, se usan el horario general de arriba.</p>
+                {[
+                  { key: "0", label: "Lunes" }, { key: "1", label: "Martes" },
+                  { key: "2", label: "Miércoles" }, { key: "3", label: "Jueves" },
+                  { key: "4", label: "Viernes" }, { key: "5", label: "Sábado" },
+                  { key: "6", label: "Domingo" },
+                ].map(({ key, label }) => {
+                  const d = diasConfig[key] ?? {};
+                  return (
+                    <div key={key} className="grid grid-cols-4 gap-2 items-center text-xs">
+                      <span className="font-medium text-gray-700">{label}</span>
+                      <label className="flex items-center gap-1 col-span-1">
+                        <input type="checkbox" checked={!!d.cerrado}
+                          onChange={(e) => setDiasConfig((prev) => ({
+                            ...prev,
+                            [key]: { ...d, cerrado: e.target.checked },
+                          }))}
+                          className="rounded border-gray-300 text-primary" />
+                        Cerrado
+                      </label>
+                      {!d.cerrado && (
+                        <>
+                          <input type="time" value={d.horario_inicio ?? ""}
+                            onChange={(e) => setDiasConfig((prev) => ({
+                              ...prev,
+                              [key]: { ...d, horario_inicio: e.target.value || undefined },
+                            }))}
+                            placeholder={String(selectedZona?.horario_inicio ?? "").slice(0,5)}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs" />
+                          <input type="time" value={d.horario_fin ?? ""}
+                            onChange={(e) => setDiasConfig((prev) => ({
+                              ...prev,
+                              [key]: { ...d, horario_fin: e.target.value || undefined },
+                            }))}
+                            placeholder={String(selectedZona?.horario_fin ?? "").slice(0,5)}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs" />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <button type="button" onClick={() => setShowConfigForm(false)}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
@@ -982,6 +1092,11 @@ export default function ZonasComunesPage() {
             </div>
 
             <div className="space-y-4 mb-4">
+              {cambioEstadoReserva.estado === "cancelada" ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                  Esta reserva está <strong>cancelada</strong>. Para reservar nuevamente, crea una nueva reserva desde la zona.
+                </div>
+              ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo estado</label>
                 <select
@@ -995,6 +1110,7 @@ export default function ZonasComunesPage() {
                   ))}
                 </select>
               </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observación (opcional)</label>
                 <textarea
@@ -1018,7 +1134,8 @@ export default function ZonasComunesPage() {
             <div className="flex gap-3 justify-end mb-6">
               <button onClick={() => { setShowCambioEstadoModal(false); setCambioEstadoReserva(null); setBitacoraReserva([]); setBitacoraReservaId(null); }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg">Cancelar</button>
-              <button onClick={handleCambioEstado} disabled={savingCambioEstado || !cambioEstadoForm.estado}
+              <button onClick={handleCambioEstado}
+                disabled={savingCambioEstado || !cambioEstadoForm.estado || cambioEstadoReserva.estado === "cancelada"}
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
                 {savingCambioEstado ? "Guardando…" : "Confirmar cambio"}
               </button>

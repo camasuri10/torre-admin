@@ -859,7 +859,10 @@ ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT;
 -- v18.2 — Soft-delete en conjuntos (superadmin puede inactivar)
 ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
 
--- v18.3 — Vehículos: combustible, cargador eléctrico
+-- v18.3 — Zonas comunes: horarios por día de semana (0=lunes…6=domingo)
+ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS dias_config JSONB DEFAULT NULL;
+
+-- v18.4 — Vehículos: combustible, cargador eléctrico
 ALTER TABLE vehiculos ADD COLUMN IF NOT EXISTS combustible TEXT
     CHECK (combustible IN ('gasolina','electrico','hibrido','otro'));
 ALTER TABLE vehiculos ADD COLUMN IF NOT EXISTS tiene_cargador BOOLEAN NOT NULL DEFAULT FALSE;
