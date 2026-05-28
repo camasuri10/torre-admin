@@ -853,6 +853,9 @@ MIGRATION_SQL = """
 -- v18.0 — Eliminar constraint UNIQUE en cedula para permitir misma persona en múltiples conjuntos
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_cedula_key;
 
+-- v18.1 — Agregar columna unidades_destino a comunicados (estaba en el backend pero faltaba en la tabla)
+ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT;
+
 -- v14.0 — Organizaciones (multi-tenancy top-level entity)
 ALTER TABLE conjuntos  ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);
 ALTER TABLE usuarios   ADD COLUMN IF NOT EXISTS organizacion_id INTEGER REFERENCES organizaciones(id);

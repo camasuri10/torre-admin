@@ -70,6 +70,7 @@ export default function MantenimientoPage() {
   const [bitacora, setBitacora] = useState<any[]>([]);
   const [loadingBitacora, setLoadingBitacora] = useState(false);
   // Change 4: crear hijos state
+  const [creando, setCreando] = useState(false);
   const [creandoHijos, setCreandoHijos] = useState(false);
   const [hijosCreados, setHijosCreados] = useState<number | null>(null);
 
@@ -145,42 +146,47 @@ export default function MantenimientoPage() {
 
   const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const body: any = {
-      conjunto_id: conjuntoId,
-      titulo: fd.get("titulo"),
-      descripcion: fd.get("descripcion"),
-      categoria: fd.get("categoria"),
-      prioridad: fd.get("prioridad"),
-      es_programado: esProgramado,
-    };
-    if (esProgramado) {
-      body.periodicidad = periodicidad;
-      if (NEEDS_NEXT_DATE.includes(periodicidad)) {
-        const fp = fd.get("fecha_proxima_ejecucion");
-        if (fp) body.fecha_proxima_ejecucion = fp;
+    if (creando) return;
+    setCreando(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      const body: any = {
+        conjunto_id: conjuntoId,
+        titulo: fd.get("titulo"),
+        descripcion: fd.get("descripcion"),
+        categoria: fd.get("categoria"),
+        prioridad: fd.get("prioridad"),
+        es_programado: esProgramado,
+      };
+      if (esProgramado) {
+        body.periodicidad = periodicidad;
+        if (NEEDS_NEXT_DATE.includes(periodicidad)) {
+          const fp = fd.get("fecha_proxima_ejecucion");
+          if (fp) body.fecha_proxima_ejecucion = fp;
+        }
       }
-    }
-    const inventarioId = fd.get("inventario_id");
-    if (inventarioId) body.inventario_id = parseInt(inventarioId as string);
-    const proveedor = fd.get("proveedor_id");
-    if (proveedor) body.proveedor_id = parseInt(proveedor as string);
-    const contratoId = fd.get("contrato_id");
-    if (contratoId) body.contrato_id = parseInt(contratoId as string);
-    const vencimiento = fd.get("fecha_vencimiento");
-    if (vencimiento) body.fecha_vencimiento = vencimiento;
-    const presupuesto = fd.get("presupuesto");
-    if (presupuesto) body.presupuesto = parseFloat(presupuesto as string);
+      const inventarioId = fd.get("inventario_id");
+      if (inventarioId) body.inventario_id = parseInt(inventarioId as string);
+      const proveedor = fd.get("proveedor_id");
+      if (proveedor) body.proveedor_id = parseInt(proveedor as string);
+      const contratoId = fd.get("contrato_id");
+      if (contratoId) body.contrato_id = parseInt(contratoId as string);
+      const vencimiento = fd.get("fecha_vencimiento");
+      if (vencimiento) body.fecha_vencimiento = vencimiento;
+      const presupuesto = fd.get("presupuesto");
+      if (presupuesto) body.presupuesto = parseFloat(presupuesto as string);
 
-    const result = await api.mantenimientos.create(body);
-    setShowForm(false);
-    setEsProgramado(false);
-    setPeriodicidad("mensual");
-    setFormProveedorId(null);
-    (e.target as HTMLFormElement).reset();
-    load();
-    // Change 1: show conflict alert if warning returned
-    if (result?.warning === "fecha_conflicto") setShowConflictoAlert(true);
+      const result = await api.mantenimientos.create(body);
+      setShowForm(false);
+      setEsProgramado(false);
+      setPeriodicidad("mensual");
+      setFormProveedorId(null);
+      (e.target as HTMLFormElement).reset();
+      load();
+      if (result?.warning === "fecha_conflicto") setShowConflictoAlert(true);
+    } finally {
+      setCreando(false);
+    }
   };
 
   const handleCrearAlerta = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -840,8 +846,8 @@ export default function MantenimientoPage() {
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
                   Cancelar
                 </button>
-                <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
-                  Crear
+                <button type="submit" disabled={creando} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                  {creando ? "Creando…" : "Crear"}
                 </button>
               </div>
             </form>
