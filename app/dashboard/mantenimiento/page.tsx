@@ -29,8 +29,8 @@ const CAT_ICON: Record<string, string> = {
   otro: "🔧",
 };
 
-const PERIODICIDADES = ["diario", "semanal", "mensual", "trimestral", "anual"];
-const NEEDS_NEXT_DATE = ["trimestral", "anual"];
+const PERIODICIDADES = ["diario", "semanal", "mensual", "trimestral", "semestral", "anual"];
+const NEEDS_NEXT_DATE = ["trimestral", "semestral", "anual"];
 
 export default function MantenimientoPage() {
   const user = getUser();

@@ -512,7 +512,7 @@ def crear_hijos_recurrentes(mantenimiento_id: int):
 
     periodos = {
         "diario": 1, "semanal": 7, "mensual": 30,
-        "trimestral": 90, "anual": 365,
+        "trimestral": 90, "semestral": 180, "anual": 365,
     }
 
     with get_db() as conn:

@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS mantenimientos (
     fecha_resolucion    TIMESTAMPTZ,
     costo               NUMERIC(12,2),
     es_programado       BOOLEAN NOT NULL DEFAULT FALSE,
-    periodicidad        TEXT CHECK (periodicidad IN ('diario','semanal','mensual','trimestral','anual')),
+    periodicidad        TEXT CHECK (periodicidad IN ('diario','semanal','mensual','trimestral','semestral','anual')),
     contrato_url        TEXT,
     fecha_vencimiento   DATE,
     presupuesto         NUMERIC(12,2),
@@ -858,6 +858,11 @@ ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS unidades_destino TEXT;
 
 -- v18.2 — Soft-delete en conjuntos (superadmin puede inactivar)
 ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- v18.2b — Periodicidad semestral en mantenimientos
+ALTER TABLE mantenimientos DROP CONSTRAINT IF EXISTS mantenimientos_periodicidad_check;
+ALTER TABLE mantenimientos ADD CONSTRAINT mantenimientos_periodicidad_check
+    CHECK (periodicidad IN ('diario','semanal','mensual','trimestral','semestral','anual'));
 
 -- v18.3 — Zonas comunes: horarios por día de semana (0=lunes…6=domingo)
 ALTER TABLE zonas_comunes ADD COLUMN IF NOT EXISTS dias_config JSONB DEFAULT NULL;
