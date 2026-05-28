@@ -9,7 +9,7 @@ import { superadminApi, api } from "@/lib/api";
 interface Modulo  { clave: string; nombre: string; icono: string; activo: boolean; }
 type TorreTipo = "torre" | "lote" | "parcelacion" | "manzana" | "otro";
 interface Torre   { id: number; nombre: string; numero: string | null; pisos: number | null; total_unidades: number; activo: boolean; tipo?: TorreTipo; }
-interface Unidad  { id: number; numero: string; piso: number | null; tipo?: string; area_m2: number | null; coeficiente: number | null; residente_nombre: string | null; tipo_ocupacion: string | null; torre_nombre?: string | null; torre_numero?: string | null; }
+interface Unidad  { id: number; torre_id?: number | null; numero: string; piso: number | null; tipo?: string; area_m2: number | null; coeficiente: number | null; residente_nombre: string | null; tipo_ocupacion: string | null; torre_nombre?: string | null; torre_numero?: string | null; }
 
 const UNIDAD_TIPO_LABELS: Record<string, string> = {
   apartamento: "Apartamento",
@@ -47,7 +47,7 @@ export default function ConjuntoGestionPage() {
   const { id } = useParams<{ id: string }>();
   const conjuntoId = parseInt(id);
 
-  const [tab, setTab]       = useState<Tab>("modulos");
+  const [tab, setTab]       = useState<Tab>("torres");
   const [nombre, setNombre] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState("");
@@ -78,7 +78,7 @@ export default function ConjuntoGestionPage() {
   const [addSaving, setAddSaving]             = useState(false);
   const [addError, setAddError]               = useState("");
   const [editUnidad, setEditUnidad]           = useState<Unidad | null>(null);
-  const [editUForm, setEditUForm]             = useState({ numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "" });
+  const [editUForm, setEditUForm]             = useState({ numero: "", piso: 1, tipo: "apartamento", area_m2: "", coeficiente: "", torre_id: "" });
   const [editUSaving, setEditUSaving]         = useState(false);
   const [editUError, setEditUError]           = useState("");
 
@@ -95,15 +95,12 @@ export default function ConjuntoGestionPage() {
 
     Promise.allSettled([
       superadminApi.conjuntos.getModulos(conjuntoId),
-      superadminApi.conjuntos.list(),
-    ]).then(([modulosRes, listRes]) => {
+      api.conjuntos.get(conjuntoId),
+    ]).then(([modulosRes, conjuntoRes]) => {
       if (modulosRes.status === "fulfilled") setModulos(modulosRes.value.modulos);
-      if (listRes.status === "fulfilled") {
-        const ed = listRes.value.conjuntos?.find((e: any) => e.id === conjuntoId);
-        if (ed) setNombre(ed.nombre);
-      }
+      if (conjuntoRes.status === "fulfilled") setNombre(conjuntoRes.value.nombre ?? "");
     }).catch(() => setError("Error al cargar datos del conjunto"))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); loadTorres(); });
   }, [router, conjuntoId]);
 
   // ── Torres ───────────────────────────────────────────────────────────────────
@@ -131,7 +128,7 @@ export default function ConjuntoGestionPage() {
     if (t === "torres" && torres.length === 0) loadTorres();
     if (t === "unidades") {
       if (torres.length === 0) loadTorres();
-      if (unidades.length === 0) loadUnidades();
+      loadUnidades(filterTorreId);
     }
   }
 
@@ -228,7 +225,7 @@ export default function ConjuntoGestionPage() {
 
   function openEditUnidad(u: Unidad) {
     setEditUnidad(u);
-    setEditUForm({ numero: u.numero, piso: u.piso ?? 1, tipo: (u as any).tipo ?? "apartamento", area_m2: u.area_m2 != null ? String(u.area_m2) : "", coeficiente: u.coeficiente != null ? String(u.coeficiente) : "" });
+    setEditUForm({ numero: u.numero, piso: u.piso ?? 1, tipo: (u as any).tipo ?? "apartamento", area_m2: u.area_m2 != null ? String(u.area_m2) : "", coeficiente: u.coeficiente != null ? String(u.coeficiente) : "", torre_id: u.torre_id != null ? String(u.torre_id) : "" });
     setEditUError("");
   }
 
@@ -243,6 +240,7 @@ export default function ConjuntoGestionPage() {
         tipo: editUForm.tipo,
         area_m2: editUForm.area_m2 ? parseFloat(editUForm.area_m2) : undefined,
         coeficiente: editUForm.coeficiente ? parseFloat(editUForm.coeficiente) : undefined,
+        torre_id: editUForm.torre_id ? parseInt(editUForm.torre_id) : undefined,
       });
       setEditUnidad(null);
       loadUnidades(filterTorreId);
@@ -285,7 +283,7 @@ export default function ConjuntoGestionPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {(["modulos", "torres", "unidades"] as Tab[]).map((t) => (
+        {(["torres", "unidades", "modulos"] as Tab[]).map((t) => (
           <button key={t} onClick={() => handleTabChange(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"
@@ -468,7 +466,7 @@ export default function ConjuntoGestionPage() {
                     className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Todas las subdivisiones</option>
                     {torres.map((t) => (
-                      <option key={t.id} value={t.id}>{getTipoLabel(t.tipo)}: {t.nombre}</option>
+                      <option key={t.id} value={t.id}>{t.nombre}{t.numero && t.numero !== t.nombre ? ` (${t.numero})` : ""}</option>
                     ))}
                   </select>
                 </div>
@@ -494,7 +492,7 @@ export default function ConjuntoGestionPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="">Seleccionar subdivisión…</option>
                     {torres.map((t) => (
-                      <option key={t.id} value={t.id}>{getTipoLabel(t.tipo)}: {t.nombre}</option>
+                      <option key={t.id} value={t.id}>{t.nombre}{t.numero && t.numero !== t.nombre ? ` (${t.numero})` : ""}</option>
                     ))}
                   </select>
                 </div>
@@ -669,6 +667,19 @@ export default function ConjuntoGestionPage() {
               <button onClick={() => setEditUnidad(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <form onSubmit={handleEditUnidad} className="grid grid-cols-2 gap-4">
+              {torres.length > 0 && (
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Subdivisión (torre)</label>
+                  <select value={editUForm.torre_id}
+                    onChange={(e) => setEditUForm({ ...editUForm, torre_id: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Sin subdivisión</option>
+                    {torres.map((t) => (
+                      <option key={t.id} value={t.id}>{t.nombre}{t.numero && t.numero !== t.nombre ? ` (${t.numero})` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Número *</label>
                 <input required value={editUForm.numero}

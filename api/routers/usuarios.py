@@ -61,6 +61,8 @@ def list_usuarios(
                            o.tipo as tipo_ocupacion,
                            o.unidad_id,
                            un.numero as unidad_numero,
+                           tor.nombre as torre_nombre,
+                           tor.numero as torre_numero,
                            COALESCE(eu.nombre, ed.nombre) as conjunto_nombre
                     FROM usuarios u
                     LEFT JOIN ocupaciones o ON o.usuario_id = u.id AND o.activo = TRUE {tipo_cond}

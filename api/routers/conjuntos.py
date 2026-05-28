@@ -65,6 +65,7 @@ class UnidadUpdate(BaseModel):
     tipo: Optional[str] = None
     area_m2: Optional[float] = None
     coeficiente: Optional[float] = None
+    torre_id: Optional[int] = None
     activo: Optional[bool] = None
 
 

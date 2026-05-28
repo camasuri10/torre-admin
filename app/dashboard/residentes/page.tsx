@@ -573,15 +573,15 @@ export default function ResidentesPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>{["Nombre", "Cédula", "Tipo", "Unidad", "Conjunto", "Teléfono", "Email"].map((h) => (
+              <tr>{["Nombre", "Cédula", "Tipo", "Unidad", "Torre", "Conjunto", "Teléfono", "Email"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
               ))}</tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Cargando…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados.</td></tr>
               ) : filtered.map((r) => (
                 <tr key={r.id} onClick={() => openDetail(r)} className="hover:bg-blue-50/40 transition-colors cursor-pointer">
                   <td className="px-4 py-3">
@@ -602,6 +602,7 @@ export default function ResidentesPage() {
                     }`}>{r.tipo_ocupacion ?? r.rol}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700 font-medium">{r.unidad_numero ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{r.torre_nombre ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{r.conjunto_nombre ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{r.telefono ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{r.email ?? "—"}</td>

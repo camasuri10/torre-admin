@@ -364,9 +364,8 @@ export default function MantenimientoPage() {
       </div>
 
       {tab === "solicitudes" && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* List */}
-          <div className="xl:col-span-2 space-y-4">
+        <>
+        <div className="space-y-4">
             {/* Search */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
@@ -490,9 +489,12 @@ export default function MantenimientoPage() {
             </div>
           </div>
 
-          {/* Detail panel */}
-          {selected ? (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Detail drawer — fijo a la derecha, tabla conserva ancho completo */}
+          {selected && (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <div className="absolute inset-0 bg-black/30" onClick={() => setSelected(null)} />
+              <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col overflow-y-auto h-full">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden h-full">
               <div className="px-5 py-4 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -636,15 +638,10 @@ export default function MantenimientoPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="bg-gray-50 rounded-xl border border-dashed border-gray-200 flex items-center justify-center p-8 text-center text-gray-400">
-              <div>
-                <div className="text-3xl mb-2">🔧</div>
-                <p className="text-sm">Selecciona una solicitud para ver el detalle</p>
-              </div>
             </div>
+          </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Alertas */}
