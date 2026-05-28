@@ -36,6 +36,7 @@ class ConjuntoUpdate(BaseModel):
     pisos: Optional[int] = None
     nit: Optional[str] = None
     telefono: Optional[str] = None
+    activo: Optional[bool] = None
 
 
 class ModuloToggle(BaseModel):
@@ -229,7 +230,7 @@ def list_conjuntos(sa=Depends(_require_superadmin)):
                 LEFT JOIN torres t ON t.conjunto_id = e.id AND t.activo = TRUE
                 LEFT JOIN unidades u ON u.torre_id = t.id AND u.activo = TRUE
                 LEFT JOIN conjunto_modulos em ON em.conjunto_id = e.id
-                WHERE e.organizacion_id = %s
+                WHERE e.organizacion_id = %s AND COALESCE(e.activo, TRUE) = TRUE
                 GROUP BY e.id ORDER BY e.nombre
             """, (org_id,))
             return {"conjuntos": [dict(r) for r in cur.fetchall()]}
@@ -272,6 +273,18 @@ def update_conjunto(conjunto_id: int, body: ConjuntoUpdate, sa=Depends(_require_
             cur.execute(f"UPDATE conjuntos SET {', '.join(fields)} WHERE id = %s", values)
 
     return {"message": "conjunto actualizado"}
+
+
+@router.delete("/conjuntos/{conjunto_id}", status_code=204)
+def delete_conjunto(conjunto_id: int, sa=Depends(_require_superadmin)):
+    """Soft-delete: marca el conjunto como inactivo."""
+    org_id = sa.get("organizacion_id")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE conjuntos SET activo = FALSE WHERE id = %s AND organizacion_id = %s",
+                (conjunto_id, org_id),
+            )
 
 
 # ── Módulos por conjunto ───────────────────────────────────────────────────────

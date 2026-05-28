@@ -105,19 +105,24 @@ def _get_visible_proveedor_ids(cur, user: dict) -> Optional[list]:
         return []
 
     if rol == "administrador":
-        cur.execute("""
-            SELECT id FROM proveedores WHERE activo = TRUE
-            AND (
-                creado_por = %s
-                OR creado_por IN (SELECT id FROM usuarios WHERE rol = 'superadmin')
-                OR id IN (
-                    SELECT pe.proveedor_id FROM proveedor_conjuntos pe
-                    JOIN usuario_conjuntos ue ON ue.conjunto_id = pe.conjunto_id
-                    WHERE ue.usuario_id = %s AND ue.activo = TRUE
-                )
+        # Scope a la organización del admin; incluye proveedores asociados a sus conjuntos
+        org_id = user.get("organizacion_id")
+        if org_id:
+            cur.execute(
+                "SELECT id FROM proveedores WHERE activo = TRUE AND organizacion_id = %s",
+                (org_id,),
             )
-        """, (uid, uid))
-        return [r["id"] for r in cur.fetchall()]
+            org_ids = [r["id"] for r in cur.fetchall()]
+        else:
+            org_ids = []
+        # También incluye proveedores asociados directamente a sus conjuntos (sin org_id)
+        cur.execute("""
+            SELECT DISTINCT pe.proveedor_id FROM proveedor_conjuntos pe
+            JOIN usuario_conjuntos ue ON ue.conjunto_id = pe.conjunto_id
+            WHERE ue.usuario_id = %s AND ue.activo = TRUE AND pe.activo = TRUE
+        """, (uid,))
+        conj_ids = [r["proveedor_id"] for r in cur.fetchall()]
+        return list(set(org_ids + conj_ids))
 
     # portero / servicios / propietario / inquilino
     conjunto_id = user.get("conjunto_id")

@@ -35,6 +35,7 @@ export default function ConjuntosPage() {
   const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1, nit: "", telefono: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     const user = getUser();
@@ -80,6 +81,16 @@ export default function ConjuntosPage() {
       telefono: ed.telefono ?? "",
     });
     setEditError("");
+  }
+
+  async function handleInactivar(e: Conjunto) {
+    if (!confirm(`¿Inactivar el conjunto "${e.nombre}"?\n\nEl conjunto dejará de aparecer en la plataforma pero sus datos se conservan.`)) return;
+    setDeletingId(e.id);
+    try {
+      await superadminApi.conjuntos.delete(e.id);
+      loadConjuntos();
+    } catch { setError("Error al inactivar el conjunto"); }
+    finally { setDeletingId(null); }
   }
 
   async function handleEditSave(e: React.FormEvent) {
@@ -229,6 +240,14 @@ export default function ConjuntosPage() {
                 >
                   Gestionar
                 </Link>
+                <button
+                  onClick={() => handleInactivar(e)}
+                  disabled={deletingId === e.id}
+                  className="py-2 px-3 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-50"
+                  title="Inactivar conjunto"
+                >
+                  {deletingId === e.id ? "…" : "🗑️"}
+                </button>
               </div>
             </div>
           ))}

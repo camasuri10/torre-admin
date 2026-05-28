@@ -15,6 +15,9 @@ class VehiculoCreate(BaseModel):
     modelo: Optional[str] = None
     color: Optional[str] = None
     tipo: str = "carro"  # carro | moto | bicicleta | otro
+    combustible: Optional[str] = None  # gasolina | electrico | hibrido | otro
+    tiene_cargador: bool = False
+    potencia_cargador_kw: Optional[float] = None
 
 
 class VehiculoUpdate(BaseModel):
@@ -23,6 +26,9 @@ class VehiculoUpdate(BaseModel):
     modelo: Optional[str] = None
     color: Optional[str] = None
     tipo: Optional[str] = None
+    combustible: Optional[str] = None
+    tiene_cargador: Optional[bool] = None
+    potencia_cargador_kw: Optional[float] = None
 
 
 @router.get("")
@@ -53,9 +59,11 @@ def create_vehiculo(data: VehiculoCreate, current_user: dict = Depends(get_curre
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Usuario no encontrado")
             cur.execute("""
-                INSERT INTO vehiculos (usuario_id, placa, marca, modelo, color, tipo)
-                VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-            """, (data.usuario_id, data.placa.upper(), data.marca, data.modelo, data.color, data.tipo))
+                INSERT INTO vehiculos (usuario_id, placa, marca, modelo, color, tipo,
+                                      combustible, tiene_cargador, potencia_cargador_kw)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+            """, (data.usuario_id, data.placa.upper(), data.marca, data.modelo, data.color, data.tipo,
+                  data.combustible, data.tiene_cargador, data.potencia_cargador_kw))
             return dict(cur.fetchone())
 
 

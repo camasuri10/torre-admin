@@ -7,8 +7,8 @@ import { formatUnidadLabel } from "@/lib/format-unidad";
 
 const EMPTY_RESIDENTE = { nombre: "", tipo_documento: "CC", cedula: "", email: "", telefono: "", rol: "propietario", password: "", unidad_id: "" as number | "", tipo_ocupacion: "propietario" };
 const EMPTY_MASCOTA_NUEVA = { tieneMascota: false, nombre: "", especie: "perro", raza: "" };
-const EMPTY_VEHICULO_NUEVO = { tieneVehiculo: false, placa: "", tipo: "carro", marca: "", modelo: "", color: "" };
-const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro" };
+const EMPTY_VEHICULO_NUEVO = { tieneVehiculo: false, placa: "", tipo: "carro", marca: "", modelo: "", color: "", combustible: "gasolina", tiene_cargador: false, potencia_cargador_kw: "" };
+const EMPTY_VEHICULO = { placa: "", marca: "", modelo: "", color: "", tipo: "carro", combustible: "gasolina", tiene_cargador: false, potencia_cargador_kw: "" };
 const EMPTY_MASCOTA = { nombre: "", especie: "perro", raza: "", color: "" };
 
 type Tab = "info" | "vehiculos" | "mascotas";
@@ -148,6 +148,9 @@ export default function ResidentesPage() {
           marca: vehiculoNuevo.marca || null,
           modelo: vehiculoNuevo.modelo || null,
           color: vehiculoNuevo.color || null,
+          combustible: vehiculoNuevo.combustible || null,
+          tiene_cargador: vehiculoNuevo.tiene_cargador,
+          potencia_cargador_kw: vehiculoNuevo.potencia_cargador_kw ? parseFloat(vehiculoNuevo.potencia_cargador_kw) : null,
         });
       }
       setForm(EMPTY_RESIDENTE);
@@ -523,6 +526,48 @@ export default function ResidentesPage() {
                     className={INPUT}
                   />
                 </div>
+                {(vehiculoNuevo.tipo === "carro" || vehiculoNuevo.tipo === "moto") && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Combustible</label>
+                    <select
+                      value={vehiculoNuevo.combustible}
+                      onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, combustible: e.target.value, tiene_cargador: false, potencia_cargador_kw: "" })}
+                      className={INPUT}
+                    >
+                      <option value="gasolina">⛽ Gasolina</option>
+                      <option value="electrico">⚡ Eléctrico</option>
+                      <option value="hibrido">🔋 Híbrido</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                )}
+                {(vehiculoNuevo.combustible === "electrico" || vehiculoNuevo.combustible === "hibrido") && (
+                  <>
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer pt-5">
+                        <input
+                          type="checkbox"
+                          checked={vehiculoNuevo.tiene_cargador}
+                          onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, tiene_cargador: e.target.checked, potencia_cargador_kw: "" })}
+                          className="rounded border-gray-300 text-primary"
+                        />
+                        ⚡ ¿Tiene cargador propio?
+                      </label>
+                    </div>
+                    {vehiculoNuevo.tiene_cargador && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Potencia del cargador (kW)</label>
+                        <input
+                          type="number" step="0.1" min="0"
+                          value={vehiculoNuevo.potencia_cargador_kw}
+                          onChange={(e) => setVehiculoNuevo({ ...vehiculoNuevo, potencia_cargador_kw: e.target.value })}
+                          placeholder="7.4"
+                          className={INPUT}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -868,6 +913,33 @@ export default function ResidentesPage() {
                           <input value={vForm.modelo} onChange={(e) => setVForm({ ...vForm, modelo: e.target.value })} placeholder="Corolla 2022" className={INPUT} /></div>
                         <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
                           <input value={vForm.color} onChange={(e) => setVForm({ ...vForm, color: e.target.value })} placeholder="Blanco" className={INPUT} /></div>
+                        {(vForm.tipo === "carro" || vForm.tipo === "moto") && (
+                          <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Combustible</label>
+                            <select value={vForm.combustible} onChange={(e) => setVForm({ ...vForm, combustible: e.target.value, tiene_cargador: false, potencia_cargador_kw: "" })} className={INPUT}>
+                              <option value="gasolina">⛽ Gasolina</option>
+                              <option value="electrico">⚡ Eléctrico</option>
+                              <option value="hibrido">🔋 Híbrido</option>
+                              <option value="otro">Otro</option>
+                            </select></div>
+                        )}
+                        {(vForm.combustible === "electrico" || vForm.combustible === "hibrido") && (
+                          <>
+                            <div className="col-span-2">
+                              <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer">
+                                <input type="checkbox" checked={vForm.tiene_cargador}
+                                  onChange={(e) => setVForm({ ...vForm, tiene_cargador: e.target.checked, potencia_cargador_kw: "" })}
+                                  className="rounded border-gray-300 text-primary" />
+                                ⚡ ¿Tiene cargador propio?
+                              </label>
+                            </div>
+                            {vForm.tiene_cargador && (
+                              <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-1">Potencia del cargador (kW)</label>
+                                <input type="number" step="0.1" min="0" value={vForm.potencia_cargador_kw}
+                                  onChange={(e) => setVForm({ ...vForm, potencia_cargador_kw: e.target.value })}
+                                  placeholder="7.4" className={INPUT} /></div>
+                            )}
+                          </>
+                        )}
                       </div>
                       <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => setShowVForm(false)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
@@ -902,6 +974,33 @@ export default function ResidentesPage() {
                               <input value={editVehiculo.modelo ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, modelo: e.target.value })} className={INPUT} /></div>
                             <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-0.5">Color</label>
                               <input value={editVehiculo.color ?? ""} onChange={(e) => setEditVehiculo({ ...editVehiculo, color: e.target.value })} className={INPUT} /></div>
+                            {(editVehiculo.tipo === "carro" || editVehiculo.tipo === "moto") && (
+                              <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-0.5">Combustible</label>
+                                <select value={editVehiculo.combustible ?? "gasolina"} onChange={(e) => setEditVehiculo({ ...editVehiculo, combustible: e.target.value, tiene_cargador: false, potencia_cargador_kw: "" })} className={INPUT}>
+                                  <option value="gasolina">⛽ Gasolina</option>
+                                  <option value="electrico">⚡ Eléctrico</option>
+                                  <option value="hibrido">🔋 Híbrido</option>
+                                  <option value="otro">Otro</option>
+                                </select></div>
+                            )}
+                            {(editVehiculo.combustible === "electrico" || editVehiculo.combustible === "hibrido") && (
+                              <>
+                                <div className="col-span-2">
+                                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer">
+                                    <input type="checkbox" checked={!!editVehiculo.tiene_cargador}
+                                      onChange={(e) => setEditVehiculo({ ...editVehiculo, tiene_cargador: e.target.checked, potencia_cargador_kw: "" })}
+                                      className="rounded border-gray-300 text-primary" />
+                                    ⚡ ¿Tiene cargador propio?
+                                  </label>
+                                </div>
+                                {editVehiculo.tiene_cargador && (
+                                  <div className="col-span-2"><label className="block text-xs font-medium text-gray-600 mb-0.5">Potencia del cargador (kW)</label>
+                                    <input type="number" step="0.1" min="0" value={editVehiculo.potencia_cargador_kw ?? ""}
+                                      onChange={(e) => setEditVehiculo({ ...editVehiculo, potencia_cargador_kw: e.target.value })}
+                                      placeholder="7.4" className={INPUT} /></div>
+                                )}
+                              </>
+                            )}
                           </div>
                           <div className="flex justify-end gap-2">
                             <button type="button" onClick={() => setEditVehiculo(null)} className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">Cancelar</button>
@@ -922,6 +1021,16 @@ export default function ResidentesPage() {
                                   {v.placa}
                                 </span>
                                 <span className="text-xs text-gray-400 capitalize">{v.tipo}</span>
+                                {v.combustible && v.combustible !== "gasolina" && (
+                                  <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">
+                                    {v.combustible === "electrico" ? "⚡ Eléctrico" : v.combustible === "hibrido" ? "🔋 Híbrido" : v.combustible}
+                                  </span>
+                                )}
+                                {v.tiene_cargador && (
+                                  <span className="text-xs text-gray-400" title={v.potencia_cargador_kw ? `${v.potencia_cargador_kw} kW` : "Con cargador"}>
+                                    🔌{v.potencia_cargador_kw ? ` ${v.potencia_cargador_kw}kW` : ""}
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm text-gray-600 truncate">
                                 {[v.marca, v.modelo].filter(Boolean).join(" ") || "—"}
@@ -929,7 +1038,7 @@ export default function ResidentesPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <button onClick={() => setEditVehiculo({ id: v.id, placa: v.placa, marca: v.marca, modelo: v.modelo, color: v.color, tipo: v.tipo })}
+                              <button onClick={() => setEditVehiculo({ id: v.id, placa: v.placa, marca: v.marca, modelo: v.modelo, color: v.color, tipo: v.tipo, combustible: v.combustible ?? "gasolina", tiene_cargador: v.tiene_cargador ?? false, potencia_cargador_kw: v.potencia_cargador_kw ?? "" })}
                                 className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">✎</button>
                               <button onClick={() => handleDeleteVehiculo(v.id)}
                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">✕</button>

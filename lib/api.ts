@@ -84,6 +84,7 @@ export const superadminApi = {
     list: () => request<any>("/api/superadmin/conjuntos"),
     create: (data: any) => request<any>("/api/superadmin/conjuntos", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/api/superadmin/conjuntos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/api/superadmin/conjuntos/${id}`, { method: "DELETE" }),
     getModulos: (id: number) => request<any>(`/api/superadmin/conjuntos/${id}/modulos`),
     updateModulos: (id: number, modulos: { clave: string; activo: boolean }[]) =>
       request<any>(`/api/superadmin/conjuntos/${id}/modulos`, { method: "PUT", body: JSON.stringify({ modulos }) }),
