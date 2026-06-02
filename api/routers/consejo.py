@@ -111,7 +111,11 @@ def create_miembro(
                 INSERT INTO consejo_miembros (conjunto_id, nombre, cargo, tipo, unidad_id, residente_id)
                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
             """, (conjunto_id, data.nombre, data.cargo, data.tipo, data.unidad_id, data.residente_id))
-            return cur.fetchone()
+            row = cur.fetchone()
+            # Al crear miembro activo con cuenta vinculada, asignar rol consejo
+            if row and row["residente_id"] and data.tipo == "activo":
+                cur.execute("UPDATE usuarios SET rol = 'consejo' WHERE id = %s", (row["residente_id"],))
+            return row
 
 
 @router.patch("/miembros/{miembro_id}")
@@ -147,6 +151,15 @@ def update_miembro(
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Miembro no encontrado")
+
+            # Sincronizar rol del usuario vinculado cuando cambia activo
+            if data.activo is not None and row["residente_id"]:
+                nuevo_rol = "consejo" if data.activo else "propietario"
+                cur.execute(
+                    "UPDATE usuarios SET rol = %s WHERE id = %s",
+                    (nuevo_rol, row["residente_id"]),
+                )
+
             return row
 
 

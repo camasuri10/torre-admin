@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getUser, type AuthUser } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { api, proyectosApi } from "@/lib/api";
 import { formatUnidadLabel } from "@/lib/format-unidad";
 
 const CARGOS_FIJOS = ["presidente", "vicepresidente", "secretario", "vocal", "fiscal"];
@@ -29,6 +30,7 @@ const FORM_INIT: FormState = {
 };
 
 export default function ConsejoPage() {
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [eid, setEid] = useState<number | null>(null);
   const [miembros, setMiembros] = useState<any[]>([]);
@@ -40,7 +42,13 @@ export default function ConsejoPage() {
   const [unidades, setUnidades] = useState<any[]>([]);
   const [residentes, setResidentes] = useState<any[]>([]);
 
+  // Votaciones pendientes (solo para rol consejo)
+  const [votosPendientes, setVotosPendientes] = useState<any[]>([]);
+  const [votando, setVotando] = useState<Record<number, "aprobado"|"rechazado"|null>>({});
+  const [votoComentarios, setVotoComentarios] = useState<Record<number, string>>({});
+
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
+  const isConsejo = user?.rol === "consejo";
 
   useEffect(() => {
     const u = getUser();
@@ -49,6 +57,11 @@ export default function ConsejoPage() {
     if (u.conjunto_id) {
       setEid(u.conjunto_id);
       loadMiembros(u.conjunto_id);
+      if (u.rol === "consejo") {
+        proyectosApi.aprobacion.misVotosPendientes(u.conjunto_id)
+          .then(setVotosPendientes)
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -161,8 +174,86 @@ export default function ConsejoPage() {
   const cargoFinal = form.cargo === "otro" ? form.cargo_otro.trim() : form.cargo;
   const canSave = !!form.nombre.trim() && !!cargoFinal;
 
+  async function handleVotarBandeja(proyectoId: number, aprobacionId: number, decision: "aprobado"|"rechazado") {
+    const comentario = votoComentarios[proyectoId] || undefined;
+    if (decision === "rechazado" && !comentario) { alert("El comentario es obligatorio al rechazar"); return; }
+    try {
+      await proyectosApi.aprobacion.votar(proyectoId, decision, comentario);
+      setVotosPendientes((prev) => prev.filter((v) => v.id !== proyectoId));
+      setVotando((prev) => { const n = {...prev}; delete n[proyectoId]; return n; });
+    } catch (e: any) { alert(`❌ ${e.message}`); }
+  }
+
   return (
     <div className="space-y-6">
+
+      {/* Bandeja de votaciones pendientes — solo para miembros del consejo */}
+      {isConsejo && votosPendientes.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            ⏳ Proyectos pendientes de tu aprobación
+            <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+              {votosPendientes.length}
+            </span>
+          </h3>
+          {votosPendientes.map((p: any) => (
+            <div key={p.id} className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">{p.titulo}</p>
+                  <p className="text-xs text-gray-500 capitalize mt-0.5">{p.tipo?.replace("_"," ")}</p>
+                  {p.descripcion && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{p.descripcion}</p>}
+                  {p.fecha_limite && (
+                    <p className="text-xs text-orange-700 mt-1">⏰ Fecha límite: {new Date(p.fecha_limite).toLocaleDateString("es-CO")}</p>
+                  )}
+                  {p.nota_admin && <p className="text-xs text-blue-700 bg-blue-50 rounded p-1.5 mt-2">📝 {p.nota_admin}</p>}
+                </div>
+                <button onClick={() => router.push(`/dashboard/proyectos/${p.id}`)}
+                  className="text-xs text-primary hover:underline whitespace-nowrap flex-shrink-0">
+                  Ver detalle →
+                </button>
+              </div>
+              {votando[p.id] === undefined ? (
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => setVotando((prev) => ({...prev, [p.id]: "aprobado"}))}
+                    className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">
+                    ✓ Aprobar
+                  </button>
+                  <button onClick={() => setVotando((prev) => ({...prev, [p.id]: "rechazado"}))}
+                    className="px-4 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700">
+                    ✗ Rechazar
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-medium text-gray-700">
+                    {votando[p.id] === "rechazado" ? "❌ Motivo de rechazo (obligatorio):" : "✓ Confirmar aprobación:"}
+                  </p>
+                  <textarea
+                    value={votoComentarios[p.id] || ""}
+                    onChange={(e) => setVotoComentarios((prev) => ({...prev, [p.id]: e.target.value}))}
+                    placeholder={votando[p.id] === "rechazado" ? "Indique el motivo…" : "Comentario opcional…"}
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => handleVotarBandeja(p.id, p.aprobacion_id, votando[p.id]!)}
+                      className={`px-4 py-1.5 text-white rounded-lg text-xs font-medium ${votando[p.id] === "aprobado" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}>
+                      Confirmar
+                    </button>
+                    <button onClick={() => setVotando((prev) => { const n = {...prev}; delete n[p.id]; return n; })}
+                      className="px-4 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <hr className="border-gray-200" />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

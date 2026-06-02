@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email               TEXT UNIQUE,
     telefono            TEXT,
     rol                 TEXT NOT NULL CHECK (rol IN (
-                            'superadmin','administrador','propietario','inquilino','portero','servicios','backoffice'
+                            'superadmin','administrador','propietario','inquilino','portero','servicios','backoffice','consejo'
                         )),
     password_hash       TEXT,
     activo              BOOLEAN NOT NULL DEFAULT TRUE,
@@ -776,6 +776,98 @@ CREATE TABLE IF NOT EXISTS consejo_miembros (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ─── Módulo Proyectos ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS proyectos (
+    id                   SERIAL PRIMARY KEY,
+    conjunto_id          INTEGER NOT NULL REFERENCES conjuntos(id) ON DELETE CASCADE,
+    titulo               TEXT NOT NULL,
+    tipo                 TEXT NOT NULL CHECK (tipo IN ('proyecto_mayor','proyecto','tarea')),
+    descripcion          TEXT,
+    prioridad            TEXT NOT NULL DEFAULT 'media' CHECK (prioridad IN ('alta','media','baja')),
+    etapa                TEXT NOT NULL DEFAULT 'PENDING'
+                           CHECK (etapa IN ('PENDING','STARTED','QUOTING','APPROVAL',
+                                            'PLANNING','IN_PROGRESS','MONITORING',
+                                            'COMPLETED','CANCELLED')),
+    zona_tipo            TEXT CHECK (zona_tipo IN ('torre','zona_comun','otro')),
+    zona_id              INTEGER,
+    zona_texto           TEXT,
+    responsable_id       INTEGER REFERENCES usuarios(id),
+    proveedor_id         INTEGER REFERENCES proveedores(id),
+    fecha_compromiso     DATE,
+    fecha_cierre_real    DATE,
+    presupuesto_aprobado NUMERIC(15,2),
+    costo_final          NUMERIC(15,2),
+    creado_por           INTEGER REFERENCES usuarios(id),
+    activo               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proyecto_cotizaciones (
+    id               SERIAL PRIMARY KEY,
+    proyecto_id      INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+    proveedor_id     INTEGER REFERENCES proveedores(id),
+    nombre_proveedor TEXT,
+    monto            NUMERIC(15,2) NOT NULL,
+    fecha_cotizacion DATE,
+    archivo_url      TEXT,
+    nombre_archivo   TEXT,
+    estado           TEXT NOT NULL DEFAULT 'pendiente'
+                       CHECK (estado IN ('pendiente','seleccionada','descartada')),
+    creado_por       INTEGER REFERENCES usuarios(id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proyecto_evidencias (
+    id             SERIAL PRIMARY KEY,
+    proyecto_id    INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+    nombre_archivo TEXT NOT NULL,
+    tipo_evidencia TEXT NOT NULL CHECK (tipo_evidencia IN ('imagen','cotizacion','documento','acta')),
+    url            TEXT NOT NULL,
+    etapa_carga    TEXT,
+    subido_por     INTEGER REFERENCES usuarios(id),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proyecto_comentarios (
+    id             SERIAL PRIMARY KEY,
+    proyecto_id    INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+    usuario_id     INTEGER REFERENCES usuarios(id),
+    texto          TEXT NOT NULL,
+    archivo_url    TEXT,
+    nombre_archivo TEXT,
+    es_sistema     BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proyecto_aprobaciones (
+    id               SERIAL PRIMARY KEY,
+    proyecto_id      INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+    nota_admin       TEXT,
+    fecha_limite     DATE,
+    estado           TEXT NOT NULL DEFAULT 'pendiente'
+                       CHECK (estado IN ('pendiente','aprobado','rechazado','aprobado_por_acta')),
+    acta_numero      TEXT,
+    acta_fecha       DATE,
+    acta_descripcion TEXT,
+    acta_url         TEXT,
+    registrado_por   INTEGER REFERENCES usuarios(id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    cerrado_at       TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS proyecto_votos (
+    id            SERIAL PRIMARY KEY,
+    aprobacion_id INTEGER NOT NULL REFERENCES proyecto_aprobaciones(id) ON DELETE CASCADE,
+    proyecto_id   INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+    miembro_id    INTEGER NOT NULL REFERENCES consejo_miembros(id),
+    usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
+    decision      TEXT CHECK (decision IN ('aprobado','rechazado')),
+    comentario    TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(aprobacion_id, miembro_id)
+);
+
 -- Chatbot IA (configuración global, gestionada por Backoffice)
 CREATE TABLE IF NOT EXISTS chatbot_config (
     id              SERIAL PRIMARY KEY,
@@ -844,6 +936,15 @@ CREATE INDEX IF NOT EXISTS idx_mant_bitacora               ON mantenimiento_bita
 CREATE INDEX IF NOT EXISTS idx_reserva_bitacora            ON reserva_bitacora(reserva_id);
 CREATE INDEX IF NOT EXISTS idx_reserva_archivos            ON reserva_archivos(reserva_id);
 CREATE INDEX IF NOT EXISTS idx_consejo_conjunto            ON consejo_miembros(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_proyectos_conjunto          ON proyectos(conjunto_id);
+CREATE INDEX IF NOT EXISTS idx_proyectos_etapa             ON proyectos(etapa);
+CREATE INDEX IF NOT EXISTS idx_proyectos_tipo              ON proyectos(tipo);
+CREATE INDEX IF NOT EXISTS idx_cotiz_proyecto              ON proyecto_cotizaciones(proyecto_id);
+CREATE INDEX IF NOT EXISTS idx_evidencias_proyecto         ON proyecto_evidencias(proyecto_id);
+CREATE INDEX IF NOT EXISTS idx_comentarios_proyecto        ON proyecto_comentarios(proyecto_id);
+CREATE INDEX IF NOT EXISTS idx_aprobaciones_proyecto       ON proyecto_aprobaciones(proyecto_id);
+CREATE INDEX IF NOT EXISTS idx_votos_aprobacion            ON proyecto_votos(aprobacion_id);
+CREATE INDEX IF NOT EXISTS idx_votos_usuario               ON proyecto_votos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(organizacion_id);
 """
 
@@ -946,6 +1047,12 @@ ALTER TABLE ordenes_compra ADD CONSTRAINT ordenes_compra_clasificacion_check
 INSERT INTO modulos (clave, nombre, icono)
 VALUES ('chatbot', 'Asistente IA', '🤖')
 ON CONFLICT (clave) DO NOTHING;
+
+-- v18.0 — Módulo Proyectos: nuevo rol consejo
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
+    CHECK (rol IN ('superadmin','administrador','propietario','inquilino',
+                   'portero','servicios','backoffice','consejo'));
 """
 
 

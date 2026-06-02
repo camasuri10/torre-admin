@@ -658,3 +658,71 @@ export const organizacionesApi = {
     request<any>(`/api/organizaciones/${orgId}/superadmins/${usuarioId}`, { method: "DELETE" }),
   superadminsDisponibles: () => request<any>("/api/organizaciones/superadmins/disponibles"),
 };
+
+// ── Proyectos ─────────────────────────────────────────────────────────────────
+function _qs(params: Record<string, any>): string {
+  return new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
+  ).toString();
+}
+
+export const proyectosApi = {
+  list: (params: { conjunto_id: number; etapa?: string; tipo?: string; prioridad?: string; zona_tipo?: string; responsable_id?: number }) =>
+    request<any[]>(`/api/proyectos?${_qs(params)}`),
+  get: (id: number) => request<any>(`/api/proyectos/${id}`),
+  create: (data: any) => request<any>("/api/proyectos", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request<any>(`/api/proyectos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/api/proyectos/${id}`, { method: "DELETE" }),
+  avanzar: (id: number, data?: { justificacion?: string }) =>
+    request<any>(`/api/proyectos/${id}/avanzar`, { method: "POST", body: JSON.stringify(data ?? {}) }),
+  cancelar: (id: number, justificacion: string) =>
+    request<any>(`/api/proyectos/${id}/cancelar`, { method: "POST", body: JSON.stringify({ justificacion }) }),
+  convertir: (id: number) =>
+    request<any>(`/api/proyectos/${id}/convertir`, { method: "POST", body: "{}" }),
+
+  cotizaciones: {
+    list: (proyecto_id: number) => request<any[]>(`/api/proyectos/${proyecto_id}/cotizaciones`),
+    create: (proyecto_id: number, data: any) =>
+      request<any>(`/api/proyectos/${proyecto_id}/cotizaciones`, { method: "POST", body: JSON.stringify(data) }),
+    updateEstado: (proyecto_id: number, cot_id: number, estado: string) =>
+      request<any>(`/api/proyectos/${proyecto_id}/cotizaciones/${cot_id}`, { method: "PATCH", body: JSON.stringify({ estado }) }),
+    delete: (proyecto_id: number, cot_id: number) =>
+      request<void>(`/api/proyectos/${proyecto_id}/cotizaciones/${cot_id}`, { method: "DELETE" }),
+  },
+
+  evidencias: {
+    list: (proyecto_id: number) => request<any[]>(`/api/proyectos/${proyecto_id}/evidencias`),
+    upload: (proyecto_id: number, file: File, tipo_evidencia: string) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("tipo_evidencia", tipo_evidencia);
+      return formRequest<any>(`/api/proyectos/${proyecto_id}/evidencias`, fd);
+    },
+    delete: (proyecto_id: number, ev_id: number) =>
+      request<void>(`/api/proyectos/${proyecto_id}/evidencias/${ev_id}`, { method: "DELETE" }),
+  },
+
+  comentarios: {
+    list: (proyecto_id: number) => request<any[]>(`/api/proyectos/${proyecto_id}/comentarios`),
+    create: (proyecto_id: number, data: { texto: string; archivo_base64?: string; nombre_archivo?: string }) =>
+      request<any>(`/api/proyectos/${proyecto_id}/comentarios`, { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  aprobacion: {
+    enviar: (proyecto_id: number, data: { nota_admin?: string; fecha_limite?: string }) =>
+      request<any>(`/api/proyectos/${proyecto_id}/enviar-aprobacion`, { method: "POST", body: JSON.stringify(data) }),
+    getVotos: (proyecto_id: number) => request<any[]>(`/api/proyectos/${proyecto_id}/votos`),
+    votar: (proyecto_id: number, decision: string, comentario?: string) =>
+      request<any>(`/api/proyectos/${proyecto_id}/votar`, { method: "POST", body: JSON.stringify({ decision, comentario }) }),
+    aprobarPorActa: (proyecto_id: number, data: any) =>
+      request<any>(`/api/proyectos/${proyecto_id}/aprobar-por-acta`, { method: "POST", body: JSON.stringify(data) }),
+    misVotosPendientes: (conjunto_id: number) =>
+      request<any[]>(`/api/proyectos/mis-votos/pendientes?conjunto_id=${conjunto_id}`),
+  },
+
+  reporte: {
+    variacion: (conjunto_id: number) => request<any[]>(`/api/proyectos/reporte/variacion?conjunto_id=${conjunto_id}`),
+    proximosVencer: (conjunto_id: number, dias = 7) =>
+      request<any[]>(`/api/proyectos/alertas/proximas?conjunto_id=${conjunto_id}&dias=${dias}`),
+  },
+};
