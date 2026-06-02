@@ -24,7 +24,7 @@ type Conv = ConvGrupo | ConvDM;
 export default function ChatPage() {
   const authUser   = getUser();
   const usuarioId  = authUser ? parseInt(authUser.sub) : 0;
-  const conjuntoId = authUser?.conjunto_id ?? 1;
+  const conjuntoId = authUser?.conjunto_id ?? null;
 
   const [conv, setConv]                 = useState<Conv>({ tipo: "grupo" });
   const [mensajes, setMensajes]         = useState<any[]>([]);

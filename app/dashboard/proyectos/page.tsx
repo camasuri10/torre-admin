@@ -52,7 +52,7 @@ const ETAPAS_ORDEN = ["PENDING","STARTED","QUOTING","APPROVAL","PLANNING","IN_PR
 export default function ProyectosPage() {
   const user = getUser();
   const router = useRouter();
-  const conjuntoId = user?.conjunto_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? null;
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
   const isConsejo = user?.rol === "consejo";
 
@@ -67,6 +67,7 @@ export default function ProyectosPage() {
   const [formTipo, setFormTipo] = useState("proyecto");
 
   const load = useCallback(async () => {
+    if (!conjuntoId) { setLoading(false); return; }
     setLoading(true);
     const params: any = { conjunto_id: conjuntoId };
     if (filtroEtapa) params.etapa = filtroEtapa;
@@ -81,6 +82,16 @@ export default function ProyectosPage() {
   }, [conjuntoId, filtroEtapa, filtroTipo]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (!conjuntoId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <p className="text-4xl mb-4">🏢</p>
+        <p className="text-gray-600 font-medium">Selecciona un conjunto específico para ver los proyectos.</p>
+        <p className="text-sm text-gray-400 mt-1">Usa el selector de edificio en la barra superior.</p>
+      </div>
+    );
+  }
 
   const sq = search.trim().toLowerCase();
   const filtrados = sq

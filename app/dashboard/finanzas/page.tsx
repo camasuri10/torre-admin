@@ -52,7 +52,7 @@ type Resumen = {
 
 export default function FinanzasPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? null;
   const userId = user ? parseInt(user.sub) : null;
   const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
   const isResidente = ["propietario", "inquilino"].includes(user?.rol ?? "");

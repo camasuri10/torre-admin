@@ -63,7 +63,7 @@ const EMPTY_FORM = {
 
 export default function AccesosPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? null;
 
   const [accesos, setAccesos] = useState<Acceso[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);

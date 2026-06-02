@@ -208,7 +208,7 @@ function ResultadoPregunta({ p }: { p: any }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ComunicadosPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? 1;
+  const conjuntoId = user?.conjunto_id ?? null;
   const usuarioId = user ? parseInt(user.sub) : 0;
   const canEdit = ["administrador", "superadmin"].includes(user?.rol ?? "");
   const isResidente = ["propietario", "inquilino"].includes(user?.rol ?? "");
