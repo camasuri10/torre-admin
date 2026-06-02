@@ -18,7 +18,10 @@
       "Bash(powershell -Command \"grep -n 'class conjunto' api/routers/superadmin.py api/routers/edificios.py api/routers/backoffice.py 2>&1 | head -20\")",
       "Bash(powershell -Command \"Select-String -Path 'api/routers/superadmin.py','api/routers/edificios.py' -Pattern 'class conjunto|class Conjunto|AdminConjunto'\")",
       "Bash(powershell -Command \"Select-String -Path 'api/routers/conjuntos.py','api/routers/superadmin.py' -Pattern 'conjuntoCreate|conjuntoUpdate|AdminconjuntosUpdate' | Select-Object LineNumber, Line\")",
-      "Bash(powershell -Command 'Select-String -Recurse -Path '\\\\''api'\\\\'' -Include '\\\\''*.py'\\\\'' -Pattern '\\\\'': conjunto[A-Z]|: admin[a-z]+Update|: admin[a-z]+Create'\\\\'' | Where-Object { $_.Line -notlike '\\\\''*class *'\\\\'' } | Select-Object Path, LineNumber, Line')"
+      "Bash(powershell -Command 'Select-String -Recurse -Path '\\\\''api'\\\\'' -Include '\\\\''*.py'\\\\'' -Pattern '\\\\'': conjunto[A-Z]|: admin[a-z]+Update|: admin[a-z]+Create'\\\\'' | Where-Object { $_.Line -notlike '\\\\''*class *'\\\\'' } | Select-Object Path, LineNumber, Line')",
+      "Bash(python3 *)",
+      "Bash(ls -la app/)",
+      "Bash(ls -la src/)"
     ]
   }
 }

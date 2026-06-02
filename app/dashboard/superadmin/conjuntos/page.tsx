@@ -12,14 +12,13 @@ interface Conjunto {
   direccion: string;
   total_unidades: number;
   total_torres: number;
-  pisos: number;
   modulos_activos: number;
   admin_nombre: string | null;
   nit: string | null;
   telefono: string | null;
 }
 
-const emptyForm = { nombre: "", direccion: "", pisos: 1, nit: "", telefono: "" };
+const emptyForm = { nombre: "", direccion: "", nit: "", telefono: "" };
 
 export default function ConjuntosPage() {
   const router = useRouter();
@@ -32,14 +31,14 @@ export default function ConjuntosPage() {
   const [search, setSearch]         = useState("");
 
   const [editConjunto, setEditConjunto] = useState<Conjunto | null>(null);
-  const [editForm, setEditForm] = useState({ nombre: "", direccion: "", pisos: 1, nit: "", telefono: "" });
+  const [editForm, setEditForm] = useState({ nombre: "", direccion: "", nit: "", telefono: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     const user = getUser();
-    if (!user || user.rol !== "superadmin") { router.replace("/dashboard"); return; }
+    if (!user || (user.rol !== "superadmin" && user.rol !== "administrador")) { router.replace("/dashboard"); return; }
     loadConjuntos();
   }, [router]);
 
@@ -60,7 +59,6 @@ export default function ConjuntosPage() {
       await superadminApi.conjuntos.create({
         nombre: form.nombre,
         direccion: form.direccion,
-        pisos: form.pisos,
         nit: form.nit || undefined,
         telefono: form.telefono || undefined,
       });
@@ -76,7 +74,6 @@ export default function ConjuntosPage() {
     setEditForm({
       nombre: ed.nombre,
       direccion: ed.direccion,
-      pisos: ed.pisos,
       nit: ed.nit ?? "",
       telefono: ed.telefono ?? "",
     });
@@ -102,7 +99,6 @@ export default function ConjuntosPage() {
       await superadminApi.conjuntos.update(editConjunto.id, {
         nombre: editForm.nombre,
         direccion: editForm.direccion,
-        pisos: editForm.pisos,
         nit: editForm.nit || undefined,
         telefono: editForm.telefono || undefined,
       });
@@ -159,11 +155,6 @@ export default function ConjuntosPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Dirección *</label>
               <input required value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })}
                 placeholder="Cra 15 #85-32, Bogotá" className={INPUT} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-              <input type="number" min={1} value={form.pisos}
-                onChange={(e) => setForm({ ...form, pisos: parseInt(e.target.value) || 1 })} className={INPUT} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
@@ -273,18 +264,11 @@ export default function ConjuntosPage() {
                 <input required value={editForm.direccion}
                   onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })} className={INPUT} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Pisos</label>
-                  <input type="number" min={1} value={editForm.pisos}
-                    onChange={(e) => setEditForm({ ...editForm, pisos: parseInt(e.target.value) || 1 })} className={INPUT} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
-                  <input value={editForm.nit}
-                    onChange={(e) => setEditForm({ ...editForm, nit: e.target.value })}
-                    placeholder="900.000.000-0" className={INPUT} />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">NIT</label>
+                <input value={editForm.nit}
+                  onChange={(e) => setEditForm({ ...editForm, nit: e.target.value })}
+                  placeholder="900.000.000-0" className={INPUT} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>

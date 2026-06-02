@@ -41,7 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Super Admin",
     items: [
       { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin", "administrador"] },
       { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
       { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
     ],

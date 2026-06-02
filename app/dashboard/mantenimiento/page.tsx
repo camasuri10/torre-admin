@@ -43,8 +43,9 @@ export default function MantenimientoPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"solicitudes" | "alertas" | "inventario">("solicitudes");
   const [filtroEstado, setFiltroEstado] = useState("");
-  const [filtroPrioridad, setFiltroPrioridad] = useState("");
   const [filtroProgramado, setFiltroProgramado] = useState<boolean | null>(null);
+  const [sortCol, setSortCol] = useState<string>("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -78,7 +79,6 @@ export default function MantenimientoPage() {
     setLoading(true);
     const params: any = { conjunto_id: conjuntoId };
     if (filtroEstado) params.estado = filtroEstado;
-    if (filtroPrioridad) params.prioridad = filtroPrioridad;
     if (filtroProgramado !== null) params.es_programado = filtroProgramado;
     // Change 3: pass date range params
     if (fechaDesde) params.fecha_desde = fechaDesde;
@@ -92,7 +92,7 @@ export default function MantenimientoPage() {
     if (a.status === "fulfilled") setAlertas(a.value);
     if (inv.status === "fulfilled") setInventario(inv.value);
     setLoading(false);
-  }, [conjuntoId, filtroEstado, filtroPrioridad, filtroProgramado, fechaDesde, fechaHasta]);
+  }, [conjuntoId, filtroEstado, filtroProgramado, fechaDesde, fechaHasta]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -299,6 +299,37 @@ export default function MantenimientoPage() {
   const alertasProximas = alertas.filter((a) => a.estado === "pendiente").length;
   const programados = solicitudesFiltradas.filter((s) => s.es_programado).length;
 
+  const PRIORIDAD_ORDER: Record<string, number> = { alta: 0, media: 1, baja: 2 };
+  const ESTADO_ORDER: Record<string, number> = { pendiente: 0, en_proceso: 1, resuelto: 2, cancelado: 3 };
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  const solicitudesOrdenadas = sortCol
+    ? [...solicitudesFiltradas].sort((a, b) => {
+        let av: any, bv: any;
+        if (sortCol === "id") { av = a.id; bv = b.id; }
+        else if (sortCol === "titulo") { av = (a.titulo ?? "").toLowerCase(); bv = (b.titulo ?? "").toLowerCase(); }
+        else if (sortCol === "categoria") { av = (a.categoria ?? "").toLowerCase(); bv = (b.categoria ?? "").toLowerCase(); }
+        else if (sortCol === "prioridad") { av = PRIORIDAD_ORDER[a.prioridad] ?? 9; bv = PRIORIDAD_ORDER[b.prioridad] ?? 9; }
+        else if (sortCol === "estado") { av = ESTADO_ORDER[a.estado] ?? 9; bv = ESTADO_ORDER[b.estado] ?? 9; }
+        else if (sortCol === "vencimiento") {
+          av = a.fecha_vencimiento ? new Date(a.fecha_vencimiento).getTime() : Infinity;
+          bv = b.fecha_vencimiento ? new Date(b.fecha_vencimiento).getTime() : Infinity;
+        }
+        if (av < bv) return sortDir === "asc" ? -1 : 1;
+        if (av > bv) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      })
+    : solicitudesFiltradas;
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortCol !== col) return <span className="text-gray-300 ml-1">↕</span>;
+    return <span className="text-primary ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  }
+
   const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
   const ContratosSelector = ({ contratos, defaultValue, name }: { contratos: any[]; defaultValue?: number; name: string }) => (
@@ -402,16 +433,6 @@ export default function MantenimientoPage() {
                     {e === "" ? "Todos" : e.replace("_", " ")}
                   </button>
                 ))}
-                {["", "alta", "media", "baja"].map((p) => (
-                  <button key={p} onClick={() => setFiltroPrioridad(p)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      filtroPrioridad === p
-                        ? p === "alta" ? "bg-red-500 text-white" : p === "media" ? "bg-orange-500 text-white" : p === "baja" ? "bg-gray-500 text-white" : "bg-primary text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}>
-                    {p === "" ? "Todas prioridades" : p}
-                  </button>
-                ))}
                 <button
                   onClick={() => setFiltroProgramado(filtroProgramado === true ? null : true)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -433,8 +454,18 @@ export default function MantenimientoPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {["#", "Solicitud", "Cat.", "Prioridad", "Estado", "Vencimiento"].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                      {[
+                        { label: "#",           col: "id" },
+                        { label: "Solicitud",   col: "titulo" },
+                        { label: "Cat.",        col: "categoria" },
+                        { label: "Prioridad",   col: "prioridad" },
+                        { label: "Estado",      col: "estado" },
+                        { label: "Vencimiento", col: "vencimiento" },
+                      ].map(({ label, col }) => (
+                        <th key={col} onClick={() => toggleSort(col)}
+                          className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700 ${col === "titulo" ? "min-w-[260px]" : ""}`}>
+                          {label}<SortIcon col={col} />
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -442,7 +473,7 @@ export default function MantenimientoPage() {
                     {loading ? (
                       <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
                     ) : (() => {
-                      const filtered = solicitudesFiltradas;
+                      const filtered = solicitudesOrdenadas;
                       if (filtered.length === 0) return (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
                       );
@@ -452,7 +483,7 @@ export default function MantenimientoPage() {
                           className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === s.id ? "bg-blue-50" : ""}`}>
                           <td className="px-4 py-3 font-mono text-xs text-gray-400">#{s.id}</td>
                           <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900 max-w-[180px] truncate flex items-center gap-1.5">
+                            <div className="font-medium text-gray-900 flex items-center gap-1.5 flex-wrap">
                               {s.titulo}
                               {s.es_programado && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700 flex-shrink-0">

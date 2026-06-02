@@ -20,6 +20,15 @@ def _require_superadmin(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
+def _require_admin_or_superadmin(current_user: dict = Depends(get_current_user)):
+    rol = current_user.get("rol")
+    if rol not in ("superadmin", "administrador"):
+        raise HTTPException(status_code=403, detail="Acceso restringido a administradores")
+    if not current_user.get("organizacion_id"):
+        raise HTTPException(status_code=403, detail="Sin organización activa.")
+    return current_user
+
+
 # ── Modelos ───────────────────────────────────────────────────────────────────
 
 class ConjuntoCreate(BaseModel):
@@ -210,7 +219,7 @@ def get_stats(sa=Depends(_require_superadmin)):
 # ── conjuntos ─────────────────────────────────────────────────────────────────
 
 @router.get("/conjuntos")
-def list_conjuntos(sa=Depends(_require_superadmin)):
+def list_conjuntos(sa=Depends(_require_admin_or_superadmin)):
     org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -237,7 +246,7 @@ def list_conjuntos(sa=Depends(_require_superadmin)):
 
 
 @router.post("/conjuntos", status_code=201)
-def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_superadmin)):
+def create_conjunto(body: ConjuntoCreate, sa=Depends(_require_admin_or_superadmin)):
     org_id = sa.get("organizacion_id")
     with get_db() as conn:
         with conn.cursor() as cur:
