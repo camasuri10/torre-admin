@@ -34,7 +34,7 @@ const NEEDS_NEXT_DATE = ["trimestral", "semestral", "anual"];
 
 export default function MantenimientoPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? null;
+  const conjuntoId = user?.conjunto_id ?? 1;
 
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);

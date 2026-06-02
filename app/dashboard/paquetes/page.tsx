@@ -14,7 +14,7 @@ const ESTADO_COLORS: Record<string, string> = {
 
 export default function PaquetesPage() {
   const user      = getUser();
-  const conjuntoId = user?.conjunto_id ?? null;
+  const conjuntoId = user?.conjunto_id ?? 1;
 
   const [paquetes, setPaquetes]       = useState<any[]>([]);
   const [stats, setStats]             = useState<any>(null);

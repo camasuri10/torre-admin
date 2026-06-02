@@ -15,7 +15,7 @@ type Tab = "info" | "vehiculos" | "mascotas";
 
 export default function ResidentesPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? null;
+  const conjuntoId = user?.conjunto_id ?? 1;
   const conjuntoNombre = getConjuntosDisponibles().find((e) => e.id === conjuntoId)?.nombre ?? `Conjunto ${conjuntoId}`;
 
   const [residentes, setResidentes] = useState<any[]>([]);

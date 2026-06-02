@@ -52,7 +52,7 @@ const ETAPAS_ORDEN = ["PENDING","STARTED","QUOTING","APPROVAL","PLANNING","IN_PR
 export default function ProyectosPage() {
   const user = getUser();
   const router = useRouter();
-  const conjuntoId = user?.conjunto_id ?? null;
+  const conjuntoId = user?.conjunto_id ?? undefined;
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
   const isConsejo = user?.rol === "consejo";
 

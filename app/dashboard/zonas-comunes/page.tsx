@@ -61,7 +61,7 @@ function addDays(date: Date, days: number) {
 
 export default function ZonasComunesPage() {
   const user = getUser();
-  const conjuntoId = user?.conjunto_id ?? null;
+  const conjuntoId = user?.conjunto_id ?? 1;
   const usuarioId = user ? parseInt(user.sub) : 1;
   const isAdmin = ["administrador", "superadmin"].includes(user?.rol ?? "");
 

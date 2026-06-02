@@ -21,7 +21,8 @@
       "Bash(powershell -Command 'Select-String -Recurse -Path '\\\\''api'\\\\'' -Include '\\\\''*.py'\\\\'' -Pattern '\\\\'': conjunto[A-Z]|: admin[a-z]+Update|: admin[a-z]+Create'\\\\'' | Where-Object { $_.Line -notlike '\\\\''*class *'\\\\'' } | Select-Object Path, LineNumber, Line')",
       "Bash(python3 *)",
       "Bash(ls -la app/)",
-      "Bash(ls -la src/)"
+      "Bash(ls -la src/)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }
