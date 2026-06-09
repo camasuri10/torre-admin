@@ -92,6 +92,70 @@ def list_usuarios(
             return cur.fetchall()
 
 
+# ── Mi Apartamento — debe estar ANTES de /{usuario_id} para que FastAPI no lo consuma ──
+
+@router.get("/mi-apto")
+def get_mi_apto(usuario_id: int, unidad_id: Optional[int] = None, u: dict = Depends(get_current_user)):
+    """Datos completos del apartamento del residente. unidad_id selecciona cuál unidad usar."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT o.id AS ocupacion_id, o.tipo, o.fecha_inicio,
+                       un.id AS unidad_id, un.numero AS unidad_numero,
+                       t.nombre AS torre_nombre, t.numero AS torre_numero,
+                       c.nombre AS conjunto_nombre
+                FROM ocupaciones o
+                JOIN unidades un ON un.id = o.unidad_id
+                LEFT JOIN torres t ON t.id = un.torre_id
+                LEFT JOIN conjuntos c ON c.id = t.conjunto_id
+                WHERE o.usuario_id = %s AND o.activo = TRUE
+                ORDER BY o.fecha_inicio DESC
+            """, (usuario_id,))
+            ocupaciones = [dict(r) for r in cur.fetchall()]
+
+            cohabitantes: list = []
+            personas_autorizadas: list = []
+
+            if ocupaciones:
+                # Si se pasa unidad_id explícita, usarla; si no, la primera
+                unidad_activa = unidad_id if unidad_id else ocupaciones[0]["unidad_id"]
+                cur.execute("""
+                    SELECT u.id, u.nombre, u.email, u.telefono, o.tipo
+                    FROM ocupaciones o
+                    JOIN usuarios u ON u.id = o.usuario_id
+                    WHERE o.unidad_id = %s AND o.activo = TRUE AND o.usuario_id != %s AND u.activo = TRUE
+                    ORDER BY u.nombre
+                """, (unidad_activa, usuario_id))
+                cohabitantes = [dict(r) for r in cur.fetchall()]
+
+                cur.execute("""
+                    SELECT * FROM personas_autorizadas
+                    WHERE unidad_id = %s AND activo = TRUE
+                    ORDER BY nombre
+                """, (unidad_activa,))
+                personas_autorizadas = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT id, placa, marca, modelo, color, tipo, combustible, tiene_cargador, potencia_cargador_kw
+                FROM vehiculos WHERE usuario_id = %s AND activo = TRUE ORDER BY placa
+            """, (usuario_id,))
+            vehiculos = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT id, nombre, especie, raza, color
+                FROM mascotas WHERE usuario_id = %s AND activo = TRUE ORDER BY nombre
+            """, (usuario_id,))
+            mascotas = [dict(r) for r in cur.fetchall()]
+
+            return {
+                "ocupaciones": ocupaciones,
+                "cohabitantes": cohabitantes,
+                "personas_autorizadas": personas_autorizadas,
+                "vehiculos": vehiculos,
+                "mascotas": mascotas,
+            }
+
+
 @router.get("/{usuario_id}")
 def get_usuario(usuario_id: int):
     with get_db() as conn:
@@ -279,69 +343,3 @@ def delete_ocupacion(ocup_id: int):
             cur.execute("UPDATE ocupaciones SET activo = FALSE WHERE id = %s", (ocup_id,))
 
 
-# ── Mi Apartamento ────────────────────────────────────────────────────────────
-
-@router.get("/mi-apto")
-def get_mi_apto(usuario_id: int, u: dict = Depends(get_current_user)):
-    """Datos completos del apartamento del residente logueado."""
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            # Unidad(es) del usuario
-            cur.execute("""
-                SELECT o.id AS ocupacion_id, o.tipo, o.fecha_inicio,
-                       un.id AS unidad_id, un.numero AS unidad_numero,
-                       t.nombre AS torre_nombre, t.numero AS torre_numero,
-                       c.nombre AS conjunto_nombre
-                FROM ocupaciones o
-                JOIN unidades un ON un.id = o.unidad_id
-                LEFT JOIN torres t ON t.id = un.torre_id
-                LEFT JOIN conjuntos c ON c.id = t.conjunto_id
-                WHERE o.usuario_id = %s AND o.activo = TRUE
-                ORDER BY o.fecha_inicio DESC
-            """, (usuario_id,))
-            ocupaciones = [dict(r) for r in cur.fetchall()]
-
-            # Otros ocupantes de la misma unidad (si hay unidad)
-            cohabitantes = []
-            if ocupaciones:
-                unidad_id = ocupaciones[0]["unidad_id"]
-                cur.execute("""
-                    SELECT u.id, u.nombre, u.email, u.telefono, o.tipo
-                    FROM ocupaciones o
-                    JOIN usuarios u ON u.id = o.usuario_id
-                    WHERE o.unidad_id = %s AND o.activo = TRUE AND o.usuario_id != %s AND u.activo = TRUE
-                    ORDER BY u.nombre
-                """, (unidad_id, usuario_id))
-                cohabitantes = [dict(r) for r in cur.fetchall()]
-
-                # Personas autorizadas de la unidad
-                cur.execute("""
-                    SELECT * FROM personas_autorizadas
-                    WHERE unidad_id = %s AND activo = TRUE
-                    ORDER BY nombre
-                """, (unidad_id,))
-                personas_autorizadas = [dict(r) for r in cur.fetchall()]
-            else:
-                personas_autorizadas = []
-
-            # Vehículos
-            cur.execute("""
-                SELECT id, placa, marca, modelo, color, tipo, combustible, tiene_cargador, potencia_cargador_kw
-                FROM vehiculos WHERE usuario_id = %s AND activo = TRUE ORDER BY placa
-            """, (usuario_id,))
-            vehiculos = [dict(r) for r in cur.fetchall()]
-
-            # Mascotas
-            cur.execute("""
-                SELECT id, nombre, especie, raza, color
-                FROM mascotas WHERE usuario_id = %s AND activo = TRUE ORDER BY nombre
-            """, (usuario_id,))
-            mascotas = [dict(r) for r in cur.fetchall()]
-
-            return {
-                "ocupaciones": ocupaciones,
-                "cohabitantes": cohabitantes,
-                "personas_autorizadas": personas_autorizadas,
-                "vehiculos": vehiculos,
-                "mascotas": mascotas,
-            }

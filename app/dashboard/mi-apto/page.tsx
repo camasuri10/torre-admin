@@ -30,6 +30,9 @@ export default function MiAptoPage() {
   const [tab, setTab] = useState<"hogar" | "autorizados" | "mascotas" | "vehiculos">("hogar");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // Unidad activa (para propietarios con múltiples unidades)
+  const [selectedUnidadId, setSelectedUnidadId] = useState<number | null>(null);
 
   // Mascotas
   const [showAddMascota, setShowAddMascota] = useState(false);
@@ -47,22 +50,49 @@ export default function MiAptoPage() {
   const [editAutorizado, setEditAutorizado] = useState<any>(null);
 
   const load = useCallback(async () => {
-    if (!usuarioId) { setLoading(false); return; }
+    if (!usuarioId) { setLoading(false); setError("No se encontró tu sesión. Inicia sesión nuevamente."); return; }
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch(`${BASE}/api/usuarios/mi-apto?usuario_id=${usuarioId}`, { headers: authHdr() });
-      if (res.ok) setData(await res.json());
+      let url = `${BASE}/api/usuarios/mi-apto?usuario_id=${usuarioId}`;
+      if (selectedUnidadId) url += `&unidad_id=${selectedUnidadId}`;
+      const res = await fetch(url, { headers: authHdr() });
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+        // Si no hay unidad seleccionada, inicializar con la primera
+        if (!selectedUnidadId && json.ocupaciones?.length > 0) {
+          setSelectedUnidadId(json.ocupaciones[0].unidad_id);
+        }
+      } else {
+        const text = await res.text().catch(() => "");
+        setError(`Error ${res.status}: ${text || "No se pudo cargar la información del apartamento."}`);
+      }
+    } catch (e: any) {
+      setError("Error de conexión. Verifica tu red e intenta de nuevo.");
     } finally { setLoading(false); }
-  }, [usuarioId]);
+  }, [usuarioId, selectedUnidadId]);
 
   useEffect(() => { load(); }, [load]);
 
   if (loading) return <div className="text-center py-16 text-gray-400">Cargando…</div>;
-  if (!data) return <div className="text-center py-16 text-gray-400">No se pudo cargar la información del apartamento.</div>;
+  if (error) return (
+    <div className="text-center py-16">
+      <div className="text-4xl mb-3">⚠️</div>
+      <p className="text-gray-600 font-medium">No se pudo cargar tu apartamento</p>
+      <p className="text-sm text-gray-400 mt-1">{error}</p>
+      <button onClick={load} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90">
+        Reintentar
+      </button>
+    </div>
+  );
+  if (!data) return null;
 
-  const unidadId = data.ocupaciones?.[0]?.unidad_id;
-  const unidadNum = data.ocupaciones?.[0]?.unidad_numero;
-  const torre = data.ocupaciones?.[0]?.torre_nombre;
+  const ocupaciones: any[] = data.ocupaciones ?? [];
+  const ocupacionActiva = ocupaciones.find((o: any) => o.unidad_id === selectedUnidadId) ?? ocupaciones[0];
+  const unidadId = ocupacionActiva?.unidad_id;
+  const unidadNum = ocupacionActiva?.unidad_numero;
+  const torre = ocupacionActiva?.torre_nombre;
 
   async function handleSaveMascota(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -165,12 +195,32 @@ export default function MiAptoPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">Mi Apartamento</h2>
-        {unidadNum && (
-          <p className="text-sm text-gray-500 mt-0.5">
-            Apto {unidadNum}{torre ? ` — ${torre}` : ""}
-          </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Mi Apartamento</h2>
+          {unidadNum && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              Apto {unidadNum}{torre ? ` — ${torre}` : ""}
+              {ocupacionActiva?.conjunto_nombre ? ` · ${ocupacionActiva.conjunto_nombre}` : ""}
+            </p>
+          )}
+        </div>
+        {/* Selector de unidad cuando el propietario tiene más de una */}
+        {ocupaciones.length > 1 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Cambiar unidad</label>
+            <select
+              value={selectedUnidadId ?? ""}
+              onChange={(e) => setSelectedUnidadId(Number(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {ocupaciones.map((o: any) => (
+                <option key={o.unidad_id} value={o.unidad_id}>
+                  Apto {o.unidad_numero}{o.torre_nombre ? ` — ${o.torre_nombre}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
 
@@ -189,22 +239,49 @@ export default function MiAptoPage() {
       {/* ── Mi Hogar ── */}
       {tab === "hogar" && (
         <div className="space-y-4">
-          {/* Info de la unidad */}
-          {data.ocupaciones?.length > 0 && (
+          {/* Info de la unidad activa */}
+          {ocupacionActiva && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <h3 className="font-semibold text-gray-900 text-sm mb-3">Mi unidad</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                {data.ocupaciones.map((o: any) => (
-                  <div key={o.ocupacion_id}>
-                    <span className="text-xs text-gray-400">Apto / Unidad</span>
-                    <div className="font-medium">{o.unidad_numero}</div>
-                    <span className="text-xs text-gray-400">Torre</span>
-                    <div className="font-medium">{o.torre_nombre ?? "—"}</div>
-                    <span className="text-xs text-gray-400">Tipo</span>
-                    <div className="font-medium capitalize">{o.tipo}</div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-xs text-gray-400">Apto / Unidad</span>
+                  <div className="font-medium">{ocupacionActiva.unidad_numero}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400">Torre</span>
+                  <div className="font-medium">{ocupacionActiva.torre_nombre ?? "—"}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400">Tipo</span>
+                  <div className="font-medium capitalize">{ocupacionActiva.tipo}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400">Conjunto</span>
+                  <div className="font-medium">{ocupacionActiva.conjunto_nombre ?? "—"}</div>
+                </div>
               </div>
+              {/* Listado de todas las unidades si tiene más de una */}
+              {ocupaciones.length > 1 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-2">Todas mis unidades</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ocupaciones.map((o: any) => (
+                      <button
+                        key={o.unidad_id}
+                        onClick={() => setSelectedUnidadId(o.unidad_id)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          o.unidad_id === selectedUnidadId
+                            ? "bg-primary text-white border-primary"
+                            : "border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
+                        }`}
+                      >
+                        Apto {o.unidad_numero}{o.torre_nombre ? ` · ${o.torre_nombre}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -25,55 +25,63 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["administrador", "propietario", "inquilino", "portero"] },
+      { href: "/dashboard", label: "Resumen", icon: "📊", exact: true, roles: ["administrador", "propietario", "inquilino", "portero", "servicios"] },
     ],
   },
   {
     label: "Backoffice",
     items: [
-      { href: "/dashboard/backoffice",                   label: "Dashboard Global",    icon: "🌐", exact: true,  roles: ["backoffice"] },
-      { href: "/dashboard/backoffice/usuarios",          label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
-      { href: "/dashboard/backoffice/organizaciones",    label: "Organizaciones",       icon: "🏢", exact: false, roles: ["backoffice"] },
-      { href: "/dashboard/backoffice/chatbot",           label: "Asistente IA",         icon: "🤖", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice",                label: "Dashboard Global",    icon: "🌐", exact: true,  roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/usuarios",       label: "Gestión de Usuarios", icon: "👥", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/organizaciones", label: "Organizaciones",      icon: "🏢", exact: false, roles: ["backoffice"] },
+      { href: "/dashboard/backoffice/chatbot",        label: "Asistente IA",        icon: "🤖", exact: false, roles: ["backoffice"] },
     ],
   },
   {
     label: "Super Admin",
     items: [
-      { href: "/dashboard/superadmin",            label: "Panel SA",         icon: "⚙️",  exact: true,  roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/conjuntos",  label: "Conjuntos",        icon: "🏘️",  exact: false, roles: ["superadmin", "administrador"] },
-      { href: "/dashboard/superadmin/admins",     label: "Usuarios",         icon: "👤",  exact: false, roles: ["superadmin"] },
-      { href: "/dashboard/superadmin/chatbot",    label: "Asistente IA",     icon: "🤖",  exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin",           label: "Panel SA",     icon: "⚙️", exact: true,  roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/conjuntos", label: "Conjuntos",    icon: "🏘️", exact: false, roles: ["superadmin", "administrador"] },
+      { href: "/dashboard/superadmin/admins",    label: "Usuarios",     icon: "👤", exact: false, roles: ["superadmin"] },
+      { href: "/dashboard/superadmin/chatbot",   label: "Asistente IA", icon: "🤖", exact: false, roles: ["superadmin"] },
     ],
   },
+  // ── Residente ─────────────────────────────────────────────────────────────
+  {
+    label: "Mi Espacio",
+    items: [
+      { href: "/dashboard/mi-apto",        label: "Mi Apartamento", icon: "🏠", exact: false, roles: ["propietario", "inquilino"] },
+      { href: "/dashboard/mantenimiento",  label: "Mantenimiento",  icon: "🔧", exact: false, roles: ["propietario", "inquilino", "servicios"], modulo: "mantenimiento" },
+      { href: "/dashboard/proyectos",      label: "Proyectos",      icon: "🏗️", exact: false, roles: ["propietario", "inquilino"] },
+      { href: "/dashboard/finanzas",       label: "Finanzas",       icon: "💰", exact: false, roles: ["propietario", "inquilino"],              modulo: "finanzas" },
+      { href: "/dashboard/zonas-comunes",  label: "Zonas Comunes",  icon: "🏊", exact: false, roles: ["propietario", "inquilino"],              modulo: "zonas_comunes" },
+      { href: "/dashboard/comunicados",    label: "Comunicados",    icon: "📢", exact: false, roles: ["propietario", "inquilino"],              modulo: "comunicados" },
+    ],
+  },
+  // ── Administrador ─────────────────────────────────────────────────────────
   {
     label: "Gestión",
     items: [
       { href: "/dashboard/residentes",    label: "Residentes",    icon: "👥", exact: false, roles: ["administrador"] },
-      { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "finanzas" },
-      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador", "propietario", "inquilino", "servicios"],           modulo: "mantenimiento" },
+      { href: "/dashboard/mantenimiento", label: "Mantenimiento", icon: "🔧", exact: false, roles: ["administrador"], modulo: "mantenimiento" },
+      { href: "/dashboard/proyectos",     label: "Proyectos",     icon: "🏗️", exact: false, roles: ["administrador", "superadmin", "consejo"] },
+      { href: "/dashboard/finanzas",      label: "Finanzas",      icon: "💰", exact: false, roles: ["administrador"],                           modulo: "finanzas" },
+      { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador"],                           modulo: "comunicados" },
+      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador"],                           modulo: "zonas_comunes" },
+      { href: "/dashboard/consejo",       label: "Consejo",       icon: "🏛️", exact: false, roles: ["administrador", "superadmin", "consejo"] },
       { href: "/dashboard/proveedores",   label: "Proveedores",   icon: "🏭", exact: false, roles: ["administrador", "superadmin"] },
-      { href: "/dashboard/comunicados",   label: "Comunicados",   icon: "📢", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "comunicados" },
-      { href: "/dashboard/zonas-comunes", label: "Zonas Comunes", icon: "🏊", exact: false, roles: ["administrador", "propietario", "inquilino"],                        modulo: "zonas_comunes" },
-      { href: "/dashboard/gestion",       label: "Gestión",       icon: "🛒", exact: false, roles: ["administrador", "superadmin", "backoffice"],                        modulo: "procurement" },
-      { href: "/dashboard/proyectos",      label: "Proyectos",     icon: "🏗️", exact: false, roles: ["administrador", "superadmin", "consejo", "propietario", "inquilino"] },
-      { href: "/dashboard/consejo",        label: "Consejo",       icon: "🏛️", exact: false, roles: ["administrador", "superadmin", "consejo"] },
-      { href: "/dashboard/mi-apto",        label: "Mi Apartamento", icon: "🏠", exact: false, roles: ["propietario", "inquilino"] },
+      { href: "/dashboard/gestion",       label: "Procurement",   icon: "🛒", exact: false, roles: ["administrador", "superadmin", "backoffice"], modulo: "procurement" },
+      { href: "/dashboard/reportes",      label: "Reportes",      icon: "📈", exact: false, roles: ["administrador"],                            modulo: "reportes" },
     ],
   },
+  // ── Seguridad / Portería ──────────────────────────────────────────────────
   {
     label: "Seguridad",
     items: [
-      { href: "/dashboard/accesos",  label: "Control de Accesos", icon: "🔐", exact: false, roles: ["administrador", "portero"],                        modulo: "accesos" },
-      { href: "/dashboard/paquetes", label: "Paquetería",         icon: "📦", exact: false, roles: ["administrador", "portero"],                        modulo: "paquetes" },
-      { href: "/dashboard/chat",     label: "Chat Seguridad",     icon: "💬", exact: false, roles: ["administrador", "propietario", "portero"],         modulo: "chat" },
-      { href: "/dashboard/guardias", label: "Guardias / Turnos",  icon: "👮", exact: false, roles: ["administrador", "portero"],                        modulo: "guardias" },
-    ],
-  },
-  {
-    label: "Análisis",
-    items: [
-      { href: "/dashboard/reportes", label: "Reportes", icon: "📈", exact: false, roles: ["administrador"], modulo: "reportes" },
+      { href: "/dashboard/accesos",  label: "Control de Accesos", icon: "🔐", exact: false, roles: ["administrador", "portero"],              modulo: "accesos" },
+      { href: "/dashboard/paquetes", label: "Paquetería",         icon: "📦", exact: false, roles: ["administrador", "portero"],              modulo: "paquetes" },
+      { href: "/dashboard/guardias", label: "Guardias / Turnos",  icon: "👮", exact: false, roles: ["administrador", "portero"],              modulo: "guardias" },
+      { href: "/dashboard/chat",     label: "Chat Seguridad",     icon: "💬", exact: false, roles: ["administrador", "propietario", "portero"], modulo: "chat" },
     ],
   },
   {
