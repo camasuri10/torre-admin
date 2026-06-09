@@ -34,6 +34,10 @@ export default function MiAptoPage() {
   // Unidad activa (para propietarios con múltiples unidades)
   const [selectedUnidadId, setSelectedUnidadId] = useState<number | null>(null);
 
+  // Convivientes
+  const [showAddConviviente, setShowAddConviviente] = useState(false);
+  const [savingConviviente, setSavingConviviente] = useState(false);
+
   // Mascotas
   const [showAddMascota, setShowAddMascota] = useState(false);
   const [savingMascota, setSavingMascota] = useState(false);
@@ -153,6 +157,52 @@ export default function MiAptoPage() {
   async function handleDeleteVehiculo(id: number) {
     if (!confirm("¿Eliminar vehículo?")) return;
     await fetch(`${BASE}/api/vehiculos/${id}`, { method: "DELETE", headers: authHdr() });
+    load();
+  }
+
+  async function handleAddConviviente(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!unidadId || !usuarioId) return;
+    setSavingConviviente(true);
+    const fd = new FormData(e.currentTarget);
+    const conjuntoId = ocupacionActiva?.conjunto_id;
+    try {
+      const userRes = await fetch(`${BASE}/api/usuarios`, {
+        method: "POST",
+        headers: authHdr(),
+        body: JSON.stringify({
+          nombre: fd.get("nombre"),
+          cedula: fd.get("cedula") || null,
+          telefono: fd.get("telefono") || null,
+          email: fd.get("email") || null,
+          rol: fd.get("tipo") as string,
+          conjunto_id: conjuntoId || null,
+        }),
+      });
+      if (!userRes.ok) { alert("Error al registrar la persona. Verifica los datos."); return; }
+      const newUser = await userRes.json();
+      await fetch(`${BASE}/api/usuarios/ocupaciones`, {
+        method: "POST",
+        headers: authHdr(),
+        body: JSON.stringify({
+          unidad_id: unidadId,
+          usuario_id: newUser.id,
+          tipo: fd.get("tipo"),
+          fecha_inicio: new Date().toISOString().slice(0, 10),
+        }),
+      });
+      setShowAddConviviente(false);
+      (e.target as HTMLFormElement).reset();
+      load();
+    } finally { setSavingConviviente(false); }
+  }
+
+  async function handleRemoveConviviente(ocupacionId: number, nombre: string) {
+    if (!confirm(`¿Quitar a ${nombre} de esta unidad?`)) return;
+    await fetch(`${BASE}/api/usuarios/ocupaciones/${ocupacionId}`, {
+      method: "DELETE",
+      headers: authHdr(),
+    });
     load();
   }
 
@@ -287,7 +337,15 @@ export default function MiAptoPage() {
 
           {/* Cohabitantes */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-semibold text-gray-900 text-sm mb-3">Personas que viven en el apto</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900 text-sm">Personas que viven en el apto</h3>
+              <button
+                onClick={() => setShowAddConviviente(true)}
+                className="text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/90"
+              >
+                + Agregar
+              </button>
+            </div>
             {data.cohabitantes?.length === 0 ? (
               <p className="text-sm text-gray-400">No hay otras personas registradas en tu unidad.</p>
             ) : (
@@ -299,13 +357,69 @@ export default function MiAptoPage() {
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-medium text-gray-900">{c.nombre}</div>
-                      <div className="text-xs text-gray-400 capitalize">{c.tipo} {c.telefono ? `· ${c.telefono}` : ""}</div>
+                      <div className="text-xs text-gray-400 capitalize">
+                        {c.tipo}{c.telefono ? ` · ${c.telefono}` : ""}{c.email ? ` · ${c.email}` : ""}
+                      </div>
                     </div>
+                    <button
+                      onClick={() => handleRemoveConviviente(c.ocupacion_id, c.nombre)}
+                      className="text-xs text-gray-300 hover:text-red-400 px-1"
+                      title="Quitar de esta unidad"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Modal agregar conviviente */}
+          {showAddConviviente && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                <h3 className="font-semibold text-gray-900 mb-1">Agregar persona al apto</h3>
+                <p className="text-xs text-gray-400 mb-4">
+                  Registra a alguien que vive contigo. Podrá tener acceso al sistema con su propia cuenta.
+                </p>
+                <form onSubmit={handleAddConviviente} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo *</label>
+                    <input name="nombre" required className={INPUT} placeholder="Ej: María García" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Relación / Tipo</label>
+                    <select name="tipo" defaultValue="inquilino" className={INPUT}>
+                      <option value="propietario">Propietario</option>
+                      <option value="inquilino">Familiar / Inquilino</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
+                      <input name="cedula" className={INPUT} placeholder="Opcional" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                      <input name="telefono" className={INPUT} placeholder="Opcional" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                    <input name="email" type="email" className={INPUT} placeholder="Opcional — para acceso al sistema" />
+                  </div>
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button type="button" onClick={() => setShowAddConviviente(false)}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
+                    <button type="submit" disabled={savingConviviente}
+                      className="px-4 py-2 text-sm bg-primary text-white rounded-lg disabled:opacity-60">
+                      {savingConviviente ? "Registrando…" : "Registrar"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

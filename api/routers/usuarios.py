@@ -103,7 +103,7 @@ def get_mi_apto(usuario_id: int, unidad_id: Optional[int] = None, u: dict = Depe
                 SELECT o.id AS ocupacion_id, o.tipo, o.fecha_inicio,
                        un.id AS unidad_id, un.numero AS unidad_numero,
                        t.nombre AS torre_nombre, t.numero AS torre_numero,
-                       c.nombre AS conjunto_nombre
+                       c.id AS conjunto_id, c.nombre AS conjunto_nombre
                 FROM ocupaciones o
                 JOIN unidades un ON un.id = o.unidad_id
                 LEFT JOIN torres t ON t.id = un.torre_id
@@ -120,7 +120,7 @@ def get_mi_apto(usuario_id: int, unidad_id: Optional[int] = None, u: dict = Depe
                 # Si se pasa unidad_id explícita, usarla; si no, la primera
                 unidad_activa = unidad_id if unidad_id else ocupaciones[0]["unidad_id"]
                 cur.execute("""
-                    SELECT u.id, u.nombre, u.email, u.telefono, o.tipo
+                    SELECT u.id, u.nombre, u.email, u.telefono, o.tipo, o.id AS ocupacion_id
                     FROM ocupaciones o
                     JOIN usuarios u ON u.id = o.usuario_id
                     WHERE o.unidad_id = %s AND o.activo = TRUE AND o.usuario_id != %s AND u.activo = TRUE
