@@ -23,10 +23,29 @@ def _require_access(u: dict = Depends(get_current_user)):
     return u
 
 
+def _require_any_user(u: dict = Depends(get_current_user)):
+    """Cualquier usuario autenticado puede acceder (residentes incluidos)."""
+    return u
+
+
 # ── Flujos de etapas ─────────────────────────────────────────────────────────
 
 FLUJO_PROYECTO = ["PENDING", "STARTED", "QUOTING", "APPROVAL", "PLANNING", "IN_PROGRESS", "MONITORING", "COMPLETED"]
 FLUJO_TAREA    = ["PENDING", "STARTED", "IN_PROGRESS", "COMPLETED"]
+
+ETAPA_LABELS: dict[str, str] = {
+    "PENDING":     "No iniciado",
+    "STARTED":     "Inicio",
+    "QUOTING":     "Cotización",
+    "APPROVAL":    "Aprobación",
+    "PLANNING":    "Planificación",
+    "IN_PROGRESS": "Ejecución",
+    "MONITORING":  "Control",
+    "COMPLETED":   "Finalizado",
+    "CANCELLED":   "Cancelado",
+}
+
+ROLES_RESIDENTES = ("propietario", "inquilino")
 
 def _next_etapa(tipo: str, etapa_actual: str) -> str:
     flujo = FLUJO_TAREA if tipo == "tarea" else FLUJO_PROYECTO
@@ -60,6 +79,7 @@ class ProyectoCreate(BaseModel):
     responsable_id: Optional[int] = None
     proveedor_id: Optional[int] = None
     fecha_compromiso: Optional[date] = None
+    visible_residentes: bool = False
 
 
 class ProyectoUpdate(BaseModel):
@@ -75,10 +95,19 @@ class ProyectoUpdate(BaseModel):
     fecha_cierre_real: Optional[date] = None
     presupuesto_aprobado: Optional[float] = None
     costo_final: Optional[float] = None
+    visible_residentes: Optional[bool] = None
+    garantia_meses: Optional[int] = None
+    descripcion_control: Optional[str] = None
 
 
 class AvanzarBody(BaseModel):
     justificacion: Optional[str] = None
+    # APPROVAL → PLANNING
+    fecha_nueva_entrega: Optional[date] = None
+    # IN_PROGRESS → MONITORING
+    descripcion_control: Optional[str] = None
+    garantia_meses: Optional[int] = None
+    fecha_cierre_real: Optional[date] = None
 
 
 class CancelarBody(BaseModel):
@@ -132,7 +161,7 @@ def list_proyectos(
     prioridad: Optional[str] = None,
     zona_tipo: Optional[str] = None,
     responsable_id: Optional[int] = None,
-    u: dict = Depends(_require_access),
+    u: dict = Depends(_require_any_user),
 ):
     conditions = ["p.conjunto_id = %s", "p.activo = TRUE"]
     params: list = [conjunto_id]
@@ -142,6 +171,10 @@ def list_proyectos(
     if zona_tipo:  conditions.append("p.zona_tipo = %s");      params.append(zona_tipo)
     if responsable_id:
         conditions.append("p.responsable_id = %s"); params.append(responsable_id)
+
+    # Residentes solo ven proyectos marcados como visibles
+    if u.get("rol") in ROLES_RESIDENTES:
+        conditions.append("p.visible_residentes = TRUE")
 
     where = " AND ".join(conditions)
     with get_db() as conn:
@@ -171,25 +204,29 @@ def list_proyectos(
 
 
 @router.post("", status_code=201)
-def create_proyecto(body: ProyectoCreate, u: dict = Depends(_require_admin)):
+def create_proyecto(body: ProyectoCreate, u: dict = Depends(_require_any_user)):
+    # Residentes solo pueden crear tareas/solicitudes
+    if u.get("rol") in ROLES_RESIDENTES and body.tipo != "tarea":
+        raise HTTPException(403, "Los residentes solo pueden crear solicitudes (tipo tarea)")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO proyectos
                   (conjunto_id, titulo, tipo, descripcion, prioridad,
                    zona_tipo, zona_id, zona_texto, responsable_id, proveedor_id,
-                   fecha_compromiso, creado_por)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   fecha_compromiso, visible_residentes, creado_por)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING *
             """, (
                 body.conjunto_id, body.titulo, body.tipo, body.descripcion, body.prioridad,
                 body.zona_tipo, body.zona_id, body.zona_texto,
                 body.responsable_id, body.proveedor_id,
-                body.fecha_compromiso, u.get("sub"),
+                body.fecha_compromiso, body.visible_residentes, u.get("sub"),
             ))
             proyecto = dict(cur.fetchone())
+            tipo_label = "solicitud" if body.tipo == "tarea" else body.tipo
             _log_comentario(cur, proyecto["id"], u.get("sub"),
-                            f"Proyecto creado por {u.get('nombre','—')} como {body.tipo}.")
+                            f"Creado por {u.get('nombre','—')} como {tipo_label}.")
             return proyecto
 
 
@@ -234,7 +271,7 @@ def alertas_proximas(conjunto_id: int, dias: int = 7, u: dict = Depends(_require
 
 
 @router.get("/{proyecto_id}")
-def get_proyecto(proyecto_id: int, u: dict = Depends(_require_access)):
+def get_proyecto(proyecto_id: int, u: dict = Depends(_require_any_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -255,7 +292,10 @@ def get_proyecto(proyecto_id: int, u: dict = Depends(_require_access)):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(404, "Proyecto no encontrado")
-            return dict(row)
+            p = dict(row)
+            if u.get("rol") in ROLES_RESIDENTES and not p.get("visible_residentes"):
+                raise HTTPException(403, "Este proyecto no es visible para residentes")
+            return p
 
 
 @router.put("/{proyecto_id}")
@@ -332,11 +372,30 @@ def avanzar_etapa(proyecto_id: int, body: AvanzarBody, u: dict = Depends(_requir
                 if not apr or apr["estado"] not in ("aprobado", "aprobado_por_acta"):
                     raise HTTPException(400, "El proyecto aún no ha sido aprobado por el Consejo")
 
+            # Campos adicionales según la transición
+            extra_fields, extra_vals = [], []
+            if p["etapa"] == "APPROVAL" and siguiente == "PLANNING" and body.fecha_nueva_entrega:
+                extra_fields.append("fecha_compromiso = %s")
+                extra_vals.append(body.fecha_nueva_entrega)
+            if p["etapa"] == "IN_PROGRESS" and siguiente == "MONITORING":
+                if body.descripcion_control:
+                    extra_fields.append("descripcion_control = %s")
+                    extra_vals.append(body.descripcion_control)
+                if body.garantia_meses is not None:
+                    extra_fields.append("garantia_meses = %s")
+                    extra_vals.append(body.garantia_meses)
+                if body.fecha_cierre_real:
+                    extra_fields.append("fecha_cierre_real = %s")
+                    extra_vals.append(body.fecha_cierre_real)
+
+            extra_set = (", " + ", ".join(extra_fields)) if extra_fields else ""
             cur.execute(
-                "UPDATE proyectos SET etapa = %s, updated_at = NOW() WHERE id = %s",
-                (siguiente, proyecto_id),
+                f"UPDATE proyectos SET etapa = %s, updated_at = NOW(){extra_set} WHERE id = %s",
+                [siguiente] + extra_vals + [proyecto_id],
             )
-            texto = f"Etapa avanzada de {p['etapa']} a {siguiente}."
+            de = ETAPA_LABELS.get(p["etapa"], p["etapa"])
+            a = ETAPA_LABELS.get(siguiente, siguiente)
+            texto = f"Etapa avanzada de '{de}' a '{a}'."
             if body.justificacion:
                 texto += f" Nota: {body.justificacion}"
             _log_comentario(cur, proyecto_id, u.get("sub"), texto)
@@ -462,7 +521,7 @@ def delete_cotizacion(proyecto_id: int, cot_id: int, u: dict = Depends(_require_
 # ── Evidencias ────────────────────────────────────────────────────────────────
 
 @router.get("/{proyecto_id}/evidencias")
-def list_evidencias(proyecto_id: int, u: dict = Depends(_require_access)):
+def list_evidencias(proyecto_id: int, u: dict = Depends(_require_any_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -479,8 +538,9 @@ def list_evidencias(proyecto_id: int, u: dict = Depends(_require_access)):
 async def upload_evidencia(
     proyecto_id: int,
     tipo_evidencia: str = Form(...),
+    descripcion: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    u: dict = Depends(_require_access),
+    u: dict = Depends(_require_any_user),
 ):
     content = await file.read()
     mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
@@ -494,10 +554,10 @@ async def upload_evidencia(
                 raise HTTPException(404, "Proyecto no encontrado")
             cur.execute("""
                 INSERT INTO proyecto_evidencias
-                  (proyecto_id, nombre_archivo, tipo_evidencia, url, etapa_carga, subido_por)
-                VALUES (%s,%s,%s,%s,%s,%s)
-                RETURNING id, nombre_archivo, tipo_evidencia, etapa_carga, created_at
-            """, (proyecto_id, file.filename, tipo_evidencia, b64, p["etapa"], u.get("sub")))
+                  (proyecto_id, nombre_archivo, tipo_evidencia, url, descripcion, etapa_carga, subido_por)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id, nombre_archivo, tipo_evidencia, descripcion, etapa_carga, created_at
+            """, (proyecto_id, file.filename, tipo_evidencia, b64, descripcion, p["etapa"], u.get("sub")))
             return dict(cur.fetchone())
 
 
@@ -514,7 +574,7 @@ def delete_evidencia(proyecto_id: int, ev_id: int, u: dict = Depends(_require_ad
 # ── Comentarios / Historial ───────────────────────────────────────────────────
 
 @router.get("/{proyecto_id}/comentarios")
-def list_comentarios(proyecto_id: int, u: dict = Depends(_require_access)):
+def list_comentarios(proyecto_id: int, u: dict = Depends(_require_any_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -613,25 +673,29 @@ def enviar_aprobacion(proyecto_id: int, body: EnviarAprobacionBody, u: dict = De
 
 
 @router.get("/{proyecto_id}/votos")
-def get_votos(proyecto_id: int, u: dict = Depends(_require_access)):
+def get_votos(proyecto_id: int, u: dict = Depends(_require_any_user)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT pa.id AS aprobacion_id, pa.estado AS aprobacion_estado,
                        pa.nota_admin, pa.fecha_limite, pa.created_at AS enviado_at,
-                       json_agg(json_build_object(
-                           'voto_id', pv.id,
-                           'miembro_id', pv.miembro_id,
-                           'miembro_nombre', cm.nombre,
-                           'miembro_cargo', cm.cargo,
-                           'usuario_id', pv.usuario_id,
-                           'decision', pv.decision,
-                           'comentario', pv.comentario,
-                           'votado_at', pv.created_at
-                       ) ORDER BY cm.nombre) AS votos
+                       pa.acta_numero, pa.acta_fecha, pa.acta_descripcion, pa.cerrado_at,
+                       COALESCE(
+                           json_agg(json_build_object(
+                               'voto_id', pv.id,
+                               'miembro_id', pv.miembro_id,
+                               'miembro_nombre', cm.nombre,
+                               'miembro_cargo', cm.cargo,
+                               'usuario_id', pv.usuario_id,
+                               'decision', pv.decision,
+                               'comentario', pv.comentario,
+                               'votado_at', pv.created_at
+                           ) ORDER BY cm.nombre) FILTER (WHERE pv.id IS NOT NULL),
+                           '[]'::json
+                       ) AS votos
                 FROM proyecto_aprobaciones pa
-                JOIN proyecto_votos pv ON pv.aprobacion_id = pa.id
-                JOIN consejo_miembros cm ON cm.id = pv.miembro_id
+                LEFT JOIN proyecto_votos pv ON pv.aprobacion_id = pa.id
+                LEFT JOIN consejo_miembros cm ON cm.id = pv.miembro_id
                 WHERE pa.proyecto_id = %s
                 GROUP BY pa.id
                 ORDER BY pa.created_at DESC
@@ -715,7 +779,7 @@ def votar(proyecto_id: int, body: VotarBody, u: dict = Depends(_require_access))
                     (proyecto_id,),
                 )
                 _log_comentario(cur, proyecto_id, None,
-                                f"Aprobado por unanimidad ({stats['total']} votos). Proyecto avanza a PLANNING.")
+                                f"Aprobado por unanimidad ({stats['total']} votos). Proyecto avanza a Planificación.")
                 return {"resultado": "aprobado_unanimidad", "etapa": "PLANNING"}
 
             return {"resultado": "voto_registrado", "pendientes": stats["pendientes"]}

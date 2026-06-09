@@ -797,6 +797,9 @@ CREATE TABLE IF NOT EXISTS proyectos (
     fecha_cierre_real    DATE,
     presupuesto_aprobado NUMERIC(15,2),
     costo_final          NUMERIC(15,2),
+    visible_residentes   BOOLEAN NOT NULL DEFAULT FALSE,
+    garantia_meses       INTEGER,
+    descripcion_control  TEXT,
     creado_por           INTEGER REFERENCES usuarios(id),
     activo               BOOLEAN NOT NULL DEFAULT TRUE,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -824,6 +827,7 @@ CREATE TABLE IF NOT EXISTS proyecto_evidencias (
     nombre_archivo TEXT NOT NULL,
     tipo_evidencia TEXT NOT NULL CHECK (tipo_evidencia IN ('imagen','cotizacion','documento','acta')),
     url            TEXT NOT NULL,
+    descripcion    TEXT,
     etapa_carga    TEXT,
     subido_por     INTEGER REFERENCES usuarios(id),
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -946,6 +950,19 @@ CREATE INDEX IF NOT EXISTS idx_aprobaciones_proyecto       ON proyecto_aprobacio
 CREATE INDEX IF NOT EXISTS idx_votos_aprobacion            ON proyecto_votos(aprobacion_id);
 CREATE INDEX IF NOT EXISTS idx_votos_usuario               ON proyecto_votos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_chatbot_config_org          ON chatbot_config(organizacion_id);
+
+-- ─── Mi Apartamento: personas autorizadas ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS personas_autorizadas (
+    id          SERIAL PRIMARY KEY,
+    unidad_id   INTEGER NOT NULL REFERENCES unidades(id) ON DELETE CASCADE,
+    nombre      TEXT NOT NULL,
+    cedula      TEXT,
+    telefono    TEXT,
+    tipo        TEXT NOT NULL DEFAULT 'aseo' CHECK (tipo IN ('familiar','aseo','otro')),
+    activo      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_personas_auth_unidad ON personas_autorizadas(unidad_id);
 """
 
 
@@ -1053,6 +1070,12 @@ ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
     CHECK (rol IN ('superadmin','administrador','propietario','inquilino',
                    'portero','servicios','backoffice','consejo'));
+
+-- v19.0 — Proyectos: visibilidad residentes, campos de control y garantía
+ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS visible_residentes BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS garantia_meses INTEGER;
+ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS descripcion_control TEXT;
+ALTER TABLE proyecto_evidencias ADD COLUMN IF NOT EXISTS descripcion TEXT;
 """
 
 

@@ -1,10 +1,9 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { api, proveedoresApi } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import Bitacora from "@/components/Bitacora";
-import FileUploadGenerico from "@/components/FileUploadGenerico";
 
 const ESTADO_BADGE: Record<string, string> = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -34,6 +33,7 @@ const NEEDS_NEXT_DATE = ["trimestral", "semestral", "anual"];
 
 export default function MantenimientoPage() {
   const user = getUser();
+  const router = useRouter();
   const conjuntoId = user?.conjunto_id ?? 1;
 
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
@@ -479,8 +479,8 @@ export default function MantenimientoPage() {
                       );
                       return filtered.map((s) => (
                         <tr key={s.id}
-                          onClick={() => setSelected(s)}
-                          className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.id === s.id ? "bg-blue-50" : ""}`}>
+                          onClick={() => router.push(`/dashboard/mantenimiento/${s.id}`)}
+                          className="cursor-pointer hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3 font-mono text-xs text-gray-400">#{s.id}</td>
                           <td className="px-4 py-3">
                             <div className="font-medium text-gray-900 flex items-center gap-1.5 flex-wrap">
@@ -520,11 +520,9 @@ export default function MantenimientoPage() {
             </div>
           </div>
 
-          {/* Detail drawer — fijo a la derecha, tabla conserva ancho completo */}
-          {selected && (
-            <div className="fixed inset-0 z-50 flex justify-end">
-              <div className="absolute inset-0 bg-black/30" onClick={() => setSelected(null)} />
-              <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col overflow-y-auto h-full">
+          {/* [drawer removed — click de fila navega a /mantenimiento/[id]] */}
+          {false && (
+            <div className="hidden">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden h-full">
               <div className="px-5 py-4 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-2">

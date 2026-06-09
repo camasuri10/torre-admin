@@ -55,6 +55,7 @@ export default function ProyectosPage() {
   const conjuntoId = user?.conjunto_id ?? undefined;
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
   const isConsejo = user?.rol === "consejo";
+  const isResidente = user?.rol === "propietario" || user?.rol === "inquilino";
 
   const [proyectos, setProyectos] = useState<any[]>([]);
   const [proximosVencer, setProximosVencer] = useState<any[]>([]);
@@ -65,6 +66,7 @@ export default function ProyectosPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formTipo, setFormTipo] = useState("proyecto");
+  const [formVisible, setFormVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!conjuntoId) { setLoading(false); return; }
@@ -114,9 +116,10 @@ export default function ProyectosPage() {
       const body: any = {
         conjunto_id: conjuntoId,
         titulo: fd.get("titulo"),
-        tipo: fd.get("tipo"),
+        tipo: isResidente ? "tarea" : fd.get("tipo"),
         descripcion: fd.get("descripcion") || null,
-        prioridad: fd.get("prioridad"),
+        prioridad: isResidente ? "media" : fd.get("prioridad"),
+        visible_residentes: formVisible,
       };
       const fc = fd.get("fecha_compromiso");
       if (fc) body.fecha_compromiso = fc;
@@ -186,12 +189,12 @@ export default function ProyectosPage() {
             <option value="proyecto">Proyecto</option>
             <option value="tarea">Tarea</option>
           </select>
-          {isAdmin && (
+          {(isAdmin || isResidente) && (
             <button
               onClick={() => setShowForm(true)}
               className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
             >
-              + Nuevo
+              {isResidente ? "+ Nueva Solicitud" : "+ Nuevo"}
             </button>
           )}
         </div>
@@ -203,7 +206,7 @@ export default function ProyectosPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {["Título","Tipo","Etapa","Prioridad","Zona","Fecha compromiso",""].map((h) => (
+                {["Título","Tipo","Etapa","Prioridad","Zona","Compromiso","Cierre","Registro",""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -212,7 +215,7 @@ export default function ProyectosPage() {
               {loading ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Cargando…</td></tr>
               ) : filtrados.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No hay proyectos</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No hay proyectos</td></tr>
               ) : filtrados.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/proyectos/${p.id}`)}>
                   <td className="px-4 py-3">
@@ -248,6 +251,16 @@ export default function ProyectosPage() {
                       ? new Date(p.fecha_compromiso).toLocaleDateString("es-CO")
                       : <span className="text-gray-300">—</span>}
                   </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {p.fecha_cierre_real
+                      ? new Date(p.fecha_cierre_real).toLocaleDateString("es-CO")
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {p.created_at
+                      ? new Date(p.created_at).toLocaleDateString("es-CO")
+                      : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/proyectos/${p.id}`); }}
@@ -267,39 +280,61 @@ export default function ProyectosPage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-semibold text-gray-900 mb-4">Nuevo proyecto / tarea</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">
+              {isResidente ? "Nueva Solicitud" : "Nuevo proyecto / tarea"}
+            </h3>
+            {isResidente && (
+              <p className="text-xs text-blue-600 bg-blue-50 rounded-lg p-2 mb-4">
+                Tu solicitud quedará en revisión. El administrador la gestionará.
+              </p>
+            )}
             <form onSubmit={handleCrear} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input name="titulo" required className={INPUT} placeholder="Ej: Reparación piscina niños" />
+                <input name="titulo" required className={INPUT} placeholder={isResidente ? "Ej: Filtración en mi apartamento" : "Ej: Reparación piscina niños"} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
-                  <select name="tipo" className={INPUT} value={formTipo} onChange={(e) => setFormTipo(e.target.value)}>
-                    <option value="proyecto_mayor">Proyecto Mayor</option>
-                    <option value="proyecto">Proyecto</option>
-                    <option value="tarea">Tarea</option>
-                  </select>
+              {!isResidente && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
+                    <select name="tipo" className={INPUT} value={formTipo} onChange={(e) => setFormTipo(e.target.value)}>
+                      <option value="proyecto_mayor">Proyecto Mayor</option>
+                      <option value="proyecto">Proyecto</option>
+                      <option value="tarea">Tarea</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
+                    <select name="prioridad" defaultValue="media" className={INPUT}>
+                      <option value="alta">Alta</option>
+                      <option value="media">Media</option>
+                      <option value="baja">Baja</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
-                  <select name="prioridad" defaultValue="media" className={INPUT}>
-                    <option value="alta">Alta</option>
-                    <option value="media">Media</option>
-                    <option value="baja">Baja</option>
-                  </select>
-                </div>
-              </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                 <textarea name="descripcion" rows={3} className={INPUT} />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha compromiso</label>
-                <input name="fecha_compromiso" type="date" className={INPUT} />
-              </div>
-              {formTipo !== "tarea" && (
+              {!isResidente && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha compromiso</label>
+                  <input name="fecha_compromiso" type="date" className={INPUT} />
+                </div>
+              )}
+              {isAdmin && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formVisible}
+                    onChange={(e) => setFormVisible(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700">Visible para residentes</span>
+                </label>
+              )}
+              {!isResidente && formTipo !== "tarea" && (
                 <p className="text-xs text-blue-600 bg-blue-50 rounded-lg p-2">
                   Este tipo requiere cotizaciones{formTipo === "proyecto_mayor" ? " (mínimo 3)" : " (mínimo 1)"} y aprobación del Consejo.
                 </p>

@@ -39,6 +39,7 @@ export default function ProyectoDetallePage() {
   const user = getUser();
   const isAdmin = user?.rol === "administrador" || user?.rol === "superadmin";
   const isConsejo = user?.rol === "consejo";
+  const isResidente = user?.rol === "propietario" || user?.rol === "inquilino";
   const isAccess = isAdmin || isConsejo;
 
   const [proyecto, setProyecto] = useState<any>(null);
@@ -62,7 +63,16 @@ export default function ProyectoDetallePage() {
 
   // Evidencias
   const evidFileRef = useRef<HTMLInputElement>(null);
+  const evidCamRef = useRef<HTMLInputElement>(null);
   const [tipoEvidencia, setTipoEvidencia] = useState("imagen");
+  const [evidDescripcion, setEvidDescripcion] = useState("");
+
+  // Modal avanzar
+  const [showAvanzar, setShowAvanzar] = useState(false);
+  const [avanzarFecha, setAvanzarFecha] = useState("");
+  const [avanzarDescControl, setAvanzarDescControl] = useState("");
+  const [avanzarGarantia, setAvanzarGarantia] = useState("");
+  const [avanzarFechaCierre, setAvanzarFechaCierre] = useState("");
 
   // Historial
   const [comentTexto, setComentTexto] = useState("");
@@ -139,6 +149,7 @@ export default function ProyectoDetallePage() {
       fecha_compromiso: proyecto.fecha_compromiso?.slice(0,10) || "",
       presupuesto_aprobado: proyecto.presupuesto_aprobado || "",
       costo_final: proyecto.costo_final || "",
+      visible_residentes: proyecto.visible_residentes ?? false,
     });
   }, [editando, proyecto]);
 
@@ -156,16 +167,43 @@ export default function ProyectoDetallePage() {
   const miVoto = aprobacionActiva?.votos?.find((v: any) => v.usuario_id === parseInt(user?.sub ?? "0"));
   const tengoVotoPendiente = isConsejo && miVoto && miVoto.decision === null;
 
-  async function handleAvanzar() {
+  function handleAvanzarClick() {
+    const etapa = proyecto?.etapa;
+    const flujoActual = proyecto?.tipo === "tarea" ? FLUJO_TAREA : FLUJO_PROYECTO;
+    const idx = flujoActual.indexOf(etapa);
+    const siguiente = idx >= 0 ? flujoActual[idx + 1] : null;
+    // Si la siguiente etapa necesita datos extra, abre modal
+    if (siguiente === "PLANNING" || siguiente === "MONITORING") {
+      setShowAvanzar(true);
+    } else {
+      handleAvanzar({});
+    }
+  }
+
+  async function handleAvanzar(extra: {
+    fecha_nueva_entrega?: string;
+    descripcion_control?: string;
+    garantia_meses?: number;
+    fecha_cierre_real?: string;
+  }) {
     setAvanzando(true);
+    setShowAvanzar(false);
     try {
-      const res = await proyectosApi.avanzar(proyectoId);
+      const body: any = {};
+      if (extra.fecha_nueva_entrega) body.fecha_nueva_entrega = extra.fecha_nueva_entrega;
+      if (extra.descripcion_control) body.descripcion_control = extra.descripcion_control;
+      if (extra.garantia_meses) body.garantia_meses = extra.garantia_meses;
+      if (extra.fecha_cierre_real) body.fecha_cierre_real = extra.fecha_cierre_real;
+      const res = await proyectosApi.avanzar(proyectoId, body);
       await loadProyecto();
       await loadSubData();
       alert(`✅ Etapa avanzada a: ${ETAPA_LABEL[res.etapa]}`);
     } catch (e: any) {
       alert(`❌ ${e.message}`);
-    } finally { setAvanzando(false); }
+    } finally {
+      setAvanzando(false);
+      setAvanzarFecha(""); setAvanzarDescControl(""); setAvanzarGarantia(""); setAvanzarFechaCierre("");
+    }
   }
 
   async function handleCancelar() {
@@ -228,7 +266,8 @@ export default function ProyectoDetallePage() {
   }
 
   async function handleUploadEvidencia(file: File) {
-    await proyectosApi.evidencias.upload(proyectoId, file, tipoEvidencia);
+    await proyectosApi.evidencias.upload(proyectoId, file, tipoEvidencia, evidDescripcion || undefined);
+    setEvidDescripcion("");
     loadSubData();
   }
 
@@ -316,7 +355,7 @@ export default function ProyectoDetallePage() {
           <div className="flex gap-2 flex-shrink-0">
             <button onClick={() => setEditando(true)}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">✏️ Editar</button>
-            <button onClick={handleAvanzar} disabled={avanzando}
+            <button onClick={handleAvanzarClick} disabled={avanzando}
               className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
               {avanzando ? "…" : "Avanzar →"}
             </button>
@@ -403,7 +442,7 @@ export default function ProyectoDetallePage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
-        {(["detalles","cotizaciones","evidencias","historial","aprobacion"] as const)
+        {(["detalles","historial","cotizaciones","evidencias","aprobacion"] as const)
           .filter((t) => t !== "cotizaciones" || proyecto.tipo !== "tarea")
           .filter((t) => t !== "aprobacion" || tieneAprobacion)
           .map((t) => (
@@ -412,9 +451,9 @@ export default function ProyectoDetallePage() {
                 tab === t ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"
               }`}>
               {t === "detalles" ? "📋 Detalles" :
+               t === "historial" ? `📝 Historial (${comentarios.length})` :
                t === "cotizaciones" ? `💼 Cotizaciones (${cotizaciones.length})` :
                t === "evidencias" ? `📎 Evidencias (${evidencias.length})` :
-               t === "historial" ? `📝 Historial (${comentarios.length})` :
                `🗳️ Aprobación`}
             </button>
           ))}
@@ -457,10 +496,27 @@ export default function ProyectoDetallePage() {
                 <div className="font-medium">${Number(proyecto.costo_final).toLocaleString("es-CO")}</div>
               </div>
             )}
+            {proyecto.garantia_meses != null && (
+              <div><span className="text-gray-400 text-xs">Garantía</span>
+                <div className="font-medium">{proyecto.garantia_meses} {proyecto.garantia_meses === 1 ? "mes" : "meses"}</div>
+              </div>
+            )}
+            {proyecto.descripcion_control && (
+              <div className="sm:col-span-2"><span className="text-gray-400 text-xs">Descripción del control</span>
+                <p className="text-gray-900 mt-0.5">{proyecto.descripcion_control}</p>
+              </div>
+            )}
             <div><span className="text-gray-400 text-xs">Creado por</span><div className="font-medium">{proyecto.creado_por_nombre ?? "—"}</div></div>
             <div><span className="text-gray-400 text-xs">Fecha registro</span>
               <div className="font-medium">{new Date(proyecto.created_at).toLocaleDateString("es-CO")}</div>
             </div>
+            {isAdmin && (
+              <div><span className="text-gray-400 text-xs">Visible para residentes</span>
+                <div className={`font-medium text-sm ${proyecto.visible_residentes ? "text-green-600" : "text-gray-400"}`}>
+                  {proyecto.visible_residentes ? "✓ Sí" : "No"}
+                </div>
+              </div>
+            )}
           </div>
           {isAdmin && proyecto.tipo === "tarea" && proyecto.etapa !== "CANCELLED" && (
             <div className="mt-4 pt-4 border-t border-gray-100">
@@ -552,6 +608,17 @@ export default function ProyectoDetallePage() {
               <input type="number" step="0.01" min="0" value={editForm.costo_final} onChange={(e) => setEditForm({...editForm, costo_final: e.target.value})} className={INPUT} placeholder="0.00" />
             </div>
           </div>
+          {isAdmin && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!editForm.visible_residentes}
+                onChange={(e) => setEditForm({...editForm, visible_residentes: e.target.checked})}
+                className="rounded"
+              />
+              <span className="text-sm text-gray-700">Visible para residentes</span>
+            </label>
+          )}
           <div className="flex gap-3 justify-end">
             <button onClick={() => setEditando(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
             <button onClick={handleGuardarEdicion} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Guardar</button>
@@ -663,9 +730,9 @@ export default function ProyectoDetallePage() {
       {/* ── Tab Evidencias ── */}
       {tab === "evidencias" && (
         <div className="space-y-4">
-          {isAccess && !esFinalizado && (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <div className="flex items-center gap-3">
+          {(isAccess || isResidente) && !esFinalizado && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <select value={tipoEvidencia} onChange={(e) => setTipoEvidencia(e.target.value)}
                   className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
                   <option value="imagen">Imagen</option>
@@ -673,13 +740,25 @@ export default function ProyectoDetallePage() {
                   <option value="documento">Documento</option>
                   <option value="acta">Acta</option>
                 </select>
-                <input ref={evidFileRef} type="file" className="hidden"
+                <input ref={evidFileRef} type="file" className="hidden" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
                   onChange={(e) => { if (e.target.files?.[0]) handleUploadEvidencia(e.target.files[0]); }} />
+                <input ref={evidCamRef} type="file" className="hidden" accept="image/*" capture="environment"
+                  onChange={(e) => { if (e.target.files?.[0]) handleUploadEvidencia(e.target.files[0]); }} />
+                <button onClick={() => evidCamRef.current?.click()}
+                  className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                  📷 Tomar foto
+                </button>
                 <button onClick={() => evidFileRef.current?.click()}
                   className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
-                  📎 Subir archivo
+                  📎 Adjuntar archivo
                 </button>
               </div>
+              <input
+                value={evidDescripcion}
+                onChange={(e) => setEvidDescripcion(e.target.value)}
+                placeholder="Descripción opcional del archivo…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
             </div>
           )}
           {evidencias.length === 0 ? (
@@ -694,6 +773,7 @@ export default function ProyectoDetallePage() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">{ev.nombre_archivo}</p>
                     <p className="text-xs text-gray-400 capitalize mt-0.5">{ev.tipo_evidencia} · {ev.etapa_carga}</p>
+                    {ev.descripcion && <p className="text-xs text-gray-600 mt-0.5 italic">{ev.descripcion}</p>}
                     <p className="text-xs text-gray-400">{ev.subido_por_nombre}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -761,44 +841,60 @@ export default function ProyectoDetallePage() {
           {votos.length > 0 && votos.map((apr: any) => (
             <div key={apr.aprobacion_id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-semibold text-gray-900 text-sm">Proceso de votación</h4>
+                <h4 className="font-semibold text-gray-900 text-sm">
+                  {apr.aprobacion_estado === "aprobado_por_acta" ? "📜 Aprobado por Acta de Asamblea" : "🗳️ Proceso de votación"}
+                </h4>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   apr.aprobacion_estado === "pendiente" ? "bg-orange-100 text-orange-700" :
                   apr.aprobacion_estado === "aprobado" ? "bg-green-100 text-green-700" :
                   apr.aprobacion_estado === "rechazado" ? "bg-red-100 text-red-500" :
                   "bg-blue-100 text-blue-600"
-                }`}>{apr.aprobacion_estado}</span>
+                }`}>{apr.aprobacion_estado === "aprobado_por_acta" ? "Aprobado" : apr.aprobacion_estado}</span>
               </div>
               {apr.nota_admin && <p className="text-xs text-gray-600 mb-3 bg-gray-50 rounded p-2">📝 {apr.nota_admin}</p>}
               {apr.fecha_limite && <p className="text-xs text-gray-400 mb-3">Fecha límite: {new Date(apr.fecha_limite).toLocaleDateString("es-CO")}</p>}
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-400 border-b border-gray-100">
-                    <th className="pb-2 text-left font-medium">Miembro</th>
-                    <th className="pb-2 text-left font-medium">Cargo</th>
-                    <th className="pb-2 text-left font-medium">Decisión</th>
-                    <th className="pb-2 text-left font-medium">Comentario</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {(apr.votos || []).map((v: any) => (
-                    <tr key={v.voto_id}>
-                      <td className="py-2 font-medium text-gray-900">{v.miembro_nombre}</td>
-                      <td className="py-2 text-gray-500 capitalize">{v.miembro_cargo}</td>
-                      <td className="py-2">
-                        {v.decision === null ? (
-                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">⏳ Pendiente</span>
-                        ) : v.decision === "aprobado" ? (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Aprobado</span>
-                        ) : (
-                          <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">✗ Rechazado</span>
-                        )}
-                      </td>
-                      <td className="py-2 text-xs text-gray-500">{v.comentario || "—"}</td>
+
+              {/* Info del acta (cuando fue aprobado por acta sin votos individuales) */}
+              {apr.aprobacion_estado === "aprobado_por_acta" && (
+                <div className="bg-blue-50 rounded-lg p-3 space-y-1 mb-3">
+                  {apr.acta_numero && <p className="text-xs text-blue-800"><span className="font-medium">Acta:</span> {apr.acta_numero}</p>}
+                  {apr.acta_fecha && <p className="text-xs text-blue-800"><span className="font-medium">Fecha asamblea:</span> {new Date(apr.acta_fecha).toLocaleDateString("es-CO")}</p>}
+                  {apr.acta_descripcion && <p className="text-xs text-blue-700 mt-1">{apr.acta_descripcion}</p>}
+                  {apr.cerrado_at && <p className="text-xs text-gray-400">Registrado: {new Date(apr.cerrado_at).toLocaleDateString("es-CO")}</p>}
+                </div>
+              )}
+
+              {/* Tabla de votos individuales */}
+              {(apr.votos || []).length > 0 && (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 border-b border-gray-100">
+                      <th className="pb-2 text-left font-medium">Miembro</th>
+                      <th className="pb-2 text-left font-medium">Cargo</th>
+                      <th className="pb-2 text-left font-medium">Decisión</th>
+                      <th className="pb-2 text-left font-medium">Comentario</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(apr.votos || []).map((v: any) => (
+                      <tr key={v.voto_id}>
+                        <td className="py-2 font-medium text-gray-900">{v.miembro_nombre}</td>
+                        <td className="py-2 text-gray-500 capitalize">{v.miembro_cargo}</td>
+                        <td className="py-2">
+                          {v.decision === null ? (
+                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">⏳ Pendiente</span>
+                          ) : v.decision === "aprobado" ? (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Aprobado</span>
+                          ) : (
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">✗ Rechazado</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-xs text-gray-500">{v.comentario || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           ))}
 
@@ -877,6 +973,60 @@ export default function ProyectoDetallePage() {
           )}
         </div>
       )}
+
+      {/* Modal avanzar — campos contextuales */}
+      {showAvanzar && (() => {
+        const flujoActual = proyecto.tipo === "tarea" ? FLUJO_TAREA : FLUJO_PROYECTO;
+        const idx = flujoActual.indexOf(proyecto.etapa);
+        const siguiente = flujoActual[idx + 1];
+        const esPLANNING = siguiente === "PLANNING";
+        const esMONITORING = siguiente === "MONITORING";
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                Avanzar a: <span className="text-primary">{ETAPA_LABEL[siguiente]}</span>
+              </h3>
+              {esPLANNING && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nueva fecha de entrega estimada (opcional)</label>
+                  <input type="date" value={avanzarFecha} onChange={(e) => setAvanzarFecha(e.target.value)} className={INPUT} />
+                  <p className="text-xs text-gray-400 mt-1">Si se deja vacío, se mantiene la fecha actual.</p>
+                </div>
+              )}
+              {esMONITORING && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de entrega final (opcional)</label>
+                    <input type="date" value={avanzarFechaCierre} onChange={(e) => setAvanzarFechaCierre(e.target.value)} className={INPUT} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tiempo de garantía (meses, opcional)</label>
+                    <input type="number" min="0" max="120" value={avanzarGarantia} onChange={(e) => setAvanzarGarantia(e.target.value)}
+                      className={INPUT} placeholder="Ej: 12" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Descripción del control (opcional)</label>
+                    <textarea rows={2} value={avanzarDescControl} onChange={(e) => setAvanzarDescControl(e.target.value)}
+                      className={INPUT} placeholder="Observaciones sobre el cierre y control de calidad…" />
+                  </div>
+                </>
+              )}
+              <div className="flex gap-3 justify-end pt-2">
+                <button onClick={() => setShowAvanzar(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
+                <button onClick={() => handleAvanzar({
+                  fecha_nueva_entrega: avanzarFecha || undefined,
+                  descripcion_control: avanzarDescControl || undefined,
+                  garantia_meses: avanzarGarantia ? parseInt(avanzarGarantia) : undefined,
+                  fecha_cierre_real: avanzarFechaCierre || undefined,
+                })} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
+                  Confirmar →
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal cancelar */}
       {showCancelar && (

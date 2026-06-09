@@ -19,6 +19,7 @@ from routers import (
     guardias, reportes, chat, superadmin,
     vehiculos, mascotas, proveedores, backoffice, encuestas,
     procurement, contratos, consejo, chatbot, organizaciones, proyectos,
+    personas_autorizadas,
 )
 
 # ── DB bootstrap ─────────────────────────────────────────────────────────────
@@ -84,7 +85,8 @@ app.include_router(contratos.router,      prefix="/api/contratos",         tags=
 app.include_router(consejo.router,        prefix="/api/consejo",           tags=["Consejo"])
 app.include_router(chatbot.router,        prefix="/api/chatbot",           tags=["Chatbot IA"])
 app.include_router(organizaciones.router, prefix="/api/organizaciones",    tags=["Organizaciones"])
-app.include_router(proyectos.router,      prefix="/api/proyectos",           tags=["Proyectos"])
+app.include_router(proyectos.router,           prefix="/api/proyectos",              tags=["Proyectos"])
+app.include_router(personas_autorizadas.router, prefix="/api/personas-autorizadas",  tags=["Mi Apartamento"])
 
 
 @app.get("/api/migrate-v16")

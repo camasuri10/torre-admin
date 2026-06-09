@@ -673,7 +673,13 @@ export const proyectosApi = {
   create: (data: any) => request<any>("/api/proyectos", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: any) => request<any>(`/api/proyectos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/proyectos/${id}`, { method: "DELETE" }),
-  avanzar: (id: number, data?: { justificacion?: string }) =>
+  avanzar: (id: number, data?: {
+    justificacion?: string;
+    fecha_nueva_entrega?: string;
+    descripcion_control?: string;
+    garantia_meses?: number;
+    fecha_cierre_real?: string;
+  }) =>
     request<any>(`/api/proyectos/${id}/avanzar`, { method: "POST", body: JSON.stringify(data ?? {}) }),
   cancelar: (id: number, justificacion: string) =>
     request<any>(`/api/proyectos/${id}/cancelar`, { method: "POST", body: JSON.stringify({ justificacion }) }),
@@ -692,10 +698,11 @@ export const proyectosApi = {
 
   evidencias: {
     list: (proyecto_id: number) => request<any[]>(`/api/proyectos/${proyecto_id}/evidencias`),
-    upload: (proyecto_id: number, file: File, tipo_evidencia: string) => {
+    upload: (proyecto_id: number, file: File, tipo_evidencia: string, descripcion?: string) => {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("tipo_evidencia", tipo_evidencia);
+      if (descripcion) fd.append("descripcion", descripcion);
       return formRequest<any>(`/api/proyectos/${proyecto_id}/evidencias`, fd);
     },
     delete: (proyecto_id: number, ev_id: number) =>
