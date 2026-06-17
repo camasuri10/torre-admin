@@ -73,6 +73,7 @@ export default function ProyectoDetallePage() {
   const [avanzarDescControl, setAvanzarDescControl] = useState("");
   const [avanzarGarantia, setAvanzarGarantia] = useState("");
   const [avanzarFechaCierre, setAvanzarFechaCierre] = useState("");
+  const [avanzarJustificacion, setAvanzarJustificacion] = useState("");
 
   // Historial
   const [comentTexto, setComentTexto] = useState("");
@@ -147,6 +148,7 @@ export default function ProyectoDetallePage() {
       responsable_id: proyecto.responsable_id || "",
       proveedor_id: proyecto.proveedor_id || "",
       fecha_compromiso: proyecto.fecha_compromiso?.slice(0,10) || "",
+      fecha_cierre_real: proyecto.fecha_cierre_real?.slice(0,10) || "",
       presupuesto_aprobado: proyecto.presupuesto_aprobado || "",
       costo_final: proyecto.costo_final || "",
       visible_residentes: proyecto.visible_residentes ?? false,
@@ -168,32 +170,19 @@ export default function ProyectoDetallePage() {
   const tengoVotoPendiente = isConsejo && miVoto && miVoto.decision === null;
 
   function handleAvanzarClick() {
-    const etapa = proyecto?.etapa;
-    const flujoActual = proyecto?.tipo === "tarea" ? FLUJO_TAREA : FLUJO_PROYECTO;
-    const idx = flujoActual.indexOf(etapa);
-    const siguiente = idx >= 0 ? flujoActual[idx + 1] : null;
-    // Si la siguiente etapa necesita datos extra, abre modal
-    if (siguiente === "PLANNING" || siguiente === "MONITORING") {
-      setShowAvanzar(true);
-    } else {
-      handleAvanzar({});
-    }
+    setShowAvanzar(true);
   }
 
-  async function handleAvanzar(extra: {
-    fecha_nueva_entrega?: string;
-    descripcion_control?: string;
-    garantia_meses?: number;
-    fecha_cierre_real?: string;
-  }) {
+  async function handleAvanzar() {
+    if (!avanzarJustificacion.trim()) { alert("La descripción es obligatoria para avanzar"); return; }
     setAvanzando(true);
     setShowAvanzar(false);
     try {
-      const body: any = {};
-      if (extra.fecha_nueva_entrega) body.fecha_nueva_entrega = extra.fecha_nueva_entrega;
-      if (extra.descripcion_control) body.descripcion_control = extra.descripcion_control;
-      if (extra.garantia_meses) body.garantia_meses = extra.garantia_meses;
-      if (extra.fecha_cierre_real) body.fecha_cierre_real = extra.fecha_cierre_real;
+      const body: any = { justificacion: avanzarJustificacion };
+      if (avanzarFecha) body.fecha_nueva_entrega = avanzarFecha;
+      if (avanzarDescControl) body.descripcion_control = avanzarDescControl;
+      if (avanzarGarantia) body.garantia_meses = parseInt(avanzarGarantia);
+      if (avanzarFechaCierre) body.fecha_cierre_real = avanzarFechaCierre;
       const res = await proyectosApi.avanzar(proyectoId, body);
       await loadProyecto();
       await loadSubData();
@@ -202,7 +191,7 @@ export default function ProyectoDetallePage() {
       alert(`❌ ${e.message}`);
     } finally {
       setAvanzando(false);
-      setAvanzarFecha(""); setAvanzarDescControl(""); setAvanzarGarantia(""); setAvanzarFechaCierre("");
+      setAvanzarFecha(""); setAvanzarDescControl(""); setAvanzarGarantia(""); setAvanzarFechaCierre(""); setAvanzarJustificacion("");
     }
   }
 
@@ -554,6 +543,10 @@ export default function ProyectoDetallePage() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Fecha compromiso</label>
               <input type="date" value={editForm.fecha_compromiso} onChange={(e) => setEditForm({...editForm, fecha_compromiso: e.target.value})} className={INPUT} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de cierre real</label>
+              <input type="date" value={editForm.fecha_cierre_real} onChange={(e) => setEditForm({...editForm, fecha_cierre_real: e.target.value})} className={INPUT} />
             </div>
           </div>
           <div>
@@ -987,6 +980,12 @@ export default function ProyectoDetallePage() {
               <h3 className="font-semibold text-gray-900">
                 Avanzar a: <span className="text-primary">{ETAPA_LABEL[siguiente]}</span>
               </h3>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Descripción / Nota *</label>
+                <textarea rows={3} value={avanzarJustificacion} onChange={(e) => setAvanzarJustificacion(e.target.value)}
+                  className={INPUT} placeholder="Describe el motivo o estado del avance…" />
+                <p className="text-xs text-red-500 mt-0.5">Obligatorio</p>
+              </div>
               {esPLANNING && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nueva fecha de entrega estimada (opcional)</label>
@@ -1013,14 +1012,9 @@ export default function ProyectoDetallePage() {
                 </>
               )}
               <div className="flex gap-3 justify-end pt-2">
-                <button onClick={() => setShowAvanzar(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
-                <button onClick={() => handleAvanzar({
-                  fecha_nueva_entrega: avanzarFecha || undefined,
-                  descripcion_control: avanzarDescControl || undefined,
-                  garantia_meses: avanzarGarantia ? parseInt(avanzarGarantia) : undefined,
-                  fecha_cierre_real: avanzarFechaCierre || undefined,
-                })} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">
-                  Confirmar →
+                <button onClick={() => { setShowAvanzar(false); setAvanzarJustificacion(""); }} className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
+                <button onClick={handleAvanzar} disabled={avanzando} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                  {avanzando ? "…" : "Confirmar →"}
                 </button>
               </div>
             </div>

@@ -206,7 +206,7 @@ export default function ProyectosPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {["Título","Tipo","Etapa","Prioridad","Zona","Compromiso","Cierre","Registro",""].map((h) => (
+                {["Título","Tipo","Etapa","Prioridad","Zona","Registro","Compromiso","Cierre",""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -246,6 +246,11 @@ export default function ProyectosPage() {
                      p.zona_tipo === "zona_comun" ? `🌳 ${p.zona_comun_nombre ?? "—"}` :
                      p.zona_texto || <span className="text-gray-300">—</span>}
                   </td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {p.created_at
+                      ? new Date(p.created_at).toLocaleDateString("es-CO")
+                      : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {p.fecha_compromiso
                       ? new Date(p.fecha_compromiso).toLocaleDateString("es-CO")
@@ -254,11 +259,6 @@ export default function ProyectosPage() {
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {p.fecha_cierre_real
                       ? new Date(p.fecha_cierre_real).toLocaleDateString("es-CO")
-                      : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-400">
-                    {p.created_at
-                      ? new Date(p.created_at).toLocaleDateString("es-CO")
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">

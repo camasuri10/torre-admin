@@ -257,11 +257,21 @@ export const api = {
     alertas: {
       list: (conjunto_id?: number) => {
         const q = conjunto_id ? `?conjunto_id=${conjunto_id}` : "";
-        return request<any[]>(`/api/mantenimientos/alertas/${q}`);
+        return request<any[]>(`/api/mantenimientos/alertas${q}`);
       },
-      create: (data: any) => request<any>("/api/mantenimientos/alertas/", { method: "POST", body: JSON.stringify(data) }),
+      create: (data: any) => request<any>("/api/mantenimientos/alertas", { method: "POST", body: JSON.stringify(data) }),
       update: (id: number, estado: string) =>
         request<any>(`/api/mantenimientos/alertas/${id}?estado=${estado}`, { method: "PATCH" }),
+      atender: (id: number, nota?: string, usuario_id?: number, usuario_nombre?: string) =>
+        request<any>(`/api/mantenimientos/alertas/${id}/atender`, {
+          method: "PATCH",
+          body: JSON.stringify({ nota, usuario_id, usuario_nombre }),
+        }),
+      resolver: (id: number, nota: string, usuario_id?: number, usuario_nombre?: string) =>
+        request<any>(`/api/mantenimientos/alertas/${id}/resolver`, {
+          method: "PATCH",
+          body: JSON.stringify({ nota, usuario_id, usuario_nombre }),
+        }),
     },
     inventario: {
       list: (conjunto_id?: number, tipo?: string) => {

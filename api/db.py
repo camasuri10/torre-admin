@@ -1076,6 +1076,26 @@ ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS visible_residentes BOOLEAN NOT NU
 ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS garantia_meses INTEGER;
 ALTER TABLE proyectos ADD COLUMN IF NOT EXISTS descripcion_control TEXT;
 ALTER TABLE proyecto_evidencias ADD COLUMN IF NOT EXISTS descripcion TEXT;
+
+-- v20.0 — Mantenimiento: ciclo de vida de ocurrencias (Doc 2 Part 1)
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS ciclo_activo BOOLEAN DEFAULT TRUE;
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS ciclo_cerrado BOOLEAN DEFAULT FALSE;
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS motivo_cierre TEXT;
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS fecha_cierre_ciclo TIMESTAMPTZ;
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS cerrado_por INTEGER REFERENCES usuarios(id);
+ALTER TABLE mantenimientos ADD COLUMN IF NOT EXISTS numero_ocurrencia INTEGER DEFAULT 1;
+
+-- v20.1 — Mantenimiento: alertas preventivas (Doc 2 Part 2)
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS mantenimiento_id INTEGER REFERENCES mantenimientos(id);
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS tipo_alerta TEXT;
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS prioridad_alerta TEXT DEFAULT 'media';
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS auto_generada BOOLEAN DEFAULT FALSE;
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS atendida BOOLEAN DEFAULT FALSE;
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS nota_resolucion TEXT;
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS resuelta_por INTEGER REFERENCES usuarios(id);
+ALTER TABLE mantenimiento_alertas ADD COLUMN IF NOT EXISTS fecha_atencion TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_mant_alertas_mantenimiento ON mantenimiento_alertas(mantenimiento_id);
+CREATE INDEX IF NOT EXISTS idx_mant_alertas_tipo ON mantenimiento_alertas(tipo_alerta);
 """
 
 

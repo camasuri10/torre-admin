@@ -42,7 +42,12 @@ export default function MantenimientoPage() {
   const [inventario, setInventario] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"solicitudes" | "alertas" | "inventario">("solicitudes");
+  const [filtroAlerta, setFiltroAlerta] = useState<string>("todas");
+  const [showResolverModal, setShowResolverModal] = useState(false);
+  const [resolverAlertaId, setResolverAlertaId] = useState<number | null>(null);
+  const [resolverNota, setResolverNota] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroPrioridad, setFiltroPrioridad] = useState("");
   const [filtroProgramado, setFiltroProgramado] = useState<boolean | null>(null);
   const [sortCol, setSortCol] = useState<string>("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -79,8 +84,8 @@ export default function MantenimientoPage() {
     setLoading(true);
     const params: any = { conjunto_id: conjuntoId };
     if (filtroEstado) params.estado = filtroEstado;
+    if (filtroPrioridad) params.prioridad = filtroPrioridad;
     if (filtroProgramado !== null) params.es_programado = filtroProgramado;
-    // Change 3: pass date range params
     if (fechaDesde) params.fecha_desde = fechaDesde;
     if (fechaHasta) params.fecha_hasta = fechaHasta;
     const [s, a, inv] = await Promise.allSettled([
@@ -92,7 +97,7 @@ export default function MantenimientoPage() {
     if (a.status === "fulfilled") setAlertas(a.value);
     if (inv.status === "fulfilled") setInventario(inv.value);
     setLoading(false);
-  }, [conjuntoId, filtroEstado, filtroProgramado, fechaDesde, fechaHasta]);
+  }, [conjuntoId, filtroEstado, filtroPrioridad, filtroProgramado, fechaDesde, fechaHasta]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -319,6 +324,10 @@ export default function MantenimientoPage() {
           av = a.fecha_vencimiento ? new Date(a.fecha_vencimiento).getTime() : Infinity;
           bv = b.fecha_vencimiento ? new Date(b.fecha_vencimiento).getTime() : Infinity;
         }
+        else if (sortCol === "solicitud") {
+          av = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bv = b.created_at ? new Date(b.created_at).getTime() : 0;
+        }
         if (av < bv) return sortDir === "asc" ? -1 : 1;
         if (av > bv) return sortDir === "asc" ? 1 : -1;
         return 0;
@@ -408,23 +417,24 @@ export default function MantenimientoPage() {
               />
             </div>
 
-            {/* Change 3: Date range filters */}
+            {/* Filtros de fecha de solicitud */}
             <div className="flex gap-2 flex-wrap items-center">
+              <span className="text-xs text-gray-500 font-medium">Solicitud desde:</span>
               <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Desde" title="Fecha desde" />
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary" />
+              <span className="text-xs text-gray-500 font-medium">Hasta:</span>
               <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Hasta" title="Fecha hasta" />
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary" />
               {(fechaDesde || fechaHasta) && (
                 <button onClick={() => { setFechaDesde(""); setFechaHasta(""); }}
-                  className="text-xs text-gray-400 hover:text-gray-600 underline">Limpiar fechas</button>
+                  className="text-xs text-gray-400 hover:text-gray-600 underline">Limpiar</button>
               )}
             </div>
 
             {/* Filters */}
             <div className="flex flex-wrap gap-2 items-center justify-between">
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
+                {/* Estado pills */}
                 {["", "pendiente", "en_proceso", "resuelto"].map((e) => (
                   <button key={e} onClick={() => setFiltroEstado(e)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -433,6 +443,17 @@ export default function MantenimientoPage() {
                     {e === "" ? "Todos" : e.replace("_", " ")}
                   </button>
                 ))}
+                {/* Prioridad dropdown */}
+                <select
+                  value={filtroPrioridad}
+                  onChange={(e) => setFiltroPrioridad(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">Toda prioridad</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
+                {/* Programados toggle */}
                 <button
                   onClick={() => setFiltroProgramado(filtroProgramado === true ? null : true)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -440,6 +461,11 @@ export default function MantenimientoPage() {
                   }`}>
                   📅 Programados
                 </button>
+                {/* Limpiar filtros */}
+                {(filtroEstado || filtroPrioridad || filtroProgramado !== null) && (
+                  <button onClick={() => { setFiltroEstado(""); setFiltroPrioridad(""); setFiltroProgramado(null); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline">Limpiar filtros</button>
+                )}
               </div>
               {canEdit && (
                 <button onClick={() => setShowForm(true)}
@@ -460,6 +486,7 @@ export default function MantenimientoPage() {
                         { label: "Cat.",        col: "categoria" },
                         { label: "Prioridad",   col: "prioridad" },
                         { label: "Estado",      col: "estado" },
+                        { label: "Fecha solicitud", col: "solicitud" },
                         { label: "Vencimiento", col: "vencimiento" },
                       ].map(({ label, col }) => (
                         <th key={col} onClick={() => toggleSort(col)}
@@ -471,11 +498,11 @@ export default function MantenimientoPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {loading ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Cargando...</td></tr>
                     ) : (() => {
                       const filtered = solicitudesOrdenadas;
                       if (filtered.length === 0) return (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{sq ? "Sin resultados." : "No hay solicitudes"}</td></tr>
                       );
                       return filtered.map((s) => (
                         <tr key={s.id}
@@ -486,8 +513,12 @@ export default function MantenimientoPage() {
                             <div className="font-medium text-gray-900 flex items-center gap-1.5 flex-wrap">
                               {s.titulo}
                               {s.es_programado && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700 flex-shrink-0">
-                                  📅 Prog.
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
+                                  s.ciclo_cerrado ? "bg-gray-100 text-gray-400" :
+                                  s.ciclo_activo === false ? "bg-gray-100 text-gray-500" :
+                                  "bg-teal-100 text-teal-700"
+                                }`}>
+                                  📅 {s.ciclo_cerrado ? "Prog. cerrado" : s.ciclo_activo === false ? "Prog. inactivo" : "Prog."}
                                 </span>
                               )}
                             </div>
@@ -506,6 +537,11 @@ export default function MantenimientoPage() {
                               {s.estado.replace("_", " ")}
                             </span>
                           </td>
+                          <td className="px-4 py-3 text-xs text-gray-400">
+                            {s.created_at
+                              ? new Date(s.created_at).toLocaleDateString("es-CO")
+                              : <span className="text-gray-300">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-xs text-gray-500">
                             {s.fecha_vencimiento
                               ? new Date(s.fecha_vencimiento).toLocaleDateString("es-CO")
@@ -523,49 +559,172 @@ export default function MantenimientoPage() {
         </>
       )}
 
-      {/* Alertas */}
-      {tab === "alertas" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => setShowAlertaForm(true)}
-              className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
-              + Nueva alerta
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {alertas.length === 0 ? (
-              <div className="col-span-3 text-center py-12 text-gray-400">
-                <div className="text-4xl mb-2">🔔</div>
-                <p>No hay alertas de mantenimiento programadas</p>
-              </div>
-            ) : alertas.map((a) => (
-              <div key={a.id} className={`bg-white rounded-xl border shadow-sm p-5 ${
-                a.estado === "pendiente" ? "border-amber-200" : "border-gray-100"
-              }`}>
-                <div className="flex items-start justify-between mb-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    a.tipo === "preventivo" ? "bg-blue-100 text-blue-700" :
-                    a.tipo === "correctivo" ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
-                  }`}>{a.tipo}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    a.estado === "pendiente" ? "bg-amber-100 text-amber-700" :
-                    a.estado === "completado" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                  }`}>{a.estado}</span>
-                </div>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">{a.titulo}</h3>
-                {a.descripcion && <p className="text-xs text-gray-500 mb-3">{a.descripcion}</p>}
-                <div className="text-xs text-gray-400">📅 {a.fecha_programada}</div>
-                {a.estado === "pendiente" && (
-                  <button onClick={() => api.mantenimientos.alertas.update(a.id, "completado").then(load)}
-                    className="mt-3 w-full text-xs bg-green-100 text-green-700 py-1.5 rounded-lg hover:bg-green-200 font-medium">
-                    Marcar completada
+      {/* Alertas Preventivas */}
+      {tab === "alertas" && (() => {
+        const TIPO_ALERTA_CONFIG: Record<string, { icon: string; color: string; border: string; label: string }> = {
+          vencida:          { icon: "🔴", color: "bg-red-50 text-red-700",    border: "border-l-4 border-red-400",    label: "Vencida" },
+          proxima_vencer:   { icon: "🟡", color: "bg-amber-50 text-amber-700", border: "border-l-4 border-amber-400",  label: "Próxima a vencer" },
+          sin_ocurrencia:   { icon: "🔵", color: "bg-blue-50 text-blue-700",   border: "border-l-4 border-blue-400",   label: "Sin ocurrencia activa" },
+          exceso_presupuesto: { icon: "🟠", color: "bg-orange-50 text-orange-700", border: "border-l-4 border-orange-400", label: "Exceso de presupuesto" },
+          manual:           { icon: "📌", color: "bg-purple-50 text-purple-700", border: "border-l-4 border-purple-400", label: "Manual" },
+        };
+
+        const alertasFiltradas = alertas.filter((a) => {
+          if (filtroAlerta === "todas") return true;
+          if (filtroAlerta === "vencidas") return a.tipo_alerta === "vencida";
+          if (filtroAlerta === "proximas") return a.tipo_alerta === "proxima_vencer";
+          if (filtroAlerta === "sin_programar") return a.tipo_alerta === "sin_ocurrencia";
+          if (filtroAlerta === "presupuesto") return a.tipo_alerta === "exceso_presupuesto";
+          if (filtroAlerta === "manuales") return a.tipo_alerta === "manual" || !a.auto_generada;
+          return true;
+        });
+        const automaticas = alertasFiltradas.filter((a) => a.auto_generada);
+        const manuales = alertasFiltradas.filter((a) => !a.auto_generada);
+
+        const handleResolverManual = async () => {
+          if (!resolverNota.trim() || !resolverAlertaId) return;
+          await api.mantenimientos.alertas.resolver(resolverAlertaId, resolverNota,
+            parseInt(user?.sub ?? "0"), user?.nombre ?? "");
+          setShowResolverModal(false);
+          setResolverNota("");
+          setResolverAlertaId(null);
+          load();
+        };
+
+        return (
+          <div className="space-y-4">
+            {/* Cabecera + botón nueva */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              {/* Filtros por tipo */}
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { key: "todas", label: "Todas" },
+                  { key: "vencidas", label: "🔴 Vencidas" },
+                  { key: "proximas", label: "🟡 Próximas" },
+                  { key: "sin_programar", label: "🔵 Sin programar" },
+                  { key: "presupuesto", label: "🟠 Presupuesto" },
+                  { key: "manuales", label: "📌 Manuales" },
+                ].map(({ key, label }) => (
+                  <button key={key} onClick={() => setFiltroAlerta(key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      filtroAlerta === key ? "bg-primary text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}>
+                    {label}
                   </button>
-                )}
+                ))}
               </div>
-            ))}
+              {canEdit && (
+                <button onClick={() => setShowAlertaForm(true)}
+                  className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
+                  + Nueva alerta manual
+                </button>
+              )}
+            </div>
+
+            {alertasFiltradas.length === 0 && (
+              <div className="text-center py-12 text-gray-400">
+                <div className="text-4xl mb-2">🔔</div>
+                <p>No hay alertas {filtroAlerta !== "todas" ? "de este tipo" : ""}</p>
+              </div>
+            )}
+
+            {/* Sección Automáticas */}
+            {automaticas.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alertas automáticas ({automaticas.length})</h4>
+                {automaticas.map((a) => {
+                  const cfg = TIPO_ALERTA_CONFIG[a.tipo_alerta] ?? TIPO_ALERTA_CONFIG["manual"];
+                  return (
+                    <div key={a.id} className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 ${cfg.border} flex gap-4`}>
+                      <div className="text-2xl flex-shrink-0">{cfg.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            a.prioridad_alerta === "alta" ? "bg-red-100 text-red-700" :
+                            a.prioridad_alerta === "media" ? "bg-orange-100 text-orange-700" :
+                            "bg-gray-100 text-gray-500"
+                          }`}>{a.prioridad_alerta ?? "media"}</span>
+                          {a.atendida && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Atendida</span>}
+                        </div>
+                        <h3 className="font-semibold text-gray-900 text-sm">{a.titulo}</h3>
+                        {a.descripcion && <p className="text-xs text-gray-500 mt-0.5">{a.descripcion}</p>}
+                        {(a.mantenimiento_titulo || a.inventario_nombre) && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            🔧 {a.mantenimiento_titulo ?? ""}{a.inventario_nombre ? ` · ${a.inventario_nombre}` : ""}
+                          </p>
+                        )}
+                      </div>
+                      {a.mantenimiento_id && (
+                        <button
+                          onClick={() => router.push(`/dashboard/mantenimiento/${a.mantenimiento_id}`)}
+                          className="text-xs text-primary hover:underline flex-shrink-0 self-center">
+                          Ver →
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Sección Manuales */}
+            {manuales.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alertas manuales ({manuales.length})</h4>
+                {manuales.map((a) => (
+                  <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 border-l-4 border-purple-300 flex gap-4">
+                    <div className="text-2xl flex-shrink-0">📌</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">Manual</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          a.estado === "pendiente" ? "bg-amber-100 text-amber-700" :
+                          a.estado === "completado" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                        }`}>{a.estado}</span>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 text-sm">{a.titulo}</h3>
+                      {a.descripcion && <p className="text-xs text-gray-500 mt-0.5">{a.descripcion}</p>}
+                      <p className="text-xs text-gray-400 mt-1">📅 {a.fecha_programada}</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-shrink-0 self-center">
+                      {a.estado === "pendiente" && (
+                        <button onClick={() => { setResolverAlertaId(a.id); setShowResolverModal(true); }}
+                          className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-200 font-medium">
+                          Resolver
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modal resolver alerta manual */}
+            {showResolverModal && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+                  <h3 className="font-semibold text-gray-900">Resolver alerta manual</h3>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nota de resolución *</label>
+                    <textarea rows={3} value={resolverNota} onChange={(e) => setResolverNota(e.target.value)}
+                      placeholder="Describe cómo se resolvió la alerta…"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button onClick={() => { setShowResolverModal(false); setResolverNota(""); }}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancelar</button>
+                    <button onClick={handleResolverManual} disabled={!resolverNota.trim()}
+                      className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                      Confirmar resolución
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Inventario */}
       {tab === "inventario" && (
